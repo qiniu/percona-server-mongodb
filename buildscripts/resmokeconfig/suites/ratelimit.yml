@@ -10,9 +10,5 @@ executor:
   js_test:
     config:
       shell_options:
+        nodb: ''
         readMode: commands
-    fixture:
-      class: MongoDFixture
-      mongod_options:
-        set_parameters:
-          enableTestCommands: 1

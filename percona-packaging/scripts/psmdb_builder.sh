@@ -195,11 +195,11 @@ get_system(){
 }
 
 install_golang() {
-    wget http://jenkins.percona.com/downloads/golang/go1.8.linux-amd64.tar.gz -O /tmp/golang1.8.tar.gz
-    tar --transform=s,go,go1.8, -zxf /tmp/golang1.8.tar.gz
+    wget https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz -O /tmp/golang1.11.tar.gz
+    tar --transform=s,go,go1.11, -zxf /tmp/golang1.11.tar.gz
     rm -rf /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
-    mv go1.8 /usr/local/
-    ln -s /usr/local/go1.8 /usr/local/go
+    mv go1.11 /usr/local/
+    ln -s /usr/local/go1.11 /usr/local/go
 }
 
 install_gcc_54_centos(){
@@ -215,56 +215,50 @@ install_gcc_54_deb(){
     if [ x"${DEBIAN}" = xwheezy -o x"${DEBIAN}" = xjessie ]; then
         wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz
         tar -zxf /tmp/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz
-        sudo rm -rf /usr/local/gcc-5.4.0
-        sudo mv gcc-5.4.0 /usr/local/
+        rm -rf /usr/local/gcc-5.4.0
+        mv gcc-5.4.0 /usr/local/
         if [ x"${DEBIAN}" = xjessie ]; then
             echo "OUTPUT_FORMAT(elf64-x86-64)" > libstdc++.so && echo "INPUT ( /usr/local/gcc-5.4.0/lib64/libstdc++.a )" >> libstdc++.so
-            sudo mv libstdc++.so /usr/local/gcc-5.4.0/lib64/
+            mv libstdc++.so /usr/local/gcc-5.4.0/lib64/
         fi
     fi
     if [ x"${DEBIAN}" = xtrusty -o x"${DEBIAN}" = xxenial ]; then
         wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
         tar -zxf /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
-        sudo rm -rf /usr/local/gcc-5.4.0
-        sudo mv gcc-5.4.0 /usr/local/
+        rm -rf /usr/local/gcc-5.4.0
+        mv gcc-5.4.0 /usr/local/
+    fi
+    if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic ]; then
+        apt-get -y install gcc-5 g++-5
+    fi
+    if [ x"${DEBIAN}" = xstretch ]; then
+        wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_Debian-stretch-x64.tar.gz -O /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
+        tar -zxf /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
+        rm -rf /usr/local/gcc-5.4.0
+        mv gcc-5.4.0 /usr/local/
     fi
 }
 
 set_compiler(){
-    if [ x"${DEBIAN}" = xjessie -o x"${DEBIAN}" = xwheezy -o x"${DEBIAN}" = xtrusty -o x"${DEBIAN}" = xxenial ]; then
+    if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic ]; then
+        export CC=/usr/bin/gcc-5
+        export CXX=/usr/bin/g++-5
+    else
         export CC=/usr/local/gcc-5.4.0/bin/gcc-5.4
-	    export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
-    fi
-    if [ x"${DEBIAN}" = xstretch ]; then
-        export CC=/usr/bin/gcc-6
-	    export CXX=/usr/bin/g++-6
-    fi
-    if [ x"${DEBIAN}" = xartful -o x"${DEBIAN}" = xbionic ]; then
-        export CC=/usr/bin/gcc-7
-	    export CXX=/usr/bin/g++-7
+        export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
     fi
 }
 
 fix_rules(){
-    if [ x"${DEBIAN}" = xjessie -o x"${DEBIAN}" = xwheezy -o x"${DEBIAN}" = xtrusty -o x"${DEBIAN}" = xxenial ]; then
+    if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic ]; then
+        sed -i 's|cc = gcc-5|CC = /usr/bin/gcc-5|' debian/rules
+        sed -i 's|cxx = g++-5|CXX = /usr/bin/g++-5|' debian/rules
+    else
         sed -i 's|CC = gcc-5|CC = /usr/local/gcc-5.4.0/bin/gcc-5.4|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-5.4.0/bin/g++-5.4|' debian/rules
     fi
-    if [ x"${DEBIAN}" = xstretch ]; then
-        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-6|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-6|' debian/rules  
-        sed -i 's|CC = /usr/local/gcc-5.4.0/bin/gcc-5.4|CC = /usr/bin/gcc-6|' debian/rules
-        sed -i 's|CXX = /usr/local/gcc-5.4.0/bin/g++-5.4|CXX = /usr/bin/g++-6|' debian/rules
-        sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules 
-    fi
-    if [ x"${DEBIAN}" = xartful -o x"${DEBIAN}" = xbionic ]; then
-        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-7|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-7|' debian/rules
-        sed -i 's|CC = /usr/local/gcc-5.4.0/bin/gcc-5.4|CC = /usr/bin/gcc-7|' debian/rules
-        sed -i 's|CXX = /usr/local/gcc-5.4.0/bin/g++-5.4|CXX = /usr/bin/g++-7|' debian/rules
-        sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules 
-    fi
-    if [ x"${DEBIAN}" = xbionic ]; then
+    sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules 
+    if [ x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xcosmic ]; then
         sed -i "s/-Werror//g" src/third_party/PerconaFT/cmake_modules/TokuSetupCompiler.cmake
     fi
 }
@@ -301,7 +295,7 @@ install_deps() {
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
       INSTALL_LIST="valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev dh-systemd libsasl2-dev gcc g++ cmake "
-      if [ x"${DEBIAN}" = xstretch -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xartful ]; then
+      if [ x"${DEBIAN}" = xstretch -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xcosmic ]; then
         INSTALL_LIST="${INSTALL_LIST} libssl1.0-dev"
       else
         INSTALL_LIST="${INSTALL_LIST} libssl-dev"
@@ -559,8 +553,13 @@ build_deb(){
     #
     cd ${PRODUCT}-34-${VERSION}
     #
+    cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
+    sed -i 's|VersionStr="$(git describe)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
+    sed -i 's|Gitspec="$(git rev-parse HEAD)"|Gitspec="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
+    sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
+    sed -i 's|exit $ec||' mongo-tools/build.sh
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     if [ x"${DEBIAN}" != xtrusty ]; then
       sed -i 's:dh $@:dh $@ --with systemd:g' debian/rules
@@ -591,21 +590,8 @@ build_tarball(){
     export DEBIAN="$(lsb_release -sc)"
     export PATH=/usr/local/go/bin:$PATH
     #
-    if [ -f /etc/debian_version ]; then
-        if [ x"${DEBIAN}" = xwheezy -o x"${DEBIAN}" = xjessie -o x"${DEBIAN}" = xtrusty -o x"${DEBIAN}" = xxenial ]; then
-            export CC=/usr/local/gcc-5.4.0/bin/gcc-5.4
-            export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
-        else
-            export CC=gcc-5
-            export CXX=g++-5
-        fi
-    else
-        export CC=/usr/local/gcc-5.4.0/bin/gcc-5.4
-        export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
-        
-    fi
+    set_compiler
     #
-
     PSM_TARGETS="mongod mongos mongo mongobridge"
     TARBALL_SUFFIX=""
     if [ ${DEBUG} = 1 ]; then
@@ -668,7 +654,7 @@ build_tarball(){
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
     if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --rocksdb --inmemory --hotbackup CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib ${PSM_TARGETS}
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --rocksdb --inmemory --hotbackup CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib ${PSM_TARGETS}
     else
         buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j$NJOBS --use-sasl-client \
         CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib --rocksdb --wiredtiger --inmemory --hotbackup ${PSM_TARGETS}
@@ -678,35 +664,36 @@ build_tarball(){
     #scons --prefix=$PWD/$PSMDIR install
     #
     mkdir -p ${PSMDIR}/bin
-    if [ ${DEBUG} = 0 ]; then
     for target in ${PSM_TARGETS[@]}; do
         cp -f $target ${PSMDIR}/bin
-        strip --strip-debug ${PSMDIR}/bin/${target}
+        if [ ${DEBUG} = 0 ]; then
+            strip --strip-debug ${PSMDIR}/bin/${target}
+	fi
     done
-    fi
     #
     cd ${WORKDIR}
     #
     # Build mongo tools
     cd ${TOOLSDIR}
+    mkdir -p build_tools/src/github.com/mongodb/mongo-tools
     rm -rf vendor/pkg
-    [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
+    cp -r $(ls | grep -v build_tools) build_tools/src/github.com/mongodb/mongo-tools/
+    cd build_tools/src/github.com/mongodb/mongo-tools
     export GOROOT="/usr/local/go/"
     export GOPATH=$(pwd)/
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
-    . ./set_gopath.sh
     . ./set_tools_revision.sh
-    mkdir -p bin
-    for i in bsondump mongostat mongofiles mongoexport mongoimport mongorestore mongodump mongotop mongooplog mongoreplay; do
-    echo "Building ${i}..."
+    sed -i 's|VersionStr="$(git describe)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
+    sed -i 's|Gitspec="$(git rev-parse HEAD)"|Gitspec="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
+    . ./set_goenv.sh
     if [ ${DEBUG} = 0 ]; then
-        go build -a -x -o "bin/$i" -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=${PSMDB_TOOLS_COMMIT_HASH} -X github.com/mongodb/mongo-tools/common/options.VersionStr=${PSMDB_TOOLS_REVISION}" -tags "${TOOLS_TAGS}" "$i/main/$i.go"
+        sed -i 's|go build|go build -a -x|' build.sh
     else
-        go build -a -o "bin/$i" -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=${PSMDB_TOOLS_COMMIT_HASH} -X github.com/mongodb/mongo-tools/common/options.VersionStr=${PSMDB_TOOLS_REVISION}" -tags "${TOOLS_TAGS}" "$i/main/$i.go"
+	sed -i 's|go build|go build -a |' build.sh
     fi
-    done
-    # move mongo tools to PSM installation dir
+    sed -i 's|exit $ec||' build.sh
+    . ./build.sh ${TOOLS_TAGS}
     mv bin/* ${PSMDIR_ABS}/${PSMDIR}/bin
     # end build tools
     #

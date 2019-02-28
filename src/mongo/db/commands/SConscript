@@ -22,10 +22,6 @@ env.Library(
         ]
     )
 
-coredbOptionalLibdeps = []
-if has_option('hotbackup'):
-    coredbOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
-
 env.Library(
     target="core",
     source=[
@@ -83,8 +79,12 @@ env.Library(
         '$BUILD_DIR/mongo/util/ntservice',
         '$BUILD_DIR/mongo/util/processinfo',
         'server_status_core',
-    ] + coredbOptionalLibdeps,
+    ],
 )
+
+mongodOptionalLibdeps = []
+if has_option('hotbackup'):
+    mongodOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
 
 # Commands that should only be present in mongod
 env.Library(
@@ -130,6 +130,7 @@ env.Library(
         "plan_cache_commands.cpp",
         "rename_collection_cmd.cpp",
         "repair_cursor.cpp",
+        "resize_oplog.cpp",
         "set_feature_compatibility_version_command.cpp",
         "snapshot_management.cpp",
         "test_commands.cpp",
@@ -159,7 +160,7 @@ env.Library(
         'apply_ops_cmd_common',
         'core',
         'killcursors_common',
-    ],
+    ] + mongodOptionalLibdeps,
     LIBDEPS_TAGS=[
         # TODO: There are many libraries missing from LIBDEPS
         'incomplete'
