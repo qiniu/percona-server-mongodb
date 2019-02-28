@@ -333,12 +333,6 @@ Status MigrationSourceManager::commitChunkMetadataOnConfig(OperationContext* txn
     builder.append(kWriteConcernField, kMajorityWriteConcern.toBSON());
 
     Timer t;
-    // Read operations must begin to wait on the critical section just before we send the commit
-    // operation to the config server
-    {
-        AutoGetCollection autoColl(txn, getNss(), MODE_IX, MODE_X);
-        _readsShouldWaitOnCritSec = true;
-    }
 
     auto commitChunkMigrationResponse =
         grid.shardRegistry()->getConfigShard()->runCommandWithFixedRetryAttempts(
@@ -561,11 +555,6 @@ std::shared_ptr<Notification<void>> MigrationSourceManager::getMigrationCritical
     if (!isForReadOnlyOperation) {
         return _critSecSignal;
     }
-
-    if (_readsShouldWaitOnCritSec) {
-        return _critSecSignal;
-    }
-
     return nullptr;
 }
 
