@@ -273,6 +273,7 @@ private:
             MONGO_FAIL_POINT_PAUSE_WHILE_SET(moveChunkHangAtStep5);
 
             uassertStatusOKWithWarning(migrationSourceManager.commitChunkMetadataOnConfig(txn));
+            sleepmillis(1001); // TODO remove.
             moveTimingHelper.done(6);
             MONGO_FAIL_POINT_PAUSE_WHILE_SET(moveChunkHangAtStep6);
         }
