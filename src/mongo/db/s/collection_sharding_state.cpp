@@ -192,11 +192,12 @@ void CollectionShardingState::clearMigrationSourceManager(OperationContext* txn)
     _sourceMgr = nullptr;
 }
 
-void CollectionShardingState::checkShardVersionOrThrow(OperationContext* txn) {
+void CollectionShardingState::checkShardVersionOrThrow(OperationContext* txn,
+                                                       bool waitForMigrationCommit) {
     string errmsg;
     ChunkVersion received;
     ChunkVersion wanted;
-    if (!_checkShardVersionOk(txn, &errmsg, &received, &wanted)) {
+    if (!_checkShardVersionOk(txn, &errmsg, &received, &wanted, waitForMigrationCommit)) {
         throw SendStaleConfigException(
             _nss.ns(),
             str::stream() << "[" << _nss.ns() << "] shard version not ok: " << errmsg,
@@ -259,7 +260,7 @@ void CollectionShardingState::onInsertOp(OperationContext* txn, const BSONObj& i
         }
     }
 
-    checkShardVersionOrThrow(txn);
+    checkShardVersionOrThrow(txn, isDocumentInMigratingChunk(txn, insertedDoc));
 
     if (_sourceMgr) {
         _sourceMgr->getCloner()->onInsertOp(txn, insertedDoc);
@@ -269,7 +270,7 @@ void CollectionShardingState::onInsertOp(OperationContext* txn, const BSONObj& i
 void CollectionShardingState::onUpdateOp(OperationContext* txn, const BSONObj& updatedDoc) {
     dassert(txn->lockState()->isCollectionLockedForMode(_nss.ns(), MODE_IX));
 
-    checkShardVersionOrThrow(txn);
+    checkShardVersionOrThrow(txn, isDocumentInMigratingChunk(txn, updatedDoc));
 
     if (_sourceMgr) {
         _sourceMgr->getCloner()->onUpdateOp(txn, updatedDoc);
@@ -322,7 +323,7 @@ void CollectionShardingState::onDeleteOp(OperationContext* txn,
         }
     }
 
-    checkShardVersionOrThrow(txn);
+    checkShardVersionOrThrow(txn, deleteState.isMigrating);
 
     if (_sourceMgr && deleteState.isMigrating) {
         _sourceMgr->getCloner()->onDeleteOp(txn, deleteState.idDoc);
@@ -362,7 +363,8 @@ void CollectionShardingState::onDropCollection(OperationContext* txn,
 bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
                                                    string* errmsg,
                                                    ChunkVersion* expectedShardVersion,
-                                                   ChunkVersion* actualShardVersion) {
+                                                   ChunkVersion* actualShardVersion,
+                                                   bool waitForMigrationCommit) {
     Client* client = txn->getClient();
 
     // Operations using the DBDirectClient are unversioned.
@@ -401,7 +403,7 @@ bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
     auto metadata = getMetadata();
     *actualShardVersion = metadata ? metadata->getShardVersion() : ChunkVersion::UNSHARDED();
 
-    if (_sourceMgr) {
+    if (waitForMigrationCommit && _sourceMgr) {
         const bool isReader = !txn->lockState()->isWriteLocked();
 
         auto criticalSectionSignal = _sourceMgr->getMigrationCriticalSectionSignal(isReader);

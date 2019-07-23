@@ -146,7 +146,7 @@ public:
      * response is constructed, this function should be the only means of checking for shard version
      * match.
      */
-    void checkShardVersionOrThrow(OperationContext* txn);
+    void checkShardVersionOrThrow(OperationContext* txn, bool waitForMigrationCommit = false);
 
     /**
      * Returns whether this collection is sharded. Valid only if mongoD is primary.
@@ -184,7 +184,8 @@ private:
     bool _checkShardVersionOk(OperationContext* txn,
                               std::string* errmsg,
                               ChunkVersion* expectedShardVersion,
-                              ChunkVersion* actualShardVersion);
+                              ChunkVersion* actualShardVersion,
+                              bool waitForMigrationCommit);
 
     // Namespace to which this state belongs.
     const NamespaceString _nss;
