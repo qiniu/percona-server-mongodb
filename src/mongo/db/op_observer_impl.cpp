@@ -64,6 +64,23 @@ void OpObserverImpl::onCreateIndex(OperationContext* txn,
     logOpForDbHash(txn, ns.c_str());
 }
 
+void OpObserverImpl::aboutToInserts(OperationContext* txn,
+                                    const NamespaceString& nss,
+                                    std::vector<BSONObj>::const_iterator begin,
+                                    std::vector<BSONObj>::const_iterator end,
+                                    bool fromMigrate) {
+    if (fromMigrate) {
+        return;
+    }
+
+    auto css = CollectionShardingState::get(txn, nss.ns());
+    for (auto it = begin; it != end; it++) {
+        if (css->isDocumentInMigratingChunk(txn, *it)) {
+            css->checkShardVersionOrThrow(txn, true);
+        }
+    }
+}
+
 void OpObserverImpl::onInserts(OperationContext* txn,
                                const NamespaceString& nss,
                                std::vector<BSONObj>::const_iterator begin,
@@ -93,6 +110,17 @@ void OpObserverImpl::onInserts(OperationContext* txn,
     }
     if (nss.coll() == DurableViewCatalog::viewsCollectionName()) {
         DurableViewCatalog::onExternalChange(txn, nss);
+    }
+}
+
+void OpObserverImpl::aboutToUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) {
+    if (args.fromMigrate) {
+        return;
+    }
+
+    auto css = CollectionShardingState::get(txn, args.ns);
+    if (css->isDocumentInMigratingChunk(txn, args.updatedDoc)) {
+        css->checkShardVersionOrThrow(txn, true);
     }
 }
 
@@ -142,7 +170,8 @@ void OpObserverImpl::onUpdate(OperationContext* txn, const OplogUpdateEntryArgs&
 
 CollectionShardingState::DeleteState OpObserverImpl::aboutToDelete(OperationContext* txn,
                                                                    const NamespaceString& ns,
-                                                                   const BSONObj& doc) {
+                                                                   const BSONObj& doc,
+                                                                   bool fromMigrate) {
     CollectionShardingState::DeleteState deleteState;
     BSONElement idElement = doc["_id"];
     if (!idElement.eoo()) {
@@ -150,7 +179,11 @@ CollectionShardingState::DeleteState OpObserverImpl::aboutToDelete(OperationCont
     }
 
     auto css = CollectionShardingState::get(txn, ns.ns());
+
     deleteState.isMigrating = css->isDocumentInMigratingChunk(txn, doc);
+    if (!fromMigrate && deleteState.isMigrating) {
+        css->checkShardVersionOrThrow(txn, true);
+    }
 
     return deleteState;
 }

@@ -70,15 +70,22 @@ public:
                                const std::string& ns,
                                BSONObj indexDoc,
                                bool fromMigrate) = 0;
+    virtual void aboutToInserts(OperationContext* txn,
+                                const NamespaceString& ns,
+                                std::vector<BSONObj>::const_iterator begin,
+                                std::vector<BSONObj>::const_iterator end,
+                                bool fromMigrate) = 0;
     virtual void onInserts(OperationContext* txn,
                            const NamespaceString& ns,
                            std::vector<BSONObj>::const_iterator begin,
                            std::vector<BSONObj>::const_iterator end,
                            bool fromMigrate) = 0;
+    virtual void aboutToUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) = 0;
     virtual void onUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) = 0;
     virtual CollectionShardingState::DeleteState aboutToDelete(OperationContext* txn,
                                                                const NamespaceString& ns,
-                                                               const BSONObj& doc) = 0;
+                                                               const BSONObj& doc,
+                                                               bool fromMigrate) = 0;
     /**
      * Handles logging before document is deleted.
      *

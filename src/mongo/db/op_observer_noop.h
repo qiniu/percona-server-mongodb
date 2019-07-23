@@ -43,15 +43,22 @@ public:
                        const std::string& ns,
                        BSONObj indexDoc,
                        bool fromMigrate) override;
+    void aboutToInserts(OperationContext* txn,
+                        const NamespaceString& ns,
+                        std::vector<BSONObj>::const_iterator begin,
+                        std::vector<BSONObj>::const_iterator end,
+                        bool fromMigrate) override;
     void onInserts(OperationContext* txn,
                    const NamespaceString& ns,
                    std::vector<BSONObj>::const_iterator begin,
                    std::vector<BSONObj>::const_iterator end,
                    bool fromMigrate) override;
+    void aboutToUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) override;
     void onUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) override;
     CollectionShardingState::DeleteState aboutToDelete(OperationContext* txn,
                                                        const NamespaceString& ns,
-                                                       const BSONObj& doc) override;
+                                                       const BSONObj& doc,
+                                                       bool fromMigrate) override;
     void onDelete(OperationContext* txn,
                   const NamespaceString& ns,
                   CollectionShardingState::DeleteState deleteState,

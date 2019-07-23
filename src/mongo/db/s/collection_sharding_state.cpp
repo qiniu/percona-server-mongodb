@@ -260,7 +260,7 @@ void CollectionShardingState::onInsertOp(OperationContext* txn, const BSONObj& i
         }
     }
 
-    checkShardVersionOrThrow(txn, isDocumentInMigratingChunk(txn, insertedDoc));
+    checkShardVersionOrThrow(txn);
 
     if (_sourceMgr) {
         _sourceMgr->getCloner()->onInsertOp(txn, insertedDoc);
@@ -270,7 +270,7 @@ void CollectionShardingState::onInsertOp(OperationContext* txn, const BSONObj& i
 void CollectionShardingState::onUpdateOp(OperationContext* txn, const BSONObj& updatedDoc) {
     dassert(txn->lockState()->isCollectionLockedForMode(_nss.ns(), MODE_IX));
 
-    checkShardVersionOrThrow(txn, isDocumentInMigratingChunk(txn, updatedDoc));
+    checkShardVersionOrThrow(txn);
 
     if (_sourceMgr) {
         _sourceMgr->getCloner()->onUpdateOp(txn, updatedDoc);
@@ -323,7 +323,7 @@ void CollectionShardingState::onDeleteOp(OperationContext* txn,
         }
     }
 
-    checkShardVersionOrThrow(txn, deleteState.isMigrating);
+    checkShardVersionOrThrow(txn);
 
     if (_sourceMgr && deleteState.isMigrating) {
         _sourceMgr->getCloner()->onDeleteOp(txn, deleteState.idDoc);

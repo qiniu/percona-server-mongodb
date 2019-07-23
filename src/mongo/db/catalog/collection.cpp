@@ -407,6 +407,8 @@ Status Collection::insertDocuments(OperationContext* txn,
             return status;
     }
 
+    getGlobalServiceContext()->getOpObserver()->aboutToInserts(txn, ns(), begin, end, fromMigrate);
+
     const SnapshotId sid = txn->recoveryUnit()->getSnapshotId();
 
     if (_mustTakeCappedLockOnInsert)
@@ -452,13 +454,19 @@ Status Collection::insertDocument(OperationContext* txn,
         }
     }
 
+    dassert(txn->lockState()->isCollectionLockedForMode(ns().toString(), MODE_IX));
+
     {
         auto status = checkValidation(txn, doc);
         if (!status.isOK())
             return status;
     }
 
-    dassert(txn->lockState()->isCollectionLockedForMode(ns().toString(), MODE_IX));
+    vector<BSONObj> docs;
+    docs.push_back(doc);
+
+    getGlobalServiceContext()->getOpObserver()->aboutToInserts(
+        txn, ns(), docs.begin(), docs.end(), false);
 
     if (_mustTakeCappedLockOnInsert)
         synchronizeOnCappedInFlightResource(txn->lockState(), _ns);
@@ -475,9 +483,6 @@ Status Collection::insertDocument(OperationContext* txn,
             return status;
         }
     }
-
-    vector<BSONObj> docs;
-    docs.push_back(doc);
 
     getGlobalServiceContext()->getOpObserver()->onInserts(
         txn, ns(), docs.begin(), docs.end(), false);
@@ -580,7 +585,7 @@ void Collection::deleteDocument(
     Snapshotted<BSONObj> doc = docFor(txn, loc);
 
     auto deleteState =
-        getGlobalServiceContext()->getOpObserver()->aboutToDelete(txn, ns(), doc.value());
+        getGlobalServiceContext()->getOpObserver()->aboutToDelete(txn, ns(), doc.value(), fromMigrate);
 
     /* check if any cursors point to us.  if so, advance them. */
     _cursorManager.invalidateDocument(txn, loc, INVALIDATION_DELETION);
@@ -627,6 +632,8 @@ StatusWith<RecordId> Collection::updateDocument(OperationContext* txn,
     dassert(txn->lockState()->isCollectionLockedForMode(ns().toString(), MODE_IX));
     invariant(oldDoc.snapshotId() == txn->recoveryUnit()->getSnapshotId());
     invariant(newDoc.isOwned());
+
+    getGlobalServiceContext()->getOpObserver()->aboutToUpdate(txn, *args);
 
     if (_needCappedLock) {
         // X-lock the metadata resource for this capped collection until the end of the WUOW. This
@@ -799,6 +806,8 @@ StatusWith<RecordData> Collection::updateDocumentWithDamages(
     dassert(txn->lockState()->isCollectionLockedForMode(ns().toString(), MODE_IX));
     invariant(oldRec.snapshotId() == txn->recoveryUnit()->getSnapshotId());
     invariant(updateWithDamagesSupported());
+
+    getGlobalServiceContext()->getOpObserver()->aboutToUpdate(txn, *args);
 
     // Broadcast the mutation so that query results stay correct.
     _cursorManager.invalidateDocument(txn, loc, INVALIDATION_MUTATION);
