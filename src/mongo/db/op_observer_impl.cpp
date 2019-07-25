@@ -113,13 +113,16 @@ void OpObserverImpl::onInserts(OperationContext* txn,
     }
 }
 
-void OpObserverImpl::aboutToUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) {
-    if (args.fromMigrate) {
+void OpObserverImpl::aboutToUpdate(OperationContext* txn,
+                                   const NamespaceString& ns,
+                                   const BSONObj& doc,
+                                   bool fromMigrate) {
+    if (fromMigrate) {
         return;
     }
 
-    auto css = CollectionShardingState::get(txn, args.ns);
-    if (css->isDocumentInMigratingChunk(txn, args.updatedDoc)) {
+    auto css = CollectionShardingState::get(txn, ns.ns());
+    if (css->isDocumentInMigratingChunk(txn, doc)) {
         css->checkShardVersionOrThrow(txn, true);
     }
 }

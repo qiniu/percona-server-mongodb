@@ -633,8 +633,6 @@ StatusWith<RecordId> Collection::updateDocument(OperationContext* txn,
     invariant(oldDoc.snapshotId() == txn->recoveryUnit()->getSnapshotId());
     invariant(newDoc.isOwned());
 
-    getGlobalServiceContext()->getOpObserver()->aboutToUpdate(txn, *args);
-
     if (_needCappedLock) {
         // X-lock the metadata resource for this capped collection until the end of the WUOW. This
         // prevents the primary from executing with more concurrency than secondaries.
@@ -663,6 +661,9 @@ StatusWith<RecordId> Collection::updateDocument(OperationContext* txn,
                               << oldSize
                               << " != "
                               << newDoc.objsize()};
+
+    getGlobalServiceContext()->getOpObserver()->aboutToUpdate(
+        txn, ns(), newDoc, args->fromMigrate);
 
     // At the end of this step, we will have a map of UpdateTickets, one per index, which
     // represent the index updates needed to be done, based on the changes between oldDoc and
@@ -806,8 +807,6 @@ StatusWith<RecordData> Collection::updateDocumentWithDamages(
     dassert(txn->lockState()->isCollectionLockedForMode(ns().toString(), MODE_IX));
     invariant(oldRec.snapshotId() == txn->recoveryUnit()->getSnapshotId());
     invariant(updateWithDamagesSupported());
-
-    getGlobalServiceContext()->getOpObserver()->aboutToUpdate(txn, *args);
 
     // Broadcast the mutation so that query results stay correct.
     _cursorManager.invalidateDocument(txn, loc, INVALIDATION_MUTATION);

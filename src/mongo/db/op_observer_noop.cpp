@@ -46,7 +46,10 @@ void OpObserverNoop::onInserts(OperationContext*,
                                std::vector<BSONObj>::const_iterator,
                                bool) {}
 
-void OpObserverNoop::aboutToUpdate(OperationContext*, const OplogUpdateEntryArgs&) {}
+void OpObserverNoop::aboutToUpdate(OperationContext* txn,
+                                   const NamespaceString& ns,
+                                   const BSONObj& doc,
+                                   bool fromMigrate) {}
 
 void OpObserverNoop::onUpdate(OperationContext*, const OplogUpdateEntryArgs&) {}
 

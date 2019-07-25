@@ -53,7 +53,10 @@ public:
                    std::vector<BSONObj>::const_iterator begin,
                    std::vector<BSONObj>::const_iterator end,
                    bool fromMigrate) override;
-    void aboutToUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) override;
+    void aboutToUpdate(OperationContext* txn,
+                       const NamespaceString& ns,
+                       const BSONObj& doc,
+                       bool fromMigrate) override;
     void onUpdate(OperationContext* txn, const OplogUpdateEntryArgs& args) override;
     CollectionShardingState::DeleteState aboutToDelete(OperationContext* txn,
                                                        const NamespaceString& ns,
