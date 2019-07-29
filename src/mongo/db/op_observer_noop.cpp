@@ -34,17 +34,29 @@ namespace mongo {
 
 void OpObserverNoop::onCreateIndex(OperationContext*, const std::string&, BSONObj, bool) {}
 
+void OpObserverNoop::aboutToInserts(OperationContext*,
+                                    const NamespaceString&,
+                                    std::vector<BSONObj>::const_iterator,
+                                    std::vector<BSONObj>::const_iterator,
+                                    bool) {}
+
 void OpObserverNoop::onInserts(OperationContext*,
                                const NamespaceString&,
                                std::vector<BSONObj>::const_iterator,
                                std::vector<BSONObj>::const_iterator,
                                bool) {}
 
+void OpObserverNoop::aboutToUpdate(OperationContext* txn,
+                                   const NamespaceString& ns,
+                                   const BSONObj& doc,
+                                   bool fromMigrate) {}
+
 void OpObserverNoop::onUpdate(OperationContext*, const OplogUpdateEntryArgs&) {}
 
 CollectionShardingState::DeleteState OpObserverNoop::aboutToDelete(OperationContext*,
                                                                    const NamespaceString&,
-                                                                   const BSONObj&) {
+                                                                   const BSONObj&,
+                                                                   bool) {
     return {};
 }
 
