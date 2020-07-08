@@ -115,6 +115,8 @@ struct RemoteCommandRequest {
 
     // Deadline by when the request must be completed
     Date_t expirationDate = kNoExpirationDate;
+    //single RemoteCommond start time
+    Date_t start_time;
 };
 
 }  // namespace executor

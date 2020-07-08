@@ -26,6 +26,7 @@
  *    it in the license file.
  */
 
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kDefault
 #include "mongo/platform/basic.h"
 
 #include <string>
@@ -50,7 +51,8 @@
 #include "mongo/s/grid.h"
 #include "mongo/s/stale_exception.h"
 #include "mongo/util/timer.h"
-
+#include "mongo/util/log.h"
+#include "mongo/executor/async_timer_asio.h"
 namespace mongo {
 namespace {
 
@@ -237,12 +239,21 @@ private:
             uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, shardId));
 
         ShardConnection conn(shard->getConnString(), nss.ns(), chunkManager);
+        Timer time;
         bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
         conn.done();
+        auto optime = time.millis();
+        bool slow_log = false;
+        if(optime > serverGlobalParams.slowMS){
+            slow_log = true;
+        }
 
         // ErrorCodes::RecvStaleConfig is the code for RecvStaleConfigException.
         if (!ok && res.getIntField("code") == ErrorCodes::RecvStaleConfig) {
             // Command code traps this exception and re-runs
+            if(slow_log){
+                log()<<"FindAndModify err. target="<<shardId.toString()<<",ips:"<<shard->getConnString() <<" ;req="<<cmdObj.toString()<<" ;resp="<<res.toString()<<";optime="<< optime<<"ms";
+            }
             throw RecvStaleConfigException("FindAndModify", res);
         }
 
@@ -252,7 +263,11 @@ private:
             appendWriteConcernErrorToCmdResponse(shardId, wcErrorElem, result);
         }
 
+        if(slow_log){
+            log()<<"FindAndModify ok. target="<<shardId.toString()<<",ips:" << shard->getConnString() << " ;req="<<cmdObj.toString()<<"  resp="<<res.toString()<<" optime="<< optime<<"ms";
+        }
         result.appendElementsUnique(res);
+
         return ok;
     }
 

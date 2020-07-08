@@ -351,6 +351,12 @@ void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* opCtx,
             return;
         }
 
+        if(manager->getShardKeyPattern().isHashedPattern()){//hash分片
+            if(!balancerConfig->shouldBalanceForAutoSplit()){//balance窗口，两个if不要合并，因为range的split要保持正常
+                return;
+            }
+        }
+
         LOG(1) << "about to initiate autosplit: " << redact(chunk->toString())
                << " dataWritten: " << chunkBytesWritten << " splitThreshold: " << splitThreshold;
 
