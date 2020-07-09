@@ -259,6 +259,7 @@ TEST(BalancerSettingsType, BalancingWindowStartLessThanStop) {
         currentDate(), boost::posix_time::hours(19) + boost::posix_time::minutes(1))));
 }
 
+
 TEST(BalancerSettingsType, BalancingWindowStopLessThanStart) {
     BalancerSettingsType settings =
         assertGet(BalancerSettingsType::fromBSON(BSON("activeWindow" << BSON("start"
@@ -320,6 +321,45 @@ TEST(BalancerSettingsType, InvalidBalancingWindowFormat) {
                       .getStatus());
 }
 
+TEST(BalancerSettingsType, AutoSplitWindow){
+     BalancerSettingsType settings =
+        assertGet(BalancerSettingsType::fromBSON(BSON("activeWindow" << BSON("start"
+                                                                             << "23:00"
+                                                                             << "stop"
+                                                                             << "8:00"))));
+        ASSERT(!settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(8) + boost::posix_time::minutes(1))));
+
+        assertGet(BalancerSettingsType::fromBSON(BSON("activeWindow" << BSON("start"
+                                                                             << "23:00"
+                                                                             << "stop"
+                                                                             << "8:00"))));
+        auto start_minute = settings.getRandMinutes();
+        auto start_seconds = settings.getRandSeconds();
+        if(start_minute ==0 ||start_minute == 59|| start_seconds==0||start_seconds == 59){
+            return;
+        }
+
+    ASSERT(!settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(23) + boost::posix_time::minutes(start_minute)+boost::posix_time::seconds(start_seconds-1))));
+    ASSERT(settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(23) + boost::posix_time::minutes(start_minute)+boost::posix_time::seconds(start_seconds+1))));
+
+    ASSERT(settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(2) + boost::posix_time::minutes(30))));
+    
+    ASSERT(settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(7) + boost::posix_time::minutes(59))));
+
+    ASSERT(!settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(8) + boost::posix_time::minutes(1))));
+    ASSERT(!settings.isTimeInAutoSplitWindow(boost::posix_time::ptime(
+        currentDate(), boost::posix_time::hours(22) + boost::posix_time::minutes(00)+boost::posix_time::seconds(59))));
+
+                                                                
+}
+
+
 TEST(ChunkSizeSettingsType, NormalValues) {
     ASSERT_EQ(
         1024 * 1024ULL,
@@ -348,6 +388,8 @@ TEST(ChunkSizeSettingsType, IllegalValues) {
                       .getStatus());
     ASSERT_NOT_OK(ChunkSizeSettingsType::fromBSON(BSON("IllegalKey" << 1)).getStatus());
 }
+
+
 
 }  // namespace
 }  // namespace mongo

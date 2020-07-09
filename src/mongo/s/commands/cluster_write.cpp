@@ -319,6 +319,12 @@ void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* opCtx,
 
     const uint64_t chunkBytesWritten = chunk->addBytesWritten(dataWritten);
 
+    if(manager->getShardKeyPattern().isHashedPattern()){//hash分片
+        if(!balancerConfig->shouldSplitNow()){//balance窗口+随机分秒作为开始，两个if不要合并，因为range的split要保持正常
+            return;
+        }
+    }
+
     const uint64_t desiredChunkSize = balancerConfig->getMaxChunkSizeBytes();
 
     // If this chunk is at either end of the range, trigger auto-split at 10% less data written in
@@ -349,12 +355,6 @@ void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* opCtx,
 
         if (!balancerConfig->getShouldAutoSplit()) {
             return;
-        }
-
-        if(manager->getShardKeyPattern().isHashedPattern()){//hash分片
-            if(!balancerConfig->shouldBalanceForAutoSplit()){//balance窗口，两个if不要合并，因为range的split要保持正常
-                return;
-            }
         }
 
         LOG(1) << "about to initiate autosplit: " << redact(chunk->toString())
