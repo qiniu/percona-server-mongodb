@@ -42,6 +42,7 @@
 #include "mongo/s/grid.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/platform/random.h"
 
 namespace mongo {
 namespace {
@@ -54,6 +55,7 @@ const char kActiveWindow[] = "activeWindow";
 const char kWaitForDelete[] = "_waitForDelete";
 
 const NamespaceString kSettingsNamespace("config", "settings");
+const int max_minutes_seconds = 59;
 
 }  // namespace
 
@@ -119,6 +121,11 @@ bool BalancerConfiguration::shouldBalanceForAutoSplit() const {
     }
 
     return _balancerSettings.isTimeInBalancingWindow(boost::posix_time::second_clock::local_time());
+}
+
+bool BalancerConfiguration::shouldSplitNow() const {
+    stdx::lock_guard<stdx::mutex> lk(_balancerSettingsMutex);
+    return _balancerSettings.isTimeInAutoSplitWindow(boost::posix_time::second_clock::local_time());
 }
 
 MigrationSecondaryThrottleOptions BalancerConfiguration::getSecondaryThrottle() const {
@@ -302,6 +309,14 @@ StatusWith<BalancerSettingsType> BalancerSettingsType::fromBSON(const BSONObj& o
 
             settings._activeWindowStart = startTime;
             settings._activeWindowStop = stopTime;
+            //_activeSplitStart在_activeWindowStart之后随机一小时内的时间
+            PseudoRandom r(static_cast<int64_t>(time(0)));
+            settings._rand_minutes = r.nextInt32(max_minutes_seconds);
+            settings._rand_seconds = r.nextInt32(max_minutes_seconds);
+            log()<<"active split minute=" << settings._rand_minutes << ",seconds=" << settings._rand_seconds;
+
+            settings._activeSplitStart = startTime + boost::posix_time::minutes(settings._rand_minutes)+boost::posix_time::seconds(settings._rand_seconds);
+
         } else if (status != ErrorCodes::NoSuchKey) {
             return status;
         }
@@ -355,6 +370,34 @@ bool BalancerSettingsType::isTimeInBalancingWindow(const boost::posix_time::ptim
 
     return false;
 }
+
+bool BalancerSettingsType::isTimeInAutoSplitWindow(const boost::posix_time::ptime& now) const {
+    invariant(!_activeSplitStart == !_activeWindowStop);
+
+    if (!_activeSplitStart) {
+        return true;
+    }
+
+    LOG(1).stream() << "inAutoSplitWindow: "
+                    << " now: " << now << " startTime: " << *_activeSplitStart
+                    << " stopTime: " << *_activeWindowStop;
+
+    if (*_activeWindowStop > *_activeSplitStart) {
+        if ((now >= *_activeSplitStart) && (now <= *_activeWindowStop)) {
+            return true;
+        }
+    } else if (*_activeSplitStart > *_activeWindowStop) {
+        if ((now >= *_activeSplitStart) || (now <= *_activeWindowStop)) {
+            return true;
+        }
+    } else {
+        MONGO_UNREACHABLE;
+    }
+
+    return false;
+}
+
+
 
 ChunkSizeSettingsType::ChunkSizeSettingsType() = default;
 

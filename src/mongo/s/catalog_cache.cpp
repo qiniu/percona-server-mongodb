@@ -99,6 +99,7 @@ std::shared_ptr<ChunkManager> refreshCollectionRoutingInfo(
 
     ChunkVersion collectionVersion = startingCollectionVersion;
 
+    Timer timer;
     for (const auto& chunk : collectionAndChunks.changedChunks) {
         const auto& chunkVersion = chunk.getVersion();
 
@@ -129,7 +130,7 @@ std::shared_ptr<ChunkManager> refreshCollectionRoutingInfo(
         // Insert only the chunk itself
         chunkMap.insert(std::make_pair(chunk.getMax(), std::make_shared<Chunk>(chunk)));
     }
-
+    log()<<"compare diff chunks size="<<collectionAndChunks.changedChunks.size()<<",optime="<<timer.millis();
     // If at least one diff was applied, the metadata is correct, but it might not have changed so
     // in this case there is no need to recreate the chunk manager.
     //

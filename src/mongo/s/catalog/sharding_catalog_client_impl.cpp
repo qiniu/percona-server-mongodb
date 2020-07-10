@@ -1180,6 +1180,7 @@ Status ShardingCatalogClientImpl::getChunks(OperationContext* txn,
 
     // Convert boost::optional<int> to boost::optional<long long>.
     auto longLimit = limit ? boost::optional<long long>(*limit) : boost::none;
+    Timer timer;
     auto findStatus = _exhaustiveFindOnConfig(txn,
                                               kConfigReadSelector,
                                               readConcern,
@@ -1187,12 +1188,14 @@ Status ShardingCatalogClientImpl::getChunks(OperationContext* txn,
                                               query,
                                               sort,
                                               longLimit);
+    log()<<"getChunks from configsvr optime="<<timer.millis()<<"ms";
     if (!findStatus.isOK()) {
         return {findStatus.getStatus().code(),
                 str::stream() << "Failed to load chunks due to "
                               << findStatus.getStatus().reason()};
     }
 
+    int chunk_change_size = 0;
     const auto& chunkDocsOpTimePair = findStatus.getValue();
     for (const BSONObj& obj : chunkDocsOpTimePair.value) {
         auto chunkRes = ChunkType::fromBSON(obj);
@@ -1203,9 +1206,10 @@ Status ShardingCatalogClientImpl::getChunks(OperationContext* txn,
                              << " due to "
                              << chunkRes.getStatus().reason()};
         }
-
+        chunk_change_size++;
         chunks->push_back(chunkRes.getValue());
     }
+    log()<<"chunkRes size="<<chunk_change_size;
 
     if (opTime) {
         *opTime = chunkDocsOpTimePair.opTime;

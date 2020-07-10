@@ -93,6 +93,11 @@ public:
      */
     bool isTimeInBalancingWindow(const boost::posix_time::ptime& now) const;
 
+     /**
+     * Returns true if either 'now' is in the autosplit window.Only use hashed 
+     */
+    bool isTimeInAutoSplitWindow(const boost::posix_time::ptime& now) const;
+
     /**
      * Returns the secondary throttle options.
      */
@@ -107,6 +112,11 @@ public:
         return _waitForDelete;
     }
 
+protected:
+    boost::optional<boost::posix_time::ptime> getActiveSplitStart(){
+        return _activeSplitStart;
+    }
+
 private:
     BalancerSettingsType();
 
@@ -114,10 +124,23 @@ private:
 
     boost::optional<boost::posix_time::ptime> _activeWindowStart;
     boost::optional<boost::posix_time::ptime> _activeWindowStop;
+    boost::optional<boost::posix_time::ptime> _activeSplitStart;
 
     MigrationSecondaryThrottleOptions _secondaryThrottle;
 
     bool _waitForDelete{false};
+//for balancer_configuration_test use
+public:
+    int getRandMinutes(){
+        return _rand_minutes;
+    }
+
+    int getRandSeconds(){
+        return _rand_seconds;
+    }
+private:
+    int _rand_minutes = 0;
+    int _rand_seconds = 0;
 };
 
 /**
@@ -222,6 +245,8 @@ public:
      */
     bool shouldBalance() const;
     bool shouldBalanceForAutoSplit() const;
+
+    bool shouldSplitNow() const;
 
     /**
      * Returns the secondary throttle options for the balancer.

@@ -25,7 +25,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kSharding
 #include "mongo/platform/basic.h"
 
 #include "mongo/s/config_server_catalog_cache_loader.h"
@@ -35,6 +35,7 @@
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/grid.h"
 #include "mongo/stdx/memory.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 
@@ -109,6 +110,8 @@ CollectionAndChangedChunks getChangedChunks(OperationContext* opCtx,
     // Query the chunks which have changed
     std::vector<ChunkType> changedChunks;
     repl::OpTime opTime;
+    log()<< "diffQuery.query=" << diffQuery.query.toString() << ";diffQuery.sort=" << diffQuery.sort.toString();
+
     uassertStatusOK(Grid::get(opCtx)->catalogClient(opCtx)->getChunks(
         opCtx,
         diffQuery.query,

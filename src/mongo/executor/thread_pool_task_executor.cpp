@@ -46,7 +46,7 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/util/time_support.h"
-
+#include "mongo/db/server_options.h"
 namespace mongo {
 namespace executor {
 
@@ -339,6 +339,7 @@ StatusWith<TaskExecutor::CallbackHandle> ThreadPoolTaskExecutor::scheduleRemoteC
         scheduledRequest.expirationDate = _net->now() + scheduledRequest.timeout;
     }
 
+    scheduledRequest.start_time = _net->now();
     // In case the request fails to even get a connection from the pool,
     // we wrap the callback in a method that prepares its input parameters.
     auto wq = makeSingletonWorkQueue([scheduledRequest, cb](const CallbackArgs& cbData) {
@@ -366,6 +367,12 @@ StatusWith<TaskExecutor::CallbackHandle> ThreadPoolTaskExecutor::scheduleRemoteC
             }
             LOG(3) << "Received remote response: "
                    << redact(response.isOK() ? response.toString() : response.status.toString());
+            auto optime = this->_net->now() - scheduledRequest.start_time;
+            //slow remote command
+           if(optime.count() >  serverGlobalParams.slowMS){
+                 log() << "single remote req: " <<redact(scheduledRequest.toString())<<";remote resp:"
+                   << redact(response.isOK() ? response.toString() : response.status.toString())<<";optime:"<<optime;
+            }
             swap(cbState->callback, newCb);
             scheduleIntoPool_inlock(&_networkInProgressQueue, cbState->iter, std::move(lk));
         });
