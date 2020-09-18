@@ -420,17 +420,14 @@ void State::prepTempCollection() {
             // MongoDB when the featureCompatibilityVersion of this server is 3.2.
             BSONObj indexSpec = BSON("key" << BSON("0" << 1) << "ns" << _config.incLong << "name"
                                            << "_temp_0"
-                                           << "v"
-                                           << static_cast<int>(IndexVersion::kV2));
+                                           << "v" << static_cast<int>(IndexVersion::kV2));
             Status status = incColl->getIndexCatalog()
                                 ->createIndexOnEmptyCollection(_txn, indexSpec)
                                 .getStatus();
             if (!status.isOK()) {
                 uasserted(17305,
                           str::stream() << "createIndex failed for mr incLong ns: "
-                                        << _config.incLong
-                                        << " err: "
-                                        << status.code());
+                                        << _config.incLong << " err: " << status.code());
             }
             wuow.commit();
         }
@@ -526,9 +523,7 @@ void State::appendResults(BSONObjBuilder& final) {
             BSONObj idKey = BSON("_id" << 1);
             if (!_db.runCommand("admin",
                                 BSON("splitVector" << _config.outputOptions.finalNamespace
-                                                   << "keyPattern"
-                                                   << idKey
-                                                   << "maxChunkSizeBytes"
+                                                   << "keyPattern" << idKey << "maxChunkSizeBytes"
                                                    << _config.splitInfo),
                                 res)) {
                 uasserted(15921, str::stream() << "splitVector failed: " << res);
@@ -645,8 +640,7 @@ long long State::postProcessCollectionNonAtomic(OperationContext* opCtx,
         if (!_db.runCommand("admin",
                             BSON("renameCollection" << _config.tempNamespace << "to"
                                                     << _config.outputOptions.finalNamespace
-                                                    << "stayTemp"
-                                                    << _config.shardedFirstPass),
+                                                    << "stayTemp" << _config.shardedFirstPass),
                             info)) {
             uasserted(10076, str::stream() << "rename failed: " << info);
         }
@@ -776,10 +770,8 @@ void State::_insertToInc(BSONObj& o) {
         if (o.objsize() > BSONObjMaxUserSize) {
             uasserted(ErrorCodes::BadValue,
                       str::stream() << "object to insert too large for incremental collection"
-                                    << ". size in bytes: "
-                                    << o.objsize()
-                                    << ", max size: "
-                                    << BSONObjMaxUserSize);
+                                    << ". size in bytes: " << o.objsize()
+                                    << ", max size: " << BSONObjMaxUserSize);
         }
 
         // TODO: Consider whether to pass OpDebug for stats tracking under SERVER-23261.
@@ -1796,13 +1788,22 @@ public:
                 // Fetch result from other shards 1 chunk at a time. It would be better to do just
                 // one big $or query, but then the sorting would not be efficient.
                 const string shardName = ShardingState::get(opCtx)->getShardName();
-
-                for (const auto& chunkEntry : cm->chunkMap()) {
-                    const auto& chunk = chunkEntry.second;
-                    if (chunk->getShardId() == shardName) {
-                        chunks.push_back(chunk);
+                for (auto& itTopIndexEntry : cm->getTopIndexMap()) {
+                    auto chunkMap = itTopIndexEntry.second;
+                    for (auto chunkEntry = chunkMap->begin(); chunkEntry != chunkMap->end();
+                         ++chunkEntry) {
+                        const auto& chunk = chunkEntry->second;
+                        if (chunk->getShardId() == shardName) {
+                            chunks.push_back(chunk);
+                        }
                     }
                 }
+                // for (const auto& chunkEntry : cm->chunkMap()) {
+                //     const auto& chunk = chunkEntry.second;
+                //     if (chunk->getShardId() == shardName) {
+                //         chunks.push_back(chunk);
+                //     }
+                // }
             }
         }
 
@@ -1890,5 +1891,5 @@ public:
 
 } mapReduceFinishCommand;
 
-}  // namespace
+}  // namespace mr
 }  // namespace mongo

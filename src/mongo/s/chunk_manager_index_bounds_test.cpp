@@ -34,7 +34,7 @@
 #include "mongo/db/matcher/extensions_callback_noop.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/query/canonical_query.h"
-#include "mongo/s/chunk_manager.h"
+#include "mongo/s/chunk_manager_inlock.h"
 #include "mongo/s/shard_key_pattern.h"
 #include "mongo/s/sharding_test_fixture.h"
 #include "mongo/unittest/unittest.h"
@@ -70,7 +70,7 @@ protected:
 
         BSONObj key = fromjson(keyStr);
 
-        IndexBounds indexBounds = ChunkManager::getIndexBoundsForQuery(key, *query.get());
+        IndexBounds indexBounds = ChunkManagerEX::getIndexBoundsForQuery(key, *query.get());
         ASSERT_EQUALS(indexBounds.size(), expectedBounds.size());
         for (size_t i = 0; i < indexBounds.size(); i++) {
             const OrderedIntervalList& oil = indexBounds.fields[i];
@@ -94,7 +94,7 @@ protected:
 
         BSONObj key = fromjson("{a: 1}");
 
-        IndexBounds indexBounds = ChunkManager::getIndexBoundsForQuery(key, *query.get());
+        IndexBounds indexBounds = ChunkManagerEX::getIndexBoundsForQuery(key, *query.get());
         ASSERT_EQUALS(indexBounds.size(), 1U);
         const OrderedIntervalList& oil = indexBounds.fields.front();
 
@@ -280,7 +280,7 @@ TEST_F(CMCollapseTreeTest, BasicAllElemMatch) {
 
     BSONObj key = fromjson("{'foo.a': 1}");
 
-    IndexBounds indexBounds = ChunkManager::getIndexBoundsForQuery(key, *query.get());
+    IndexBounds indexBounds = ChunkManagerEX::getIndexBoundsForQuery(key, *query.get());
     ASSERT_EQUALS(indexBounds.size(), 1U);
     const OrderedIntervalList& oil = indexBounds.fields.front();
     ASSERT_EQUALS(oil.intervals.size(), 1U);
@@ -361,7 +361,7 @@ TEST_F(CMCollapseTreeTest, HashedSinglePoint) {
 
     BSONObj key = fromjson("{a: 'hashed'}");
 
-    IndexBounds indexBounds = ChunkManager::getIndexBoundsForQuery(key, *query.get());
+    IndexBounds indexBounds = ChunkManagerEX::getIndexBoundsForQuery(key, *query.get());
     ASSERT_EQUALS(indexBounds.size(), 1U);
     const OrderedIntervalList& oil = indexBounds.fields.front();
     ASSERT_EQUALS(oil.intervals.size(), 1U);

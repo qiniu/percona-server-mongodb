@@ -303,7 +303,7 @@ const BatchWriteExecStats& ClusterWriter::getStats() {
 }
 
 void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* opCtx,
-                                           ChunkManager* manager,
+                                           ChunkManagerEX* manager,
                                            Chunk* chunk,
                                            long dataWritten) {
     // Disable lastError tracking so that any errors, which occur during auto-split do not get

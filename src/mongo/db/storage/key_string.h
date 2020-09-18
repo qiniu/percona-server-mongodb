@@ -40,6 +40,7 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/record_id.h"
 #include "mongo/platform/decimal128.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
 
@@ -52,6 +53,11 @@ public:
     static StringData versionToString(Version version) {
         return version == Version::V0 ? "V0" : "V1";
     }
+
+    /**
+     * Provides the latest version of KeyString available.
+     */
+    static const Version kLatestVersion = Version::V1;
 
     /**
      * Encodes info needed to restore the original BSONTypes from a KeyString. They cannot be
@@ -241,7 +247,9 @@ public:
             return _buf[0] & 0x7f;
         }
         void setSizeByte(uint8_t size) {
-            dassert(size < kMaxBytesNeeded);
+            // This error can only occur in cases where the key is not only too long, but also
+            // has too many fields requiring type bits.
+            uassert(ErrorCodes::KeyTooLong, "The key is too long", size < kMaxBytesNeeded);
             _buf[0] = 0x80 | size;
         }
 

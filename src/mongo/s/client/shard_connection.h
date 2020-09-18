@@ -34,7 +34,7 @@
 
 namespace mongo {
 
-class ChunkManager;
+class ChunkManagerEX;
 
 class ShardConnection : public AScopedConnection {
 public:
@@ -52,7 +52,7 @@ public:
      */
     ShardConnection(const ConnectionString& connectionString,
                     const std::string& ns,
-                    std::shared_ptr<ChunkManager> manager = nullptr);
+                    std::shared_ptr<ChunkManagerEX> manager = nullptr);
 
     ~ShardConnection();
 
@@ -94,7 +94,7 @@ public:
         return _ns;
     }
 
-    std::shared_ptr<ChunkManager> getManager() const {
+    std::shared_ptr<ChunkManagerEX> getManager() const {
         return _manager;
     }
 
@@ -137,7 +137,7 @@ private:
 
     const ConnectionString _cs;
     const std::string _ns;
-    const std::shared_ptr<ChunkManager> _manager;
+    const std::shared_ptr<ChunkManagerEX> _manager;
 
     bool _finishedInit;
 

@@ -255,8 +255,7 @@ public:
                         {ErrorCodes::BadValue,
                          str::stream()
                              << "The collation for shardCollection must be {locale: 'simple'}, "
-                             << "but found: "
-                             << collationElement.Obj()});
+                             << "but found: " << collationElement.Obj()});
                 }
 
                 simpleCollationSpecified = true;
@@ -358,12 +357,12 @@ public:
             // simple collation explicitly, return an error.
             if (!defaultCollation.isEmpty() && !simpleCollationSpecified) {
                 conn.done();
-                return appendCommandStatus(result,
-                                           {ErrorCodes::BadValue,
-                                            str::stream()
-                                                << "Collection has default collation: "
-                                                << collectionOptions["collation"]
-                                                << ". Must specify collation {locale: 'simple'}"});
+                return appendCommandStatus(
+                    result,
+                    {ErrorCodes::BadValue,
+                     str::stream()
+                         << "Collection has default collation: " << collectionOptions["collation"]
+                         << ". Must specify collation {locale: 'simple'}"});
             }
         }
 
@@ -428,10 +427,10 @@ public:
                 // per field per collection.
                 if (isHashedShardKey && !idx["seed"].eoo() &&
                     idx["seed"].numberInt() != BSONElementHasher::DEFAULT_HASH_SEED) {
-                    errmsg = str::stream() << "can't shard collection " << nss.ns()
-                                           << " with hashed shard key " << proposedKey
-                                           << " because the hashed index uses a non-default"
-                                           << " seed of " << idx["seed"].numberInt();
+                    errmsg = str::stream()
+                        << "can't shard collection " << nss.ns() << " with hashed shard key "
+                        << proposedKey << " because the hashed index uses a non-default"
+                        << " seed of " << idx["seed"].numberInt();
                     conn.done();
                     return false;
                 }
@@ -603,46 +602,93 @@ public:
                     routingInfo.cm());
             auto chunkManager = routingInfo.cm();
 
-            const auto chunkMap = chunkManager->chunkMap();
+            // const auto chunkMap = chunkManager->chunkMap();
 
-            // 2. Move and commit each "big chunk" to a different shard.
+            // // 2. Move and commit each "big chunk" to a different shard.
+            // int i = 0;
+            // for (ChunkMap::const_iterator c = chunkMap.begin(); c != chunkMap.end(); ++c, ++i) {
+            //     const ShardId& shardId = shardIds[i % numShards];
+            //     const auto toStatus = shardRegistry->getShard(opCtx, shardId);
+            //     if (!toStatus.isOK()) {
+            //         continue;
+            //     }
+            //     const auto to = toStatus.getValue();
+
+            //     auto chunk = c->second;
+
+            //     // Can't move chunk to shard it's already on
+            //     if (to->getId() == chunk->getShardId()) {
+            //         continue;
+            //     }
+
+            //     ChunkType chunkType;
+            //     chunkType.setNS(nss.ns());
+            //     chunkType.setMin(chunk->getMin());
+            //     chunkType.setMax(chunk->getMax());
+            //     chunkType.setShard(chunk->getShardId());
+            //     chunkType.setVersion(chunkManager->getVersion());
+
+            //     Status moveStatus = configsvr_client::moveChunk(
+            //         opCtx,
+            //         chunkType,
+            //         to->getId(),
+            //         Grid::get(opCtx)->getBalancerConfiguration()->getMaxChunkSizeBytes(),
+            //         MigrationSecondaryThrottleOptions::create(
+            //             MigrationSecondaryThrottleOptions::kOff),
+            //         true);
+            //     if (!moveStatus.isOK()) {
+            //         warning() << "couldn't move chunk " << redact(chunk->toString()) << " to
+            //         shard "
+            //                   << *to << " while sharding collection " << nss.ns()
+            //                   << causedBy(redact(moveStatus));
+            //     }
+            // }
+
+
+            const auto topIndexMap = chunkManager->getTopIndexMap();
             int i = 0;
-            for (ChunkMap::const_iterator c = chunkMap.begin(); c != chunkMap.end(); ++c, ++i) {
-                const ShardId& shardId = shardIds[i % numShards];
-                const auto toStatus = shardRegistry->getShard(opCtx, shardId);
-                if (!toStatus.isOK()) {
-                    continue;
-                }
-                const auto to = toStatus.getValue();
+            // 2. Move and commit each "big chunk" to a different shard.
+            for (TopIndexMap::const_iterator it = topIndexMap.begin(); it != topIndexMap.end();
+                 ++it) {
+                for (ChunkMapEX::const_iterator c = it->second->begin(); c != it->second->end();
+                     ++c, ++i) {
+                    const ShardId& shardId = shardIds[i % numShards];
+                    const auto toStatus = shardRegistry->getShard(opCtx, shardId);
+                    if (!toStatus.isOK()) {
+                        continue;
+                    }
+                    const auto to = toStatus.getValue();
 
-                auto chunk = c->second;
+                    auto chunk = c->second;
 
-                // Can't move chunk to shard it's already on
-                if (to->getId() == chunk->getShardId()) {
-                    continue;
-                }
+                    // Can't move chunk to shard it's already on
+                    if (to->getId() == chunk->getShardId()) {
+                        continue;
+                    }
 
-                ChunkType chunkType;
-                chunkType.setNS(nss.ns());
-                chunkType.setMin(chunk->getMin());
-                chunkType.setMax(chunk->getMax());
-                chunkType.setShard(chunk->getShardId());
-                chunkType.setVersion(chunkManager->getVersion());
+                    ChunkType chunkType;
+                    chunkType.setNS(nss.ns());
+                    chunkType.setMin(chunk->getMin());
+                    chunkType.setMax(chunk->getMax());
+                    chunkType.setShard(chunk->getShardId());
+                    chunkType.setVersion(chunkManager->getVersion());
 
-                Status moveStatus = configsvr_client::moveChunk(
-                    opCtx,
-                    chunkType,
-                    to->getId(),
-                    Grid::get(opCtx)->getBalancerConfiguration()->getMaxChunkSizeBytes(),
-                    MigrationSecondaryThrottleOptions::create(
-                        MigrationSecondaryThrottleOptions::kOff),
-                    true);
-                if (!moveStatus.isOK()) {
-                    warning() << "couldn't move chunk " << redact(chunk->toString()) << " to shard "
-                              << *to << " while sharding collection " << nss.ns()
-                              << causedBy(redact(moveStatus));
+                    Status moveStatus = configsvr_client::moveChunk(
+                        opCtx,
+                        chunkType,
+                        to->getId(),
+                        Grid::get(opCtx)->getBalancerConfiguration()->getMaxChunkSizeBytes(),
+                        MigrationSecondaryThrottleOptions::create(
+                            MigrationSecondaryThrottleOptions::kOff),
+                        true);
+                    if (!moveStatus.isOK()) {
+                        warning() << "couldn't move chunk " << redact(chunk->toString())
+                                  << " to shard " << *to << " while sharding collection "
+                                  << nss.ns() << causedBy(redact(moveStatus));
+                    }
                 }
             }
+
 
             if (allSplits.empty()) {
                 return true;

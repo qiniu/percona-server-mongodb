@@ -313,7 +313,7 @@ StatusWith<BalancerSettingsType> BalancerSettingsType::fromBSON(const BSONObj& o
             PseudoRandom r(static_cast<int64_t>(time(0)));
             settings._rand_minutes = r.nextInt32(max_minutes_seconds);
             settings._rand_seconds = r.nextInt32(max_minutes_seconds);
-            log()<<"active split minute=" << settings._rand_minutes << ",seconds=" << settings._rand_seconds;
+            //log()<<"active split minute=" << settings._rand_minutes << ",seconds=" << settings._rand_seconds;
 
             settings._activeSplitStart = startTime + boost::posix_time::minutes(settings._rand_minutes)+boost::posix_time::seconds(settings._rand_seconds);
 

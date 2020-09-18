@@ -37,7 +37,7 @@
 
 namespace mongo {
 
-class ChunkManager;
+class ChunkManagerEX;
 class DBClientCursor;
 class DBClientCursorHolder;
 class OperationContext;
@@ -152,7 +152,7 @@ private:
                                       std::shared_ptr<Shard> primary /* in */,
                                       const NamespaceString& ns,
                                       const std::string& vinfo,
-                                      std::shared_ptr<ChunkManager> manager /* in */);
+                                      std::shared_ptr<ChunkManagerEX> manager /* in */);
 
     // LEGACY init - Needed for map reduce
     void _oldInit();

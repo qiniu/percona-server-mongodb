@@ -112,7 +112,7 @@ bool setShardVersion(OperationContext* opCtx,
                      const string& ns,
                      const ConnectionString& configServer,
                      ChunkVersion version,
-                     ChunkManager* manager,
+                     ChunkManagerEX* manager,
                      bool authoritative,
                      BSONObj& result) {
     ShardId shardId;
@@ -244,7 +244,7 @@ bool initShardVersionEmptyNS(OperationContext* opCtx, DBClientBase* conn_in) {
 bool checkShardVersion(OperationContext* opCtx,
                        DBClientBase* conn_in,
                        const string& ns,
-                       shared_ptr<ChunkManager> refManager,
+                       shared_ptr<ChunkManagerEX> refManager,
                        bool authoritative,
                        int tryNumber) {
     // Empty namespaces are special - we require initialization but not versioning

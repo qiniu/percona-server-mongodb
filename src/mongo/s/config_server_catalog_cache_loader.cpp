@@ -148,10 +148,11 @@ std::shared_ptr<Notification<void>> ConfigServerCatalogCacheLoader::getChunksSin
     const NamespaceString& nss,
     ChunkVersion version,
     stdx::function<void(OperationContext*, StatusWith<CollectionAndChangedChunks>)> callbackFn) {
-
+    log()<<"getChunksSince";
     auto notify = std::make_shared<Notification<void>>();
 
     uassertStatusOK(_threadPool.schedule([ this, nss, version, notify, callbackFn ]() noexcept {
+        log()<<"thread pool exec schedule";
         auto opCtx = Client::getCurrent()->makeOperationContext();
 
         auto swCollAndChunks = [&]() -> StatusWith<CollectionAndChangedChunks> {
@@ -161,7 +162,7 @@ std::shared_ptr<Notification<void>> ConfigServerCatalogCacheLoader::getChunksSin
                 return ex.toStatus();
             }
         }();
-
+        log()<<"start callback";
         callbackFn(opCtx.get(), std::move(swCollAndChunks));
         notify->set();
     }));
