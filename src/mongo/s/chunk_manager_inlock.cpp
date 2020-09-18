@@ -143,19 +143,6 @@ std::shared_ptr<Chunk> ChunkManagerEX::findIntersectingChunkWithSimpleCollation(
     return findIntersectingChunk(shardKey, CollationSpec::kSimpleSpec);
 }
 
-std::shared_ptr<ChunkAndShardVersion> ChunkManagerEX::findIntersectingChunkAndShardVersion(
-    const BSONObj& shardKey, const BSONObj& collation) const {}
-std::shared_ptr<ChunkAndShardVersion>
-ChunkManagerEX::findIntersectingChunkAndShardVersionWithSimpleCollation(
-    const BSONObj& shardKey) const {
-    return findIntersectingChunkAndShardVersion(shardKey, CollationSpec::kSimpleSpec);
-}
-
-
-// const ChunkMap& ChunkManagerEX::chunkMap() const {
-//     boost::shared_lock<boost::shared_mutex> lock(_mutex);
-//     return _chunkMap;
-// }
 
 
 int ChunkManagerEX::numChunks() const {
@@ -669,8 +656,7 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
     _shardVersions =
         _constructShardVersionMap(_collectionVersion.epoch(), chunkMap, _shardKeyOrdering);
     log() << "_shardVersions size = " << _shardVersions.size();
-    int chunks_size = chunkMap.size();
-    int top_index_size = chunkMap.size() / MaxSizeSingleChunksMap + 1;  // 1w一个map
+
     std::shared_ptr<ChunkMapEX> chunksSecondary = std::make_shared<ChunkMapEX>();
     int si = MaxSizeSingleChunksMap;
     for (auto it = chunkMap.rbegin(); it != chunkMap.rend();

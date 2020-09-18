@@ -201,10 +201,7 @@ public:
      */
     std::shared_ptr<Chunk> findIntersectingChunkWithSimpleCollation(const BSONObj& shardKey) const;
 
-    std::shared_ptr<ChunkAndShardVersion> findIntersectingChunkAndShardVersionWithSimpleCollation(
-        const BSONObj& shardKey) const;
-    std::shared_ptr<ChunkAndShardVersion> findIntersectingChunkAndShardVersion(
-        const BSONObj& shardKey, const BSONObj& collation) const;
+ 
 
 
     /**
