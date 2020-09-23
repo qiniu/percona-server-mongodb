@@ -70,15 +70,6 @@ struct IteratorChunks {
     std::string errmsg;
 };
 
-struct ShardIDAndVersion {
-    ShardId shardid;
-    ChunkVersion version;
-};
-
-struct ChunkAndShardVersion {
-    std::shared_ptr<Chunk> chunk;
-    ChunkVersion version;
-};
 
 class ChunkManagerEX : public std::enable_shared_from_this<ChunkManagerEX> {
     MONGO_DISALLOW_COPYING(ChunkManagerEX);
@@ -174,10 +165,9 @@ public:
         _maxSizeSingleChunksMap = maxSize;
     }
 
-
     int numChunks() const;
 
-    TopIndexMap getTopIndexMap() const;
+    TopIndexMap getTopIndexMap() const {return _topIndexMap;}
 
     ShardVersionMapEX getShardVersionMap(){return _shardVersions;}
 
@@ -222,11 +212,6 @@ public:
                              const BSONObj& max,
                              std::set<ShardId>* shardIds) const;
 
-
-    void getShardIdsAndVersionForRange(const BSONObj& min,
-                                       const BSONObj& max,
-                                       std::set<ShardIDAndVersion>* shardIdAndVersions) const;
-
     /**
      * Returns the ids of all shards on which the collection has any chunks.
      */
@@ -255,8 +240,6 @@ public:
      * Returns true if, for this shard, the chunks are identical in both chunk managers
      */
     bool compatibleWith(const ChunkManagerEX& other, const ShardId& shard) const;
-
-    bool compatibleWith(const ChunkVersion& otherVersion, const ShardId& shardName) const;
 
     std::string toString() const;
 
@@ -318,8 +301,6 @@ private:
     ShardVersionMapEX _shardVersions;
 
     std::atomic<uint64_t> _shardVersionSize;
-
-    bool _init;
 
 
     // Max version across all chunks

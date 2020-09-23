@@ -86,9 +86,9 @@ ChunkManagerEX::ChunkManagerEX(NamespaceString nss,
       _shardKeyOrdering(Ordering::make(_shardKeyPattern.toBSON())),
       _defaultCollator(std::move(defaultCollator)),
       _unique(unique),
+      _maxSizeSingleChunksMap(MaxSizeSingleChunksMap),
       _shardVersionSize(_shardVersions.size()),
-      _collectionVersion(collectionVersion),
-      _maxSizeSingleChunksMap(MaxSizeSingleChunksMap) {}
+      _collectionVersion(collectionVersion){}
 
 
 ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
@@ -155,9 +155,7 @@ int ChunkManagerEX::numChunks() const {
     return total_chunks;
 }
 
-TopIndexMap ChunkManagerEX::getTopIndexMap() const {
-    return _topIndexMap;
-}
+
 void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
                                          const BSONObj& query,
                                          const BSONObj& collation,
