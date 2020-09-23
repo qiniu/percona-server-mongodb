@@ -58,7 +58,6 @@ using ShardVersionMapEX = std::map<ShardId, ChunkVersion>;
 
 using TopIndexMap = std::map<std::string, std::shared_ptr<ChunkMapEX>>;
 
-
 class CanonicalQuery;
 struct QuerySolutionNode;
 class OperationContext;
@@ -171,7 +170,9 @@ public:
 
     ChunkVersion getVersion(const ShardId& shardId) const;
 
-    //const ChunkMap& chunkMap() const;
+    void setMaxSizeSingleChunksMap(int maxSize){
+        _maxSizeSingleChunksMap = maxSize;
+    }
 
 
     int numChunks() const;
@@ -260,7 +261,8 @@ public:
     std::string toString() const;
 
     //按start和limit获取内存中的chunks信息，用来校验mongos的内存路由和configsvr中是否一致，内部使用
-    std::shared_ptr<IteratorChunks> iteratorChunks(int start, int limit) const;
+    //print true时，打印整个路由信息到日志
+    std::shared_ptr<IteratorChunks> iteratorChunks(int start, int limit, bool print) const;
 
 private:
     friend class CollectionRoutingDataLoader;
@@ -308,8 +310,11 @@ private:
     // ranges must cover the complete space from [MinKey, MaxKey).
     //ChunkMap _chunkMap;
 
+    //第一级索引，key存放这个索引对应的ChunkMap中的max.
     TopIndexMap _topIndexMap;
-
+    //_topIndexMap 中每个map最大值
+    int _maxSizeSingleChunksMap;
+    //每个shard对应的vesion
     ShardVersionMapEX _shardVersions;
 
     std::atomic<uint64_t> _shardVersionSize;
@@ -339,6 +344,6 @@ private:
                                                       Chunk*,
                                                       long);
 
-    mutable boost::shared_mutex _mutex;
+    
 };
 }  // namespace mongo

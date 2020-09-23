@@ -51,7 +51,7 @@ namespace {
 
 // Used to generate sequence numbers to assign to each newly created ChunkManager
 AtomicUInt32 nextCMILSequenceNumber(0);
-const int MaxSizeSingleChunksMap = 100;
+const int MaxSizeSingleChunksMap = 10000;
 
 void checkAllElementsAreOfType(BSONType type, const BSONObj& o) {
     for (const auto&& element : o) {
@@ -87,7 +87,8 @@ ChunkManagerEX::ChunkManagerEX(NamespaceString nss,
       _defaultCollator(std::move(defaultCollator)),
       _unique(unique),
       _shardVersionSize(_shardVersions.size()),
-      _collectionVersion(collectionVersion) {}
+      _collectionVersion(collectionVersion),
+      _maxSizeSingleChunksMap(MaxSizeSingleChunksMap) {}
 
 
 ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
@@ -100,7 +101,8 @@ ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
       _shardKeyPattern(shardKeyPattern),
       _shardKeyOrdering(Ordering::make(_shardKeyPattern.toBSON())),
       _defaultCollator(std::move(defaultCollator)),
-      _unique(unique) {
+      _unique(unique),
+      _maxSizeSingleChunksMap(MaxSizeSingleChunksMap) {
     if (other) {
         _topIndexMap = other->getTopIndexMap();
         _shardVersions = other->getShardVersionMap();
@@ -160,7 +162,7 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
                                          const BSONObj& query,
                                          const BSONObj& collation,
                                          std::set<ShardId>* shardIds) const {
-    log() << "getShardIdsForQuery=" << query.toString();
+    LOG(1) << "getShardIdsForQuery=" << query.toString();
     auto qr = stdx::make_unique<QueryRequest>(_nss);
     qr->setFilter(query);
 
@@ -225,7 +227,6 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
     // For now, we satisfy that assumption by adding a shard with no matches rather than returning
     // an empty set of shards.
     if (shardIds->empty()) {
-        boost::shared_lock<boost::shared_mutex> lock(_mutex);
         shardIds->insert(_shardVersions.begin()->first);
     }
 }
@@ -312,7 +313,6 @@ ChunkManagerEX::_overlappingTopRanges(const mongo::BSONObj& min,
 
 
 void ChunkManagerEX::getAllShardIds(std::set<ShardId>* all) const {
-    boost::shared_lock<boost::shared_mutex> lock(_mutex);
     std::transform(_shardVersions.begin(),
                    _shardVersions.end(),
                    std::inserter(*all, all->begin()),
@@ -439,7 +439,6 @@ bool ChunkManagerEX::compatibleWith(const ChunkManagerEX& other, const ShardId& 
 
 
 ChunkVersion ChunkManagerEX::getVersion(const ShardId& shardName) const {
-    log() << "getVersion start";
     auto it = _shardVersions.find(shardName);
     if (it == _shardVersions.end()) {
         // Shards without explicitly tracked shard versions (meaning they have no chunks) always
@@ -448,37 +447,37 @@ ChunkVersion ChunkManagerEX::getVersion(const ShardId& shardName) const {
         
         return ChunkVersion(0, 0, _collectionVersion.epoch());
     }
-    log() << "getVersion by shardname = " << shardName << ",chunkversion=" << it->second.toString();
     return it->second;
 }
 
 std::string ChunkManagerEX::toString() const {
     StringBuilder sb;
     sb << "ChunkManager: " << _nss.ns() << " key: " << _shardKeyPattern.toString() << '\n';
+    sb << "Chunks:\n";
+    for(auto& topIndex: _topIndexMap){
+        for(auto& itr: *topIndex.second){
+            sb << "\t" << itr.second->toString() << '\n';
+        }
+    }
 
-    // sb << "Chunks:\n";
-    // for (const auto& chunk : _chunkMap) {
-    //     sb << "\t" << chunk.second->toString() << '\n';
-    // }
-
-    // sb << "Ranges:\n";
-    // // for (const auto& entry : _chunkMapViews.chunkRangeMap) {
-    // //     sb << "\t" << entry.range.toString() << " @ " << entry.shardId << '\n';
-    // // }
-
-    // sb << "Shard versions:\n";
-    // for (const auto& entry : _shardVersions) {
-    //     sb << "\t" << entry.first << ": " << entry.second.toString() << '\n';
-    // }
-    // log() << sb.str();
+    sb << "Shard versions:\n";
+    for (const auto& entry : _shardVersions) {
+        sb << "\t" << entry.first << ": " << entry.second.toString() << '\n';
+    }
+    log() << sb.str();
     return sb.str();
 }
 
 //按start和limit获取内存中的chunks信息，用来校验mongos的内存路由和configsvr中是否一致，内部使用
-std::shared_ptr<IteratorChunks> ChunkManagerEX::iteratorChunks(int start, int limit) const {
-    toString();
+std::shared_ptr<IteratorChunks> ChunkManagerEX::iteratorChunks(int start, int limit, bool print) const {
+    //打印出路由信息，调试使用
+    if(print){
+        toString();
+    }
+    
     std::shared_ptr<IteratorChunks> result = std::make_shared<IteratorChunks>();
     int total = 0;
+    int pre = 0;
     int needAdvance = 0;
     bool hasFindStartIndex = false;
     bool needBreak = false;
@@ -486,12 +485,13 @@ std::shared_ptr<IteratorChunks> ChunkManagerEX::iteratorChunks(int start, int li
         auto itChunks = it.second->begin();
         if (!hasFindStartIndex) {
             total += it.second->size();
+            pre = total - it.second->size();
             if (start > total) {
                 continue;
             } else {
                 hasFindStartIndex = true;
-                needAdvance = total - start;
-                std::advance(itChunks, needAdvance);
+                needAdvance = start - pre;
+                std::advance(itChunks, needAdvance);//指定的chunkMap上前进needAdvance
             }
         }
 
@@ -515,9 +515,13 @@ std::shared_ptr<IteratorChunks> ChunkManagerEX::iteratorChunks(int start, int li
             break;
         }
     }
+    //总数
+    int total_chunks = 0;
+    for(auto& itStatic : _topIndexMap){
+        total_chunks += itStatic.second->size();
+    }
+    result->chunksSize = total_chunks;
 
-
-    //result->chunksSize = _chunkMap.size();
     return result;
 }
 
@@ -563,9 +567,6 @@ ShardVersionMapEX ChunkManagerEX::_constructShardVersionMap(const OID& epoch,
                 if (currentChunk->getLastmod() > maxShardVersion)
                     maxShardVersion = currentChunk->getLastmod();
 
-                // log() << " find_if false currentChunk->getShardId()=" <<
-                // currentChunk->getShardId()
-                //       << ",firstChunkInRange->getShardId()=" << firstChunkInRange->getShardId();
                 return false;
             });
 
@@ -604,7 +605,7 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeNew(
     bool unique,
     OID epoch,
     const std::vector<ChunkType>& chunks) {
-    log() << "chunk manager with lock make new. chunks.size =" << chunks.size();
+    log() << "chunk manager ex make new. chunks.size =" << chunks.size();
     ChunkVersion chunk(0, 0, epoch);
     auto ptr = std::make_shared<ChunkManagerEX>(std::move(nss),
                                                 std::move(shardKeyPattern),
@@ -614,13 +615,15 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeNew(
     return ptr->build(chunks);
 }
 
-//只有从无到有的构建chunkmap
+//只有从无到有的构建chunkmap，这里的changeChunks应该是collection的全量chunks
+//1.第一次collection获取路由
+//2.collection被删，重新构建同名collection
 std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkType>& changedChunks) {
 
     const auto startingCollectionVersion = getVersion();
     Timer timer;
-    ChunkMapEX chunkMap;
-    log() << "copy chunkMap time=" << timer.millis() << "ms";
+    ChunkMapEX chunkMap;//临时chunkMap，因为changedChunks不是按key排序而是按lastmond，所以需要这个数据结果将chunks排序然后切割到_topIndexMap
+
     ChunkVersion collectionVersion = startingCollectionVersion;
     for (const auto& chunk : changedChunks) {
         const auto& chunkVersion = chunk.getVersion();
@@ -653,20 +656,22 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
         chunkMap.insert(std::make_pair(chunkMaxKeyString, std::make_shared<Chunk>(chunk)));
     }
 
+    //构建_shardVdersionMap
     _shardVersions =
         _constructShardVersionMap(_collectionVersion.epoch(), chunkMap, _shardKeyOrdering);
     log() << "_shardVersions size = " << _shardVersions.size();
 
     std::shared_ptr<ChunkMapEX> chunksSecondary = std::make_shared<ChunkMapEX>();
-    int si = MaxSizeSingleChunksMap;
+    int si = _maxSizeSingleChunksMap;
+    //_topIndexMap第一个分片可能不满_maxSizeSingleChunksMap.因为要用max做key，所以逆序遍历chunkMap
     for (auto it = chunkMap.rbegin(); it != chunkMap.rend();
-         ++it) {  //_topIndexMap第一个分片可能不满1w
+         ++it) {  
         const auto chunkMaxKeyString = _extractKeyString(it->second->getMax());
         if (si == 0) {
-            si = MaxSizeSingleChunksMap;
+            si = _maxSizeSingleChunksMap;
         }
 
-        if (si == MaxSizeSingleChunksMap) {
+        if (si == _maxSizeSingleChunksMap) {
             _topIndexMap[chunkMaxKeyString] = std::make_shared<ChunkMapEX>();
             chunksSecondary = _topIndexMap[chunkMaxKeyString];
         }
@@ -688,13 +693,6 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
     // }
     _collectionVersion = collectionVersion;
     return shared_from_this();
-    // return std::shared_ptr<ChunkManagerEX>(
-    //     new ChunkManagerEX(_nss,
-    //                        KeyPattern(getShardKeyPattern().getKeyPattern()),
-    //                        CollatorInterface::cloneCollator(getDefaultCollator()),
-    //                        isUnique(),
-    //                        std::move(chunkMap),
-    //                        collectionVersion));
 }
 
 
@@ -721,10 +719,8 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
     Timer timer;
     ChunkMapEX chunkMap;
 
-    log() << "copy chunkMap time=" << timer.millis() << "ms";
     ChunkVersion collectionVersion = getVersion();
-
-    std::map<std::string, std::shared_ptr<ChunkMapEX>> tmp;
+    std::map<std::string, std::shared_ptr<ChunkMapEX>> changeChunksMap;//记录所有因为changeChunks需要变更的ChunkMaps
     for (const auto& chunk : changedChunks) {
         const auto& chunkVersion = chunk.getVersion();
 
@@ -741,20 +737,20 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
         const auto chunkMinKeyString = _extractKeyString(chunk.getMin());
         const auto chunkMaxKeyString = _extractKeyString(chunk.getMax());
 
-        auto topIndxe = _topIndexMap.lower_bound(chunkMaxKeyString);
+        auto topIndxe = _topIndexMap.lower_bound(chunkMaxKeyString);//topIndxeMap中第一个不小于chunkMaxKeyString的
 
         if (topIndxe == _topIndexMap.end()) {
-            log() << "never";
+            log()<<__FILE__<<":"<<__LINE__ << "never";
         }
 
-        if (tmp.find(topIndxe->first) == tmp.end()) {
+        if (changeChunksMap.find(topIndxe->first) == changeChunksMap.end()) {
             ChunkMapEX copyMap = *(topIndxe->second.get());
             auto copyMapPtr = std::make_shared<ChunkMapEX>(copyMap);
             log() << "copy size = " << copyMapPtr->size();
-            tmp.insert(std::make_pair(topIndxe->first, copyMapPtr));
+            changeChunksMap.insert(std::make_pair(topIndxe->first, copyMapPtr));
         }
 
-        auto itUpdate = tmp.find(topIndxe->first);
+        auto itUpdate = changeChunksMap.find(topIndxe->first);
         // Returns the first chunk with a max key that is > min - implies that the chunk overlaps
         // min
         const auto low = itUpdate->second->upper_bound(chunkMinKeyString);
@@ -779,18 +775,19 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
         }
     }
     int change = 0;
-    for (auto& it : tmp) {
+    for (auto& it : changeChunksMap) {
         auto itIndex = _topIndexMap.find(it.first);
         if (itIndex == _topIndexMap.end()) {
             log() << "never";
         }
 
-        itIndex->second = it.second;
+        itIndex->second = it.second;//替换chunksMap
         change++;
     }
     log() << "change cnt = " << change;
+    
     _collectionVersion = collectionVersion;
-
+    log() << "makeUpdated time=" << timer.millis() << "ms";
     return shared_from_this();
 }
 
