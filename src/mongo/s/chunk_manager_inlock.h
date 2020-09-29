@@ -120,18 +120,6 @@ public:
         OID epoch,
         const std::vector<ChunkType>& chunks);
 
-    /**
-     * Constructs a new instance with a routing table updated according to the changes described
-     * in "changedChunks".
-     *
-     * The changes in "changedChunks" must be sorted in ascending order by chunk version, and adhere
-     * to the requirements of the routing table update algorithm.
-     */
-    std::shared_ptr<ChunkManagerEX> makeUpdated(const std::vector<ChunkType>& changedChunks);
-
-
-    std::shared_ptr<ChunkManagerEX> build(const std::vector<ChunkType>& changedChunks);
-
 
     /**
      * Returns an increasing number of the reload sequence number of this chunk manager.
@@ -251,6 +239,17 @@ private:
     friend class CollectionRoutingDataLoader;
 
     /**
+     * Constructs a new instance with a routing table updated according to the changes described
+     * in "changedChunks".
+     *
+     * The changes in "changedChunks" must be sorted in ascending order by chunk version, and adhere
+     * to the requirements of the routing table update algorithm.
+     */
+    std::shared_ptr<ChunkManagerEX> build(const std::vector<ChunkType>& changedChunks);
+
+    std::shared_ptr<ChunkManagerEX> makeUpdated(const std::vector<ChunkType>& changedChunks);
+
+    /**
      * Does a single pass over the chunkMap and constructs the ShardVersionMap object.
      */
     static ShardVersionMapEX _constructShardVersionMap(const OID& epoch,
@@ -259,7 +258,6 @@ private:
 
     std::string _extractKeyString(const BSONObj& shardKeyValue) const;
 
-    //  ChunkMap::const_iterator  _rangeMapUpperBound(const BSONObj& key) const;
 
     std::pair<TopIndexMap::const_iterator, TopIndexMap::const_iterator> _overlappingTopRanges(
         const BSONObj& min, const BSONObj& max, bool isMaxInclusive) const;

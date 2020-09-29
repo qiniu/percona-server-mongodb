@@ -55,7 +55,7 @@ protected:
         auto chunkManager =
             makeChunkManager(kNss, shardKeyPattern, std::move(defaultCollator), false, splitPoints);
         if(maxSizeSingleChunkMap > 0){
-             chunkManager->setMaxSizeSingleChunksMap(4);
+             mongo::MaxSizeSingleChunksMap = maxSizeSingleChunkMap;
         }
         
         std::set<ShardId> shardIds;
@@ -148,9 +148,11 @@ TEST_F(ChunkManagerQueryTest, UniversalRangeMultiShardMoreThanMaxSizeSingleChunk
                        << 160),
                   BSON("a"
                        << 170)},
-                 fromjson("{a:{$gt:9,$lt:41}}"),
+                 fromjson("{a:{$gt:9,$lt:115}}"),
                  BSONObj(),
-                 {ShardId("0"), ShardId("1"), ShardId("2"), ShardId("3"),ShardId("4")},
+                 {ShardId("0"), ShardId("1"), ShardId("2"), ShardId("3"),ShardId("4"),
+                 ShardId("5"),ShardId("6"),ShardId("7"),ShardId("8"),
+                 ShardId("9"),ShardId("10"),ShardId("11")},
                  4);
 }
 

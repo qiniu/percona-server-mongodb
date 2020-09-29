@@ -51,7 +51,7 @@ namespace {
 
 // Used to generate sequence numbers to assign to each newly created ChunkManager
 AtomicUInt32 nextCMILSequenceNumber(0);
-const int MaxSizeSingleChunksMap = 10000;
+int MaxSizeSingleChunksMap = 10000;
 
 void checkAllElementsAreOfType(BSONType type, const BSONObj& o) {
     for (const auto&& element : o) {
@@ -88,7 +88,7 @@ ChunkManagerEX::ChunkManagerEX(NamespaceString nss,
       _unique(unique),
       _maxSizeSingleChunksMap(MaxSizeSingleChunksMap),
       _shardVersionSize(_shardVersions.size()),
-      _collectionVersion(collectionVersion){}
+      _collectionVersion(collectionVersion) {}
 
 
 ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
@@ -144,7 +144,6 @@ std::shared_ptr<Chunk> ChunkManagerEX::findIntersectingChunkWithSimpleCollation(
     const BSONObj& shardKey) const {
     return findIntersectingChunk(shardKey, CollationSpec::kSimpleSpec);
 }
-
 
 
 int ChunkManagerEX::numChunks() const {
@@ -232,7 +231,6 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
 void ChunkManagerEX::getShardIdsForRange(const BSONObj& min,
                                          const BSONObj& max,
                                          std::set<ShardId>* shardIds) const {
-    bool bBreak = false;
     const auto bounds = _overlappingTopRanges(min, max, true);
     for (auto it = bounds.first; it != bounds.second; ++it) {
         auto boundsInSecondaryIndex = _overlappingRanges(min, max, true, it->second);
@@ -242,15 +240,10 @@ void ChunkManagerEX::getShardIdsForRange(const BSONObj& min,
             shardIds->insert(itSecond->second->getShardId());
 
             if (shardIds->size() == _shardVersionSize) {
-                bBreak = true;
-                break;
+                // No need to iterate through the rest of the ranges, because we already know we
+                // need to use all shards.
+                return;
             }
-        }
-
-        // No need to iterate through the rest of the ranges, because we already know we need to use
-        // all shards.
-        if (bBreak) {
-            break;
         }
     }
 }
@@ -268,32 +261,9 @@ ChunkManagerEX::_overlappingRanges(const BSONObj& min,
     }();
 
     return {itMin, itMax};
-
-    /*
-        // dassert(SimpleBSONObjComparator::kInstance.evaluate(min <= max));
-        // const auto begin = _rangeMapUpperBound(min);
-        // auto end = _rangeMapUpperBound(max);
-
-        // // The chunk range map must always cover the entire key space
-        // invariant(begin != _chunkMap.cend());
-
-        // // Bump the end chunk, because the second iterator in the returned pair is exclusive.
-       There is
-        // // one caveat - if the exclusive max boundary of the range looked up is the same as the
-        // // inclusive min of the end chunk returned, it is still possible that the min is not in
-       the end
-        // // chunk, in which case bumping the end will result in one extra chunk claimed to cover
-       the
-        // // range.
-        // if (end != _chunkMap.cend() &&
-        //     (isMaxInclusive || SimpleBSONObjComparator::kInstance.evaluate(max >
-       end->second->getMin()))) {
-        //     ++end;
-        // }
-
-        // return {begin, end};
-        */
 }
+
+
 std::pair<TopIndexMap::const_iterator, TopIndexMap::const_iterator>
 ChunkManagerEX::_overlappingTopRanges(const mongo::BSONObj& min,
                                       const mongo::BSONObj& max,
@@ -617,7 +587,6 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeNew(
 //1.第一次collection获取路由
 //2.collection被删，重新构建同名collection
 std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkType>& changedChunks) {
-
     const auto startingCollectionVersion = getVersion();
     Timer timer;
     ChunkMapEX chunkMap;//临时chunkMap，因为changedChunks不是按key排序而是按lastmond，所以需要这个数据结果将chunks排序然后切割到_topIndexMap
@@ -662,11 +631,10 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
     std::shared_ptr<ChunkMapEX> chunksSecondary = std::make_shared<ChunkMapEX>();
     int si = _maxSizeSingleChunksMap;
     //_topIndexMap第一个分片可能不满_maxSizeSingleChunksMap.因为要用max做key，所以逆序遍历chunkMap
-    for (auto it = chunkMap.rbegin(); it != chunkMap.rend();
-         ++it) {  
+    for (auto it = chunkMap.rbegin(); it != chunkMap.rend(); ++it) {
         const auto chunkMaxKeyString = _extractKeyString(it->second->getMax());
         if (si == 0) {
-            si = _maxSizeSingleChunksMap;
+            si = _maxSizeSingleChunksMap;  //填满了一个_maxSizeSingleChunksMap，开启新的
         }
 
         if (si == _maxSizeSingleChunksMap) {
@@ -678,18 +646,10 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
         si--;
     }
 
-    log() << "topIndexMap size=" << _topIndexMap.size();
-    // If at least one diff was applied, the metadata is correct, but it might not have changed so
-    // in this case there is no need to recreate the chunk manager.
-    //
-    // NOTE: In addition to the above statement, it is also important that we return the same chunk
-    // manager object, because the write commands' code relies on changes of the chunk manager's
-    // sequence number to detect batch writes not making progress because of chunks moving across
-    // shards too frequently.
-    // if (collectionVersion == startingCollectionVersion) {
-    //     return shared_from_this();
-    // }
     _collectionVersion = collectionVersion;
+
+    log() << "topIndexMap size = " << _topIndexMap.size()
+          << ",collectionVersion = " << _collectionVersion.toString();
     return shared_from_this();
 }
 
@@ -702,7 +662,7 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::copyAndUpdate(
     bool unique,
     OID epoch,
     const std::vector<ChunkType>& chunks) {
-    log() << "chunk manager with lock make new. chunks.size =" << chunks.size();
+    log() << "chunk manager with  copy and update. chunks.size =" << chunks.size();
     auto ptr = std::make_shared<ChunkManagerEX>(other,
                                                 std::move(nss),
                                                 std::move(shardKeyPattern),
@@ -735,20 +695,24 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
         const auto chunkMinKeyString = _extractKeyString(chunk.getMin());
         const auto chunkMaxKeyString = _extractKeyString(chunk.getMax());
 
-        auto topIndxe = _topIndexMap.lower_bound(chunkMaxKeyString);//topIndxeMap中第一个不小于chunkMaxKeyString的
+        auto topIndex = _topIndexMap.lower_bound(chunkMaxKeyString);//topIndxeMap中第一个不小于chunkMaxKeyString的
 
-        if (topIndxe == _topIndexMap.end()) {
-            log()<<__FILE__<<":"<<__LINE__ << "never";
+        if (topIndex == _topIndexMap.end()) {
+            log() << __FILE__ << ":" << __LINE__
+                  << " can't find the key chunkMinKeyString = " << chunkMinKeyString
+                  << ",chunkMaxKeyString = " << chunkMaxKeyString;
+            invariant(false);  //找不到覆盖key的chunk，程序直接异常退出
         }
 
-        if (changeChunksMap.find(topIndxe->first) == changeChunksMap.end()) {
-            ChunkMapEX copyMap = *(topIndxe->second.get());
+        if (changeChunksMap.find(topIndex->first) == changeChunksMap.end()) {
+            //copy 原chunkManager中这个changeChunksMap
+            ChunkMapEX copyMap = *(topIndex->second.get());
             auto copyMapPtr = std::make_shared<ChunkMapEX>(copyMap);
             log() << "copy size = " << copyMapPtr->size();
-            changeChunksMap.insert(std::make_pair(topIndxe->first, copyMapPtr));
+            changeChunksMap.insert(std::make_pair(topIndex->first, copyMapPtr));
         }
 
-        auto itUpdate = changeChunksMap.find(topIndxe->first);
+        auto itUpdate = changeChunksMap.find(topIndex->first);
         // Returns the first chunk with a max key that is > min - implies that the chunk overlaps
         // min
         const auto low = itUpdate->second->upper_bound(chunkMinKeyString);
@@ -776,7 +740,9 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
     for (auto& it : changeChunksMap) {
         auto itIndex = _topIndexMap.find(it.first);
         if (itIndex == _topIndexMap.end()) {
-            log() << "never";
+            log() << __FILE__ << ":" << __LINE__
+                  << " can't find the key  = " << it.first;
+            invariant(false);  //找不到覆盖key的chunk，程序直接异常退出
         }
 
         itIndex->second = it.second;//替换chunksMap
