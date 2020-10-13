@@ -272,8 +272,8 @@ public:
         // Cannot have more than 8192 initial chunks per shard. Setting a maximum of 1,000,000
         // chunks in total to limit the amount of memory this command consumes so there is less
         // danger of an OOM error.
-        const int maxNumInitialChunksForShards = numShards * 8192 * 1024;
-        const int maxNumInitialChunksTotal = 10000 * 200;  // Arbitrary limit to memory consumption
+        const int maxNumInitialChunksForShards = numShards * 8192;
+        const int maxNumInitialChunksTotal = 1000 * 1000;  // Arbitrary limit to memory consumption
         int numChunks = cmdObj["numInitialChunks"].numberInt();
         if (numChunks > maxNumInitialChunksForShards || numChunks > maxNumInitialChunksTotal) {
             errmsg = str::stream()
