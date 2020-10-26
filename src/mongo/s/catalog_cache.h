@@ -32,7 +32,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/s/catalog_cache_loader.h"
-#include "mongo/s/chunk_manager.h"
+#include "mongo/s/chunk_manager_inlock.h"
 #include "mongo/s/chunk_version.h"
 #include "mongo/s/client/shard.h"
 #include "mongo/stdx/mutex.h"
@@ -138,7 +138,7 @@ private:
         std::shared_ptr<Notification<Status>> refreshCompletionNotification;
 
         // Contains the cached routing information (only available if needsRefresh is false)
-        std::shared_ptr<ChunkManager> routingInfo;
+        std::shared_ptr<ChunkManagerEX> routingInfo;
     };
 
     /**
@@ -165,7 +165,7 @@ private:
      * namespace must be in the 'needRefresh' state.
      */
     void _scheduleCollectionRefresh_inlock(std::shared_ptr<DatabaseInfoEntry> dbEntry,
-                                           std::shared_ptr<ChunkManager> existingRoutingInfo,
+                                           std::shared_ptr<ChunkManagerEX> existingRoutingInfo,
                                            const NamespaceString& nss,
                                            int refreshAttempt);
 
@@ -248,7 +248,7 @@ public:
     /**
      * If the collection is sharded, returns a chunk manager for it. Otherwise, nullptr.
      */
-    std::shared_ptr<ChunkManager> cm() const {
+    std::shared_ptr<ChunkManagerEX> cm() const {
         return _cm;
     }
 
@@ -262,7 +262,7 @@ public:
 private:
     friend class CatalogCache;
 
-    CachedCollectionRoutingInfo(ShardId primaryId, std::shared_ptr<ChunkManager> cm);
+    CachedCollectionRoutingInfo(ShardId primaryId, std::shared_ptr<ChunkManagerEX> cm);
 
     CachedCollectionRoutingInfo(ShardId primaryId,
                                 NamespaceString nss,
@@ -272,7 +272,7 @@ private:
     ShardId _primaryId;
 
     // Reference to the corresponding chunk manager (if sharded) or null
-    std::shared_ptr<ChunkManager> _cm;
+    std::shared_ptr<ChunkManagerEX> _cm;
 
     // Reference to the primary of the database (if not sharded) or null
     NamespaceString _nss;

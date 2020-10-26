@@ -151,7 +151,7 @@ StatusWith<std::unique_ptr<QueryRequest>> transformQueryForShards(const QueryReq
 StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
                                              const CanonicalQuery& query,
                                              const ReadPreferenceSetting& readPref,
-                                             ChunkManager* chunkManager,
+                                             ChunkManagerEX* chunkManager,
                                              std::shared_ptr<Shard> primary,
                                              std::vector<BSONObj>* results,
                                              BSONObj* viewDefinition) {

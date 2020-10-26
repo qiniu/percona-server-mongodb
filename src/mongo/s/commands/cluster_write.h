@@ -36,7 +36,7 @@ namespace mongo {
 
 class BSONObj;
 class Chunk;
-class ChunkManager;
+class ChunkManagerEX;
 class OperationContext;
 
 class ClusterWriter {
@@ -62,7 +62,7 @@ private:
  * errors.
  */
 void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* txn,
-                                           ChunkManager* manager,
+                                           ChunkManagerEX* manager,
                                            Chunk* chunk,
                                            long dataWritten);
 

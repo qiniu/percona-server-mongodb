@@ -93,7 +93,7 @@ public:
         auto routingInfo =
             uassertStatusOK(Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfo(opCtx, nss));
 
-        shared_ptr<ChunkManager> chunkMgr;
+        shared_ptr<ChunkManagerEX> chunkMgr;
         shared_ptr<Shard> shard;
 
         if (!routingInfo.cm()) {
@@ -207,7 +207,7 @@ public:
 
 private:
     static StatusWith<BSONObj> _getShardKey(OperationContext* opCtx,
-                                            const ChunkManager& chunkMgr,
+                                            const ChunkManagerEX& chunkMgr,
                                             const BSONObj& query) {
         // Verify that the query has an equality predicate using the shard key
         StatusWith<BSONObj> status =
@@ -228,7 +228,7 @@ private:
     }
 
     static bool _runCommand(OperationContext* opCtx,
-                            shared_ptr<ChunkManager> chunkManager,
+                            shared_ptr<ChunkManagerEX> chunkManager,
                             const ShardId& shardId,
                             const NamespaceString& nss,
                             const BSONObj& cmdObj,

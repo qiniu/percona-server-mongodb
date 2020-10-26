@@ -62,7 +62,7 @@ namespace {
  * distribution and chunk placement information which is needed by the balancer policy.
  */
 StatusWith<DistributionStatus> createCollectionDistributionStatus(
-    OperationContext* opCtx, const ShardStatisticsVector& allShards, ChunkManager* chunkMgr) {
+    OperationContext* opCtx, const ShardStatisticsVector& allShards, ChunkManagerEX* chunkMgr) {
     ShardToChunksMap shardToChunksMap;
 
     // Makes sure there is an entry in shardToChunksMap for every shard, so empty shards will also
@@ -70,20 +70,35 @@ StatusWith<DistributionStatus> createCollectionDistributionStatus(
     for (const auto& stat : allShards) {
         shardToChunksMap[stat.shardId];
     }
+    for (const auto& itTopIndex : chunkMgr->getTopIndexMap()) {
+        auto chunkMap = itTopIndex.second;
+        for (auto entry = chunkMap->begin(); entry != chunkMap->end(); ++entry) {
+            const auto& chunkEntry = entry->second;
 
-    for (const auto& entry : chunkMgr->chunkMap()) {
-        const auto& chunkEntry = entry.second;
+            ChunkType chunk;
+            chunk.setNS(chunkMgr->getns());
+            chunk.setMin(chunkEntry->getMin());
+            chunk.setMax(chunkEntry->getMax());
+            chunk.setJumbo(chunkEntry->isJumbo());
+            chunk.setShard(chunkEntry->getShardId());
+            chunk.setVersion(chunkEntry->getLastmod());
 
-        ChunkType chunk;
-        chunk.setNS(chunkMgr->getns());
-        chunk.setMin(chunkEntry->getMin());
-        chunk.setMax(chunkEntry->getMax());
-        chunk.setJumbo(chunkEntry->isJumbo());
-        chunk.setShard(chunkEntry->getShardId());
-        chunk.setVersion(chunkEntry->getLastmod());
-
-        shardToChunksMap[chunkEntry->getShardId()].push_back(chunk);
+            shardToChunksMap[chunkEntry->getShardId()].push_back(chunk);
+        }
     }
+    // for (const auto& entry : chunkMgr->chunkMap()) {
+    //     const auto& chunkEntry = entry.second;
+
+    //     ChunkType chunk;
+    //     chunk.setNS(chunkMgr->getns());
+    //     chunk.setMin(chunkEntry->getMin());
+    //     chunk.setMax(chunkEntry->getMax());
+    //     chunk.setJumbo(chunkEntry->isJumbo());
+    //     chunk.setShard(chunkEntry->getShardId());
+    //     chunk.setVersion(chunkEntry->getLastmod());
+
+    //     shardToChunksMap[chunkEntry->getShardId()].push_back(chunk);
+    // }
 
     vector<TagsType> collectionTags;
     Status tagsStatus = Grid::get(opCtx)->catalogClient(opCtx)->getTagsForCollection(
@@ -91,8 +106,7 @@ StatusWith<DistributionStatus> createCollectionDistributionStatus(
     if (!tagsStatus.isOK()) {
         return {tagsStatus.code(),
                 str::stream() << "Unable to load tags for collection " << chunkMgr->getns()
-                              << " due to "
-                              << tagsStatus.toString()};
+                              << " due to " << tagsStatus.toString()};
     }
 
     DistributionStatus distribution(NamespaceString(chunkMgr->getns()),
@@ -450,12 +464,10 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::_getMigrateCandi
         if (chunkAtZoneMin->getMin().woCompare(tagRange.min)) {
             return {ErrorCodes::IllegalOperation,
                     str::stream()
-                        << "Tag boundaries "
-                        << tagRange.toString()
+                        << "Tag boundaries " << tagRange.toString()
                         << " fall in the middle of an existing chunk "
                         << ChunkRange(chunkAtZoneMin->getMin(), chunkAtZoneMin->getMax()).toString()
-                        << ". Balancing for collection "
-                        << nss.ns()
+                        << ". Balancing for collection " << nss.ns()
                         << " will be postponed until the chunk is split appropriately."};
         }
 
@@ -472,12 +484,10 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::_getMigrateCandi
             chunkAtZoneMax->getMax().woCompare(tagRange.max)) {
             return {ErrorCodes::IllegalOperation,
                     str::stream()
-                        << "Tag boundaries "
-                        << tagRange.toString()
+                        << "Tag boundaries " << tagRange.toString()
                         << " fall in the middle of an existing chunk "
                         << ChunkRange(chunkAtZoneMax->getMin(), chunkAtZoneMax->getMax()).toString()
-                        << ". Balancing for collection "
-                        << nss.ns()
+                        << ". Balancing for collection " << nss.ns()
                         << " will be postponed until the chunk is split appropriately."};
         }
     }

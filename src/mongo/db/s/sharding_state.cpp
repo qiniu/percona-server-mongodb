@@ -352,8 +352,7 @@ Status ShardingState::initializeFromShardIdentity(OperationContext* txn,
         if (_shardName != shardIdentity.getShardName()) {
             return {ErrorCodes::InconsistentShardIdentity,
                     str::stream() << "shard name previously set as " << _shardName
-                                  << " is different from stored: "
-                                  << shardIdentity.getShardName()};
+                                  << " is different from stored: " << shardIdentity.getShardName()};
         }
 
         auto prevConfigsvrConnStr = grid.shardRegistry()->getConfigServerConnectionString();
@@ -368,8 +367,7 @@ Status ShardingState::initializeFromShardIdentity(OperationContext* txn,
             return {ErrorCodes::InconsistentShardIdentity,
                     str::stream() << "config server connection string previously set as "
                                   << prevConfigsvrConnStr.toString()
-                                  << " is different from stored: "
-                                  << configSvrConnStr.toString()};
+                                  << " is different from stored: " << configSvrConnStr.toString()};
         }
 
         // The clusterId will only be unset if sharding state was initialized via the sharding
@@ -379,8 +377,7 @@ Status ShardingState::initializeFromShardIdentity(OperationContext* txn,
         } else if (_clusterId != shardIdentity.getClusterId()) {
             return {ErrorCodes::InconsistentShardIdentity,
                     str::stream() << "cluster id previously set as " << _clusterId
-                                  << " is different from stored: "
-                                  << shardIdentity.getClusterId()};
+                                  << " is different from stored: " << shardIdentity.getClusterId()};
         }
 
         return Status::OK();
@@ -667,16 +664,29 @@ ChunkVersion ShardingState::_refreshMetadata(OperationContext* txn, const Namesp
     RangeMap shardChunksMap =
         SimpleBSONObjComparator::kInstance.makeBSONObjIndexedMap<CachedChunkInfo>();
 
-    for (const auto& chunkMapEntry : cm->chunkMap()) {
-        const auto& chunk = chunkMapEntry.second;
+    for (auto& itTopIndexEntry : cm->getTopIndexMap()) {
+        auto chunkMap = itTopIndexEntry.second;
+        for (auto chunkEntry = chunkMap->begin(); chunkEntry != chunkMap->end(); ++chunkEntry) {
+            const auto& chunk = chunkEntry->second;
+            if (chunk->getShardId() != shardId)
+                continue;
 
-        if (chunk->getShardId() != shardId)
-            continue;
-
-        shardChunksMap.emplace_hint(shardChunksMap.end(),
-                                    chunk->getMin(),
-                                    CachedChunkInfo(chunk->getMax(), chunk->getLastmod()));
+            shardChunksMap.emplace_hint(shardChunksMap.end(),
+                                        chunk->getMin(),
+                                        CachedChunkInfo(chunk->getMax(), chunk->getLastmod()));
+        }
     }
+
+    // for (const auto& chunkMapEntry : cm->chunkMap()) {
+    //     const auto& chunk = chunkMapEntry.second;
+
+    //     if (chunk->getShardId() != shardId)
+    //         continue;
+
+    //     shardChunksMap.emplace_hint(shardChunksMap.end(),
+    //                                 chunk->getMin(),
+    //                                 CachedChunkInfo(chunk->getMax(), chunk->getLastmod()));
+    // }
 
     std::unique_ptr<CollectionMetadata> newCollectionMetadata =
         stdx::make_unique<CollectionMetadata>(cm->getShardKeyPattern().toBSON(),

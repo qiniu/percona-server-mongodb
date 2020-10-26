@@ -100,7 +100,7 @@ UpdateType getUpdateExprType(const BSONObj& updateExpr) {
  *     { _id : { $lt : 30 } } => false
  *     { foo : <anything> } => false
  */
-bool isExactIdQuery(OperationContext* opCtx, const CanonicalQuery& query, ChunkManager* manager) {
+bool isExactIdQuery(OperationContext* opCtx, const CanonicalQuery& query, ChunkManagerEX* manager) {
     auto shardKey = virtualIdShardKey.extractShardKeyFromQuery(query);
     BSONElement idElt = shardKey["_id"];
 
@@ -211,9 +211,9 @@ CompareResult compareAllShardVersions(const CachedCollectionRoutingInfo& routing
 /**
  * Whether or not the manager/primary pair is different from the other manager/primary pair.
  */
-bool isMetadataDifferent(const std::shared_ptr<ChunkManager>& managerA,
+bool isMetadataDifferent(const std::shared_ptr<ChunkManagerEX>& managerA,
                          const std::shared_ptr<Shard>& primaryA,
-                         const std::shared_ptr<ChunkManager>& managerB,
+                         const std::shared_ptr<ChunkManagerEX>& managerB,
                          const std::shared_ptr<Shard>& primaryB) {
     if ((managerA && !managerB) || (!managerA && managerB) || (primaryA && !primaryB) ||
         (!primaryA && primaryB))
@@ -231,9 +231,9 @@ bool isMetadataDifferent(const std::shared_ptr<ChunkManager>& managerA,
 * Whether or not the manager/primary pair was changed or refreshed from a previous version
 * of the metadata.
 */
-bool wasMetadataRefreshed(const std::shared_ptr<ChunkManager>& managerA,
+bool wasMetadataRefreshed(const std::shared_ptr<ChunkManagerEX>& managerA,
                           const std::shared_ptr<Shard>& primaryA,
-                          const std::shared_ptr<ChunkManager>& managerB,
+                          const std::shared_ptr<ChunkManagerEX>& managerB,
                           const std::shared_ptr<Shard>& primaryB) {
     if (isMetadataDifferent(managerA, primaryA, managerB, primaryB))
         return true;

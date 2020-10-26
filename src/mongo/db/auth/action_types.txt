@@ -110,5 +110,6 @@
 "updateUser",  # Not used for permissions checks, but to id the event in logs.
 "validate",
 "viewRole",
-"viewUser"]
+"viewUser",
+"dumpChunks"] # 新增的，dump mongos中的chunks路由]
 

@@ -34,7 +34,7 @@
 
 #include "mongo/db/query/collation/collator_interface_mock.h"
 #include "mongo/s/catalog_cache_test_fixture.h"
-#include "mongo/s/chunk_manager.h"
+#include "mongo/s/chunk_manager_inlock.h"
 
 namespace mongo {
 namespace {
@@ -49,11 +49,15 @@ protected:
                       const std::vector<BSONObj>& splitPoints,
                       const BSONObj& query,
                       const BSONObj& queryCollation,
-                      const std::set<ShardId> expectedShardIds) {
+                      const std::set<ShardId> expectedShardIds,
+                      const int maxSizeSingleChunkMap = 0) {
         const ShardKeyPattern shardKeyPattern(shardKey);
         auto chunkManager =
             makeChunkManager(kNss, shardKeyPattern, std::move(defaultCollator), false, splitPoints);
-
+        if(maxSizeSingleChunkMap > 0){
+             chunkManager->setMaxSizeSingleChunksMap(4);//没什么用
+        }
+        
         std::set<ShardId> shardIds;
         chunkManager->getShardIdsForQuery(operationContext(), query, queryCollation, &shardIds);
 
@@ -103,6 +107,53 @@ TEST_F(ChunkManagerQueryTest, UniversalRangeMultiShard) {
                  BSON("b" << 1),
                  BSONObj(),
                  {ShardId("0"), ShardId("1"), ShardId("2"), ShardId("3")});
+}
+
+TEST_F(ChunkManagerQueryTest, UniversalRangeMultiShardMoreThanMaxSizeSingleChunksMap) { 
+    
+    runQueryTest(BSON("a" << 1),
+                 nullptr,
+                 false,
+                 {BSON("a"
+                       << 10),
+                  BSON("a"
+                       << 20),
+                  BSON("a"
+                       << 30),
+                  BSON("a"
+                       << 40),
+                  BSON("a"
+                       << 50),
+                  BSON("a"
+                       << 60),
+                  BSON("a"
+                       << 70),
+                  BSON("a"
+                       << 80),
+                  BSON("a"
+                       << 90),
+                  BSON("a"
+                       << 100),
+                  BSON("a"
+                       << 110),
+                  BSON("a"
+                       << 120),
+                  BSON("a"
+                       << 130),
+                  BSON("a"
+                       << 140),
+                  BSON("a"
+                       << 150),
+                  BSON("a"
+                       << 160),
+                  BSON("a"
+                       << 170)},
+                 fromjson("{a:{$gt:9,$lt:115}}"),
+                 BSONObj(),
+                 {ShardId("0"), ShardId("1"), ShardId("2"), ShardId("3"),ShardId("4"),
+                 ShardId("5"),ShardId("6"),ShardId("7"),ShardId("8"),
+                 ShardId("9"),ShardId("10"),ShardId("11")},
+                 4);
 }
 
 TEST_F(ChunkManagerQueryTest, EqualityRangeSingleShard) {
@@ -437,6 +488,8 @@ TEST_F(ChunkManagerQueryTest, SimpleCollationNumbersMultiShard) {
              << "simple"),
         {ShardId("0")});
 }
+
+
 
 }  // namespace
 }  // namespace mongo

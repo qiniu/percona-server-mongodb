@@ -38,7 +38,7 @@ namespace mongo {
 
 class BSONObj;
 class CachedCollectionRoutingInfo;
-class ChunkManager;
+class ChunkManagerEX;
 class CollatorInterface;
 class ShardKeyPattern;
 
@@ -51,7 +51,7 @@ protected:
      * points. Each individual chunk is placed on a separate shard with shard id being a single
      * number ranging from "0" to the number of chunks.
      */
-    std::shared_ptr<ChunkManager> makeChunkManager(
+    std::shared_ptr<ChunkManagerEX> makeChunkManager(
         const NamespaceString& nss,
         const ShardKeyPattern& shardKeyPattern,
         std::unique_ptr<CollatorInterface> defaultCollator,

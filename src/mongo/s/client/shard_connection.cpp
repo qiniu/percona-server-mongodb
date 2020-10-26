@@ -37,7 +37,7 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/lasterror.h"
 #include "mongo/executor/connection_pool_stats.h"
-#include "mongo/s/chunk_manager.h"
+#include "mongo/s/chunk_manager_inlock.h"
 #include "mongo/s/client/shard.h"
 #include "mongo/s/client/shard_registry.h"
 #include "mongo/s/client/version_manager.h"
@@ -406,7 +406,7 @@ void usingAShardConnection(const string& addr);
 
 ShardConnection::ShardConnection(const ConnectionString& connectionString,
                                  const string& ns,
-                                 std::shared_ptr<ChunkManager> manager)
+                                 std::shared_ptr<ChunkManagerEX> manager)
     : _cs(connectionString), _ns(ns), _manager(manager), _finishedInit(false) {
     invariant(_cs.isValid());
 
