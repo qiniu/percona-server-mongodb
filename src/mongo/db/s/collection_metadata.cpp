@@ -58,7 +58,7 @@ CollectionMetadata::CollectionMetadata(const BSONObj& keyPattern,
     invariant(_collVersion >= _shardVersion);
 
     if (_chunksMap.empty()) {
-        invariant(!_shardVersion.isSet());
+        //invariant(!_shardVersion.isSet());//这个判断应该去掉了，因为chunksMap为空，但是将一个shard的chunks都迁移空，shardVersion不会删掉，这就导致了_shardVersion不为空
         return;
     }
 
