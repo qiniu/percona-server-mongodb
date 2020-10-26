@@ -159,7 +159,7 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
                                          const BSONObj& query,
                                          const BSONObj& collation,
                                          std::set<ShardId>* shardIds) const {
-    LOG(1) << "getShardIdsForQuery=" << query.toString();
+    //LOG(1) << "getShardIdsForQuery=" << query.toString();
     auto qr = stdx::make_unique<QueryRequest>(_nss);
     qr->setFilter(query);
 
@@ -196,7 +196,7 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
     //            b : { $gte : 3, $lt : 4 } }
     //   => Bounds { a : [1, 2), b : [3, 4) }
     IndexBounds bounds = getIndexBoundsForQuery(_shardKeyPattern.toBSON(), *cq);
-    log() << "bounds = " << bounds.toString();
+    //log() << "bounds = " << bounds.toString();
 
     // Transforms bounds for each shard key field into full shard key ranges
     // for example :
@@ -204,12 +204,14 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
     //   Bounds { a : [1, 2), b : [3, 4) }
     //   => Ranges { a : 1, b : 3 } => { a : 2, b : 4 }
     BoundList ranges = _shardKeyPattern.flattenBounds(bounds);
-    std::string str;
-    for (BoundList::const_iterator it = ranges.begin(); it != ranges.end(); ++it) {
-        str += "first=" + it->first.toString() + ",second=" + it->second.toString() + ";";
-    }
+    //log for query to shards
 
-    log() << "ranges  = " << str;
+    // std::string str;
+    // for (BoundList::const_iterator it = ranges.begin(); it != ranges.end(); ++it) {
+    //     str += "first=" + it->first.toString() + ",second=" + it->second.toString() + ";";
+    // }
+
+    //log() << "ranges  = " << str;
 
     for (BoundList::const_iterator it = ranges.begin(); it != ranges.end(); ++it) {
         getShardIdsForRange(it->first /*min*/, it->second /*max*/, shardIds);
