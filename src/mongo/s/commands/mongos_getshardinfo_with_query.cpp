@@ -38,9 +38,10 @@
 namespace mongo {
 namespace {
 
-class MongosDumpChunksInfoCmd : public Command {
+class MongosGetShardInfoWithQueryCmd : public Command {
 public:
-    MongosDumpChunksInfoCmd() : Command("dumpchunks", false, "dumpchunks") {}
+    MongosGetShardInfoWithQueryCmd()
+        : Command("getShardInfoWithQuery", false, "getShardInfoWithQuery") {}
 
     virtual bool slaveOk() const {
         return true;
@@ -56,14 +57,14 @@ public:
     }
 
     virtual void help(std::stringstream& help) const {
-        help << " dump chunks in mongos's memory";
+        help << " get shard info by query, similar explain";
     }
 
     virtual void addRequiredPrivileges(const std::string& dbname,
                                        const BSONObj& cmdObj,
                                        std::vector<Privilege>* out) {
         ActionSet actions;
-        actions.addAction(ActionType::dumpChunks);
+        actions.addAction(ActionType::getShardInfoWithQuery);
         out->push_back(Privilege(ResourcePattern::forClusterResource(), actions));
     }
 
