@@ -466,6 +466,7 @@ void ParallelSortClusteredCursor::startInit(OperationContext* opCtx) {
     }
 
     // Close all cursors on extra shards first, as these will be invalid
+    // 关闭额外cursors的与shard的链接
     for (auto& cmEntry : _cursorMap) {
         const auto& shardId = cmEntry.first;
 

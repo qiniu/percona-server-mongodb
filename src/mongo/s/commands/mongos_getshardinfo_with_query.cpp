@@ -37,6 +37,10 @@
 
 namespace mongo {
 namespace {
+using std::set;
+using std::shared_ptr;
+using std::string;
+using std::unique_ptr;
 
 class MongosGetShardInfoWithQueryCmd : public Command {
 public:
@@ -68,46 +72,122 @@ public:
         out->push_back(Privilege(ResourcePattern::forClusterResource(), actions));
     }
 
+    /**
+     * 输入协议
+     * {
+            getShardInfo:{
+                find:"collection的名字",
+                filter:{
+                    k4:v4
+                }
+                ....
+            }
+        }
+
+        输出协议
+        {
+           //表示多shard或者单shard
+           "type": "SINGLE/MULTI",
+           "shards":[
+               {
+                   "shardName":"shard0"
+               },
+               {
+                   "shardName":"shard1"
+               }
+           ],
+           "ok":1
+        }
+    */
+
     virtual bool run(OperationContext* txn,
                      const std::string& dbname,
                      BSONObj& cmdObj,
                      int options,
                      std::string& errmsg,
                      BSONObjBuilder& result) {
+        try {
+            const NamespaceString nss(parseNs(dbname, cmdObj));
 
-        const NamespaceString nss(parseNs(dbname, cmdObj));
-        log() << "dump chunks. cmdObj" << cmdObj.toString();
-        const int start = cmdObj["start"].numberInt();
-        const int limit = cmdObj["limit"].numberInt();
-        bool print = false;
-        if (cmdObj.hasField("print")) {
-            print = true;
-        }
-        std::shared_ptr<ChunkManagerEX> cm;
-        if (start == 0) {  //从0开始遍历的默认刷一下路由
-            auto routingInfo = uassertStatusOK(
-                Grid::get(txn)->catalogCache()->getShardedCollectionRoutingInfoWithRefresh(txn,
-                                                                                           nss));
-            cm = routingInfo.cm();
-        } else {
-            auto routingInfo =
-                uassertStatusOK(Grid::get(txn)->catalogCache()->getCollectionRoutingInfo(txn, nss));
-            cm = routingInfo.cm();
-        }
+            if (!nss.isValid()) {
+                LOG(logger::LogSeverity::Error()) << "nss is invalid.nss name:" << nss.ns();
+                return false;
+            }
 
-        auto iterator_result = cm->iteratorChunks(start, limit, print);
-        if (iterator_result->hashErr) {
-            errmsg = iterator_result->errmsg;
+            LOG(3) << "getShardInfoWithQuery. cmdObj" << cmdObj.toString();
+
+            auto status = QueryRequest::makeFromFindCommand(nss, cmdObj, true);
+            if (!status.isOK()) {
+                LOG(logger::LogSeverity::Error())
+                    << "cmdObj to QueryRequest is error, reason:" << status.getStatus().toString();
+                return false;
+            }
+
+            const unique_ptr<QueryRequest>& queryRequest = status.getValue();
+            if (queryRequest == nullptr || !queryRequest->validate().isOK()) {
+                LOG(logger::LogSeverity::Error())
+                    << "QueryRequest is invalid, reason: null or validate is false";
+                return false;
+            }
+
+            bool print = false;
+            if (cmdObj.hasField("print")) {
+                print = cmdObj["print"].Bool();
+            }
+
+            if (print) {
+                LOG(logger::LogSeverity::Info()) << status;
+            }
+
+            shared_ptr<ChunkManagerEX> manager;
+            shared_ptr<Shard> primary;
+            {
+                auto routingInfoStatus =
+                    Grid::get(txn)->catalogCache()->getCollectionRoutingInfo(txn, nss);
+                if (routingInfoStatus != ErrorCodes::NamespaceNotFound) {
+                    auto routingInfo = uassertStatusOK(std::move(routingInfoStatus));
+                    manager = routingInfo.cm();
+                    primary = routingInfo.primary();
+                }
+            }
+
+            set<ShardId> shardIds;
+            string vinfo;
+            if (manager) {
+                if (MONGO_unlikely(print)) {
+                    vinfo = str::stream() << "[" << manager->getns() << " @ "
+                                          << manager->getVersion().toString() << "]";
+                }
+                manager->getShardIdsForQuery(
+                    txn, queryRequest->getFilter(), queryRequest->getCollation(), &shardIds);
+            } else if (primary) {
+                if (MONGO_unlikely(print)) {
+                    vinfo = str::stream() << "[unsharded @ " << primary->toString() << "]";
+                }
+                shardIds.insert(primary->getId());
+            }
+
+            if (MONGO_unlikely(print)) {
+                LOG(3) << vinfo;
+            }
+
+            BSONArrayBuilder bsonShardInfos(shardIds.size());
+            for(ShardId& entity : shardIds) {
+                if (!entity.isValid()) {
+                    continue;
+                }
+                BSONObjBuilder tmp(1);
+                tmp["shardName"] = entity.toString();
+                bsonShardInfos.append(tmp.done())
+            }
+            result["shards"] = bsonShardInfos.arr();
+            return true;
+        } catch (...) {
+            LOG(logger::LogSeverity::Error()) << "getShardInfoWithQuery unknown error, I catch exception";
             return false;
-        } else {
-            result.append("chunks", iterator_result->bson.arr());
-            result.append("chunksSize", iterator_result->chunksSize);
         }
-
-        return true;
     }
-
-} dumpChunks;
+} getShardInfoWithQuery;
 
 }  // namespace
 }  // namespace mongo
