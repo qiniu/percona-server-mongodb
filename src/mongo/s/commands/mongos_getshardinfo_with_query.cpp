@@ -107,8 +107,20 @@ public:
                      std::string& errmsg,
                      BSONObjBuilder& result) {
         try {
-            const NamespaceString nss(parseNs(dbname, cmdObj));
+            // This is the nested command which we are explaining.
+            BSONObj explainObj = cmdObj.firstElement().Obj();
 
+            const std::string cmdName = explainObj.firstElementFieldName();
+            Command* commToExplain = Command::findCommand(cmdName);
+            if (!commToExplain || commToExplain->getName() != "find") {
+                appendCommandStatus(
+                    result,
+                    Status{ErrorCodes::CommandNotFound,
+                           str::stream() << "Explain failed due to unknown command: " << cmdName});
+                return false;
+            }
+
+            const NamespaceString nss(parseNs(dbname, explainObj));
             if (!nss.isValid()) {
                 LOG(logger::LogSeverity::Error()) << "nss is invalid.nss name:" << nss.ns();
                 return false;
@@ -116,7 +128,7 @@ public:
 
             LOG(3) << "getShardInfoWithQuery. cmdObj" << cmdObj.toString();
 
-            auto status = QueryRequest::makeFromFindCommand(nss, cmdObj, true);
+            auto status = QueryRequest::makeFromFindCommand(nss, explainObj, true);
             if (!status.isOK()) {
                 LOG(logger::LogSeverity::Error())
                     << "cmdObj to QueryRequest is error, reason:" << status.getStatus().toString();
@@ -136,7 +148,7 @@ public:
             }
 
             if (print) {
-                LOG(logger::LogSeverity::Info()) << status;
+                LOG(logger::LogSeverity::Info()) << status.getStatus().toString();
             }
 
             shared_ptr<ChunkManagerEX> manager;
@@ -172,18 +184,19 @@ public:
             }
 
             BSONArrayBuilder bsonShardInfos(shardIds.size());
-            for(ShardId& entity : shardIds) {
+            for (const ShardId& entity : shardIds) {
                 if (!entity.isValid()) {
                     continue;
                 }
                 BSONObjBuilder tmp(1);
-                tmp["shardName"] = entity.toString();
-                bsonShardInfos.append(tmp.done())
+                tmp.append("shardName", entity.toString());
+                bsonShardInfos.append(tmp.done());
             }
-            result["shards"] = bsonShardInfos.arr();
+            result.append("shards", bsonShardInfos.arr());
             return true;
         } catch (...) {
-            LOG(logger::LogSeverity::Error()) << "getShardInfoWithQuery unknown error, I catch exception";
+            LOG(logger::LogSeverity::Error())
+                << "getShardInfoWithQuery unknown error, I catch exception";
             return false;
         }
     }
