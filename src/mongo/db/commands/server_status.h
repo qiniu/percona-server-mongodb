@@ -34,9 +34,14 @@
 #include "mongo/db/jsobj.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/db/stats/detail_counter.h"
 #include <string>
+#include <unordered_map>
 
 namespace mongo {
+
+    using std::unique_ptr;
+    using std::unordered_map;
 
 class ServerStatusSection {
 public:

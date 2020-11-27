@@ -34,18 +34,32 @@
 #include "mongo/s/client/shard_registry.h"
 #include "mongo/s/grid.h"
 #include "mongo/util/log.h"
+#include "mongo/db/commands/server_status.h"
+#include "mongo/util/scopeguard.h"
+#include <memory>
+#include <ctime>
+#include <ratio>
+#include <chrono>
 
 namespace mongo {
+
+      using namespace std::chrono;
+
 namespace {
 using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
 
+const string CMD_NAME = "getShardInfoWithQuery"; 
+
 class MongosGetShardInfoWithQueryCmd : public Command {
 public:
     MongosGetShardInfoWithQueryCmd()
-        : Command("getShardInfoWithQuery", false, "getShardInfoWithQuery") {}
+        : Command("getShardInfoWithQuery", false, "getShardInfoWithQuery") {
+            LOG(logger::LogSeverity::Info()) << "MongosGetShardINfoWithQueryCmd is create";
+            _detailCmder = std::make_unique<DetailCmdCounter<CMD_NAME>>();
+        }
 
     virtual bool slaveOk() const {
         return true;
@@ -55,13 +69,12 @@ public:
         return false;
     }
 
-
     virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
         return false;
     }
 
     virtual void help(std::stringstream& help) const {
-        help << " get shard info by query, similar explain";
+        help << " get shard info by query, similar to explain";
     }
 
     virtual void addRequiredPrivileges(const std::string& dbname,
@@ -106,6 +119,17 @@ public:
                      int options,
                      std::string& errmsg,
                      BSONObjBuilder& result) {
+        bool success = true;
+        auto startTime = std::chrono::steady_clock::now();
+        ON_BLOCK_EXIT([this, success, startTime](){                
+            if (!success) {                    
+                this->_detailCmder->gotFailure();
+            } else {
+                auto endTime = std::chrono::steady_clock::now();
+                this->_detailCmder->gotLatency(std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count());
+            }
+        });
+
         try {
             // This is the nested command which we are explaining.
             BSONObj explainObj = cmdObj.firstElement().Obj();
@@ -117,12 +141,14 @@ public:
                     result,
                     Status{ErrorCodes::CommandNotFound,
                            str::stream() << "Explain failed due to unknown command: " << cmdName});
+                success = false;
                 return false;
             }
 
             const NamespaceString nss(parseNs(dbname, explainObj));
             if (!nss.isValid()) {
                 LOG(logger::LogSeverity::Error()) << "nss is invalid.nss name:" << nss.ns();
+                success = false;
                 return false;
             }
 
@@ -132,6 +158,7 @@ public:
             if (!status.isOK()) {
                 LOG(logger::LogSeverity::Error())
                     << "cmdObj to QueryRequest is error, reason:" << status.getStatus().toString();
+                success = false;
                 return false;
             }
 
@@ -139,6 +166,7 @@ public:
             if (queryRequest == nullptr || !queryRequest->validate().isOK()) {
                 LOG(logger::LogSeverity::Error())
                     << "QueryRequest is invalid, reason: null or validate is false";
+                success = false;
                 return false;
             }
 
@@ -197,9 +225,12 @@ public:
         } catch (...) {
             LOG(logger::LogSeverity::Error())
                 << "getShardInfoWithQuery unknown error, I catch exception";
+                success = false;
             return false;
         }
     }
+private:
+    unique_ptr<DetailCmdCounter<CMD_NAME>> _detailCmder;
 } getShardInfoWithQuery;
 
 }  // namespace

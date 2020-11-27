@@ -58,6 +58,7 @@ env.Library(
     target='counters',
     source=[
         'counters.cpp',
+	'detail_counter.cpp'
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
@@ -107,3 +108,4 @@ env.Library(
         'incomplete',
     ],
 )
+
