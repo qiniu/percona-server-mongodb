@@ -85,10 +85,9 @@ class BaseDetailCmdCounter {
  * note: not thread saft, ok with that for speed
  */
 // T:表示类型，通常就是string, NAME表示这个cmd的名字
-template <const string& NAME>
 class DetailCmdCounter : public BaseDetailCmdCounter {
 public:
-    DetailCmdCounter() : BaseDetailCmdCounter(NAME), _latencyHistogramPtr(nullptr) {
+    DetailCmdCounter(string name) : BaseDetailCmdCounter(name), _latencyHistogramPtr(nullptr) {
         // LOG(logger::LogSeverity::Info()) << "DetailCmdCounter:" << _name << " created"; 
         _latencyHistogramPtr = std::make_unique<OperationLatencyHistogram>();
         assert(_latencyHistogramPtr != nullptr);

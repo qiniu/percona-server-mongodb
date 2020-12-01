@@ -51,14 +51,14 @@ using std::shared_ptr;
 using std::string;
 using std::unique_ptr;
 
-const string CMD_NAME = "getShardInfoWithQuery"; 
 
 class MongosGetShardInfoWithQueryCmd : public Command {
 public:
     MongosGetShardInfoWithQueryCmd()
         : Command("getShardInfoWithQuery", false, "getShardInfoWithQuery") {
+            const static string CMD_NAME = "getShardInfoWithQuery"; 
             LOG(logger::LogSeverity::Info()) << "MongosGetShardINfoWithQueryCmd is create";
-            _detailCmder = std::make_unique<DetailCmdCounter<CMD_NAME>>();
+            _detailCmder = std::make_unique<DetailCmdCounter>(CMD_NAME);
         }
 
     virtual bool slaveOk() const {
