@@ -55,9 +55,12 @@ class BaseDetailCmdCounter;
 //找个地方把这些相关具体命令的监控信息能存起来；
 class DetailCmdCounterContainer {
 public:
-    void append(const BaseDetailCmdCounter* tmp); 
+    const BaseDetailCmdCounter* get(string name);
+    uint32_t size();
     void buildObj(BSONObjBuilder& builder);
 
+    void append(const BaseDetailCmdCounter* tmp); 
+    void remove(string name);
 private:
     mutex _mapLock;
     unordered_map<string, const BaseDetailCmdCounter*> _cmdMap;
@@ -70,11 +73,15 @@ class BaseDetailCmdCounter {
         BaseDetailCmdCounter(const string& name): _name(name) {
             G_D_C_CONTAINER.append(this);
         }
+
         const string& getName() const {
             return _name;
         }
+
         virtual BSONObj getObj() const = 0;
-        virtual ~BaseDetailCmdCounter() = default;
+        virtual ~BaseDetailCmdCounter() {                
+            G_D_C_CONTAINER.remove(_name);
+        }
     private:
     string _name;
 };
@@ -84,11 +91,9 @@ class BaseDetailCmdCounter {
  * for storing detail cmd's qps and latency
  * note: not thread saft, ok with that for speed
  */
-// T:表示类型，通常就是string, NAME表示这个cmd的名字
 class DetailCmdCounter : public BaseDetailCmdCounter {
 public:
     DetailCmdCounter(string name) : BaseDetailCmdCounter(name), _latencyHistogramPtr(nullptr) {
-        // LOG(logger::LogSeverity::Info()) << "DetailCmdCounter:" << _name << " created"; 
         _latencyHistogramPtr = std::make_unique<OperationLatencyHistogram>();
         assert(_latencyHistogramPtr != nullptr);
         _failureCnt.store(0);
@@ -100,15 +105,21 @@ public:
         _latencyHistogramPtr->append(true, &b);
         b.append("failureCnt", _failureCnt.loadRelaxed());
 
-        return b.obj();
+        //把直方图中的无关信息删除
+        return b.obj().removeField("reads").removeField("writes");
     }
 
-    //ms
+    uint32_t getFailure() const {
+        return _failureCnt.loadRelaxed();
+    }
+
+    //microsecond
     void gotLatency(uint64_t latency) {
         _latencyHistogramPtr->increment(latency, Command::ReadWriteType::kCommand);
     }
 
     void gotFailure() {
+        _checkWrap();
         _failureCnt.addAndFetch(1);
     }
 private:

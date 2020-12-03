@@ -137,37 +137,39 @@ public:
             const std::string cmdName = explainObj.firstElementFieldName();
             Command* commToExplain = Command::findCommand(cmdName);
             if (!commToExplain || commToExplain->getName() != "find") {
-                appendCommandStatus(
+                success = false;
+                return appendCommandStatus(
                     result,
                     Status{ErrorCodes::CommandNotFound,
                            str::stream() << "Explain failed due to unknown command: " << cmdName});
-                success = false;
-                return false;
             }
 
             const NamespaceString nss(parseNs(dbname, explainObj));
             if (!nss.isValid()) {
-                LOG(logger::LogSeverity::Error()) << "nss is invalid.nss name:" << nss.ns();
                 success = false;
-                return false;
+                return appendCommandStatus(
+                    result,
+                    Status{ErrorCodes::InvalidNamespace,
+                     str::stream() << "Invalid collection name: " << nss.ns()});
             }
 
             LOG(3) << "getShardInfoWithQuery. cmdObj" << cmdObj.toString();
 
             auto status = QueryRequest::makeFromFindCommand(nss, explainObj, true);
             if (!status.isOK()) {
-                LOG(logger::LogSeverity::Error())
-                    << "cmdObj to QueryRequest is error, reason:" << status.getStatus().toString();
                 success = false;
-                return false;
+                return appendCommandStatus(result, status.getStatus());
             }
 
             const unique_ptr<QueryRequest>& queryRequest = status.getValue();
             if (queryRequest == nullptr || !queryRequest->validate().isOK()) {
-                LOG(logger::LogSeverity::Error())
-                    << "QueryRequest is invalid, reason: null or validate is false";
                 success = false;
-                return false;
+                return appendCommandStatus(
+                    result, Status {
+                        ErrorCodes::InvalidBSON,
+                            str::stream()
+                            << "QueryRequest is invalid, reason: null or validate is false"
+                    });
             }
 
             bool print = false;
@@ -208,7 +210,7 @@ public:
             }
 
             if (MONGO_unlikely(print)) {
-                LOG(3) << vinfo;
+                LOG(logger::LogSeverity::Info()) << vinfo;
             }
 
             BSONArrayBuilder bsonShardInfos(shardIds.size());
@@ -223,14 +225,15 @@ public:
             result.append("shards", bsonShardInfos.arr());
             return true;
         } catch (...) {
-            LOG(logger::LogSeverity::Error())
-                << "getShardInfoWithQuery unknown error, I catch exception";
-                success = false;
-            return false;
+            success = false;
+            return appendCommandStatus(
+                result,
+                Status{ErrorCodes::UnknownError,
+                       "getShardInfoWithQuery unknown error, I catch exception"});
         }
     }
 private:
-    unique_ptr<DetailCmdCounter<CMD_NAME>> _detailCmder;
+    unique_ptr<DetailCmdCounter> _detailCmder;
 } getShardInfoWithQuery;
 
 }  // namespace
