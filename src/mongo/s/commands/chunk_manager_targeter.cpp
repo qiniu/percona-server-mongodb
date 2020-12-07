@@ -173,7 +173,7 @@ ChunkVersion getShardVersion(const CachedCollectionRoutingInfo& routingInfo,
  * ChunkManager or is implicit in the primary shard of the collection.
  */
 CompareResult compareAllShardVersions(const CachedCollectionRoutingInfo& routingInfo,
-                                      const ShardVersionMap& remoteShardVersions) {
+                                      const ShardVersionMapEX& remoteShardVersions) {
     CompareResult finalResult = CompareResult_GTE;
 
     for (const auto& shardVersionEntry : remoteShardVersions) {
