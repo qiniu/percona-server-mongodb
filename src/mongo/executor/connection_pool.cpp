@@ -40,6 +40,7 @@
 #include "mongo/util/destructor_guard.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/timer.h"
 
 // One interesting implementation note herein concerns how setup() and
 // refresh() are invoked outside of the global lock, but setTimeout is not.
@@ -365,7 +366,12 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
 
     updateStateInLock();
 
+    Timer t;
     spawnConnections(lk);
+    long long millisElapsed = t.millis();
+    if(millisElapsed > 10){
+        log()<<"spawnConnections connection optime = "<<millisElapsed<<"ms";
+    }
     fulfillRequests(lk);
 }
 
