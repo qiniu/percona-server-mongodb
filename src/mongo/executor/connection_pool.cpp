@@ -370,7 +370,7 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
     spawnConnections(lk);
     long long millisElapsed = t.millis();
     if(millisElapsed > 10){
-        log()<<"spawnConnections connection optime = "<<millisElapsed<<"ms";
+        log()<< hostAndPort.toString() <<" spawnConnections connection optime = "<<millisElapsed<<"ms";
     }
     fulfillRequests(lk);
 }
