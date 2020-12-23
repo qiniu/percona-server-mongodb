@@ -57,6 +57,7 @@ class PoolForHost {
 public:
     // Sentinel value indicating pool has no cleanup limit
     static const int kPoolSizeUnlimited;
+    static const int kDefaultMaxInUse;
 
     friend class DBConnectionPool;
 
@@ -65,6 +66,7 @@ public:
           _minValidCreationTimeMicroSec(0),
           _type(ConnectionString::INVALID),
           _maxPoolSize(kPoolSizeUnlimited),
+          _maxInUse(kDefaultMaxInUse),
           _checkedOut(0),
           _badConns(0),
           _parentDestroyed(false) {}
@@ -90,6 +92,14 @@ public:
      */
     void setMaxPoolSize(int maxPoolSize) {
         _maxPoolSize = maxPoolSize;
+    }
+
+
+    /**
+     * Sets the maximum number of in-use connections per host.
+     */
+    void setMaxInUse(int maxInUse) {
+        _maxInUse = maxInUse;
     }
 
     /**
@@ -176,6 +186,9 @@ private:
     // The maximum number of connections we'll save in the pool
     int _maxPoolSize;
 
+    // The maximum number of connections allowed to be in-use in this pool
+    int _maxInUse;
+
     // The number of currently active connections from this pool
     int _checkedOut;
 
@@ -228,6 +241,14 @@ public:
      */
     int getMaxPoolSize() {
         return _maxPoolSize;
+    }
+
+
+    /**
+     * Sets the maximum number of in-use connections per host.
+     */
+    void setMaxInUse(int maxInUse) {
+        _maxInUse = maxInUse;
     }
 
     /**
@@ -322,6 +343,9 @@ private:
     // PoolForHost::kPoolSizeUnlimited is a sentinel value meaning "no limit"
     // 0 effectively disables the pool
     int _maxPoolSize;
+
+    // The maximum number of connections allowed to be in-use in this pool
+    int _maxInUse;
 
     PoolMap _pools;
 

@@ -201,6 +201,7 @@ void PoolForHost::initializeHostName(const std::string& hostName) {
 // ------ DBConnectionPool ------
 
 const int PoolForHost::kPoolSizeUnlimited(-1);
+const int kDefaultMaxInUse = std::numeric_limits<int>::max();
 
 DBConnectionPool::DBConnectionPool()
     : _name("dbconnectionpool"),
