@@ -276,7 +276,7 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
-            uassert(ErrorCodes::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
     }
 
@@ -307,7 +307,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
-            uassert(ErrorCodes::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
     }
 
@@ -339,7 +339,7 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
-            uassert(ErrorCodes::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
     }
 
