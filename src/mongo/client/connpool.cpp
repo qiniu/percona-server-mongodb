@@ -75,7 +75,6 @@ void PoolForHost::clear() {
 }
 
 void PoolForHost::setMaxInUse(int maxInUse) {
-    log() << "(PoolForHost):setting maxInUse pool size:" << maxInUse;
     this->_maxInUse = maxInUse;
 }
 
@@ -273,14 +272,13 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
     {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
         PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
-
+        log() << "limit:" << this->_maxInUse << ", now:" << p.openConnections();
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
             uassert(ErrorCodes::Error::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
     }
-
 
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
@@ -301,6 +299,18 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
+    {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
+
+        log() << "limit:" << this->_maxInUse << ", now:" << p.openConnections();
+        if (p.openConnections() >= this->_maxInUse) {
+            log() << "Too many in-use connections; waiting until there are fewer than "
+                  << this->_maxInUse;
+            uassert(ErrorCodes::Error::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+        }
+    }
+
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
 
     string errmsg;
@@ -319,6 +329,18 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
     if (c) {
         onHandedOut(c.get());
         return c.release();
+    }
+
+    {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
+
+        log() << "limit:" << this->_maxInUse << ", now:" << p.openConnections();
+        if (p.openConnections() >= this->_maxInUse) {
+            log() << "Too many in-use connections; waiting until there are fewer than "
+                  << this->_maxInUse;
+            uassert(ErrorCodes::Error::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+        }
     }
 
     string errmsg;
@@ -508,13 +530,12 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
 }
 
 void DBConnectionPool::setMaxInUse(int maxInUse) {
-    log() << "setting maxInUse pool size:" << maxInUse;
     this->_maxInUse = maxInUse;
 }
 
 void DBConnectionPool::taskDoWork() {
     vector<DBClientBase*> toDelete;
-
+    
     {
         // we need to get the connections inside the lock
         // but we can actually delete them outside
