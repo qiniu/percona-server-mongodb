@@ -41,6 +41,9 @@ namespace mongo {
 int ConnPoolOptions::maxConnsPerHost(200);
 int ConnPoolOptions::maxShardedConnsPerHost(200);
 
+int ConnPoolOptions::maxInUseConnsPerHost(200);
+int ConnPoolOptions::maxShardedInUseConnsPerHost(200);
+
 namespace {
 
 ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
@@ -53,6 +56,16 @@ ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
                                     "connPoolMaxShardedConnsPerHost",
                                     &ConnPoolOptions::maxShardedConnsPerHost);
 
+ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
+    maxInUseConnsPerHostParameter(ServerParameterSet::getGlobal(),
+                             "connPoolMaxInUseConnsPerHost",
+                             &ConnPoolOptions::maxInUseConnsPerHost);
+
+ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
+    maxInUseShardedConnsPerHostParameter(ServerParameterSet::getGlobal(),
+                                    "connPoolMaxShardedInUseConnsPerHost",
+                                    &ConnPoolOptions::maxShardedInUseConnsPerHost);
+
 MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     // Initialize the sharded and unsharded outgoing connection pools
     // NOTES:
@@ -62,9 +75,11 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
 
     globalConnPool.setName("connection pool");
     globalConnPool.setMaxPoolSize(ConnPoolOptions::maxConnsPerHost);
+    globalConnPool.setMaxInUse(ConnPoolOptions::maxInUseConnsPerHost);
 
     shardConnectionPool.setName("sharded connection pool");
     shardConnectionPool.setMaxPoolSize(ConnPoolOptions::maxShardedConnsPerHost);
+    shardConnectionPool.setMaxInUse(ConnPoolOptions::maxShardedInUseConnsPerHost);
 
     return Status::OK();
 }

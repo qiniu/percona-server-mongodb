@@ -247,6 +247,13 @@ Status storeMongosOptions(const moe::Environment& params) {
                      "done for testing purposes and is not recommended for production.";
     }
 
+    // //shenmengye 添加到每一个shard的pool的连接池的限制
+    // if (params.count("maxInUseConnPerHost")) {
+    //     mongosGlobalParams.maxInUseConnPerHost = params["maxInUseConnPerHost"].as<int>();
+    // } else {
+    //     mongosGlobalParams.maxInUseConnPerHost = 
+    // }
+
     return Status::OK();
 }
 

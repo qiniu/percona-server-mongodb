@@ -74,6 +74,11 @@ void PoolForHost::clear() {
     }
 }
 
+void PoolForHost::setMaxInUse(int maxInUse) {
+    log() << "(PoolForHost):setting maxInUse pool size:" << maxInUse;
+    this->_maxInUse = maxInUse;
+}
+
 void PoolForHost::done(DBConnectionPool* pool, DBClientBase* c) {
     bool isFailed = c->isFailed();
 
@@ -201,11 +206,12 @@ void PoolForHost::initializeHostName(const std::string& hostName) {
 // ------ DBConnectionPool ------
 
 const int PoolForHost::kPoolSizeUnlimited(-1);
-const int kDefaultMaxInUse = std::numeric_limits<int>::max();
+const int PoolForHost::kDefaultMaxInUse(-1);
 
 DBConnectionPool::DBConnectionPool()
     : _name("dbconnectionpool"),
       _maxPoolSize(PoolForHost::kPoolSizeUnlimited),
+      _maxInUse(PoolForHost::kDefaultMaxInUse),
       _hooks(new list<DBConnectionHook*>()) {}
 
 DBClientBase* DBConnectionPool::_get(const string& ident, double socketTimeout) {
@@ -213,6 +219,7 @@ DBClientBase* DBConnectionPool::_get(const string& ident, double socketTimeout) 
     stdx::lock_guard<stdx::mutex> L(_mutex);
     PoolForHost& p = _pools[PoolKey(ident, socketTimeout)];
     p.setMaxPoolSize(_maxPoolSize);
+    p.setMaxInUse(_maxInUse);
     p.setSocketTimeout(socketTimeout);
     p.initializeHostName(ident);
     return p.get(this, socketTimeout);
@@ -231,6 +238,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
         stdx::lock_guard<stdx::mutex> L(_mutex);
         PoolForHost& p = _pools[PoolKey(ident, socketTimeout)];
         p.setMaxPoolSize(_maxPoolSize);
+        p.setMaxInUse(_maxInUse);
         p.initializeHostName(ident);
         p.createdOne(conn);
     }
@@ -261,6 +269,18 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         }
         return c;
     }
+
+    {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
+
+        if (p.openConnections() >= this->_maxInUse) {
+            log() << "Too many in-use connections; waiting until there are fewer than "
+                  << this->_maxInUse;
+            uassert(ErrorCodes::Error::MaxInUsePerHostTooMuch, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+        }
+    }
+
 
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
@@ -485,6 +505,11 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
     }
 
     return true;
+}
+
+void DBConnectionPool::setMaxInUse(int maxInUse) {
+    log() << "setting maxInUse pool size:" << maxInUse;
+    this->_maxInUse = maxInUse;
 }
 
 void DBConnectionPool::taskDoWork() {

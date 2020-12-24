@@ -98,9 +98,8 @@ public:
     /**
      * Sets the maximum number of in-use connections per host.
      */
-    void setMaxInUse(int maxInUse) {
-        _maxInUse = maxInUse;
-    }
+    void setMaxInUse(int maxInUse); 
+
 
     /**
      * Sets the socket timeout on this host, for reporting purposes only.
@@ -247,9 +246,8 @@ public:
     /**
      * Sets the maximum number of in-use connections per host.
      */
-    void setMaxInUse(int maxInUse) {
-        _maxInUse = maxInUse;
-    }
+    void setMaxInUse(int maxInUse);
+    
 
     /**
      * Returns the number of connections to the given host pool.

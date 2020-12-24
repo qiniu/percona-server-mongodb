@@ -35,7 +35,6 @@
 #include "mongo/util/options_parser/option_section.h"
 
 namespace mongo {
-
 namespace optionenvironment {
 class OptionSection;
 class Environment;
