@@ -97,6 +97,7 @@ env.Library(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/server_parameters',
+	'$BUILD_DIR/mongo/db/repl/repl_coordinator_impl',
     ],
 )
 

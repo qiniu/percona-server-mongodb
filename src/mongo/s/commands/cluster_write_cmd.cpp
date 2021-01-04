@@ -26,6 +26,7 @@
  *    it in the license file.
  */
 
+#define MONGO_LOG_DEFAULT_COMPONENT mongo::logger::LogComponent::kExecutor
 #include "mongo/platform/basic.h"
 
 #include "mongo/base/error_codes.h"
@@ -49,7 +50,7 @@
 #include "mongo/s/write_ops/batched_command_request.h"
 #include "mongo/s/write_ops/batched_command_response.h"
 #include "mongo/util/timer.h"
-
+#include "mongo/util/log.h"
 namespace mongo {
 
 using std::string;
@@ -281,6 +282,7 @@ private:
         }
 
         // Errors reported when recv'ing responses
+        Timer timer;
         dispatcher.sendAll();
         Status dispatchStatus = Status::OK();
 
@@ -301,6 +303,14 @@ private:
             {
                 auto shardStatus = grid.shardRegistry()->getShard(txn, host.toString());
                 if (!shardStatus.isOK()) {
+                    auto optime = timer.millis();
+                    if (optime > serverGlobalParams.slowMS) {
+                        if (endpoints.size() > 0) {
+                            log() << "write cmd shardid = " << endpoints[0]->shardName.toString()
+                                  << ",command=" << command.toString() << ",optime=" << optime
+                                  << "ms not ok.";
+                        }
+                    }
                     return shardStatus.getStatus();
                 }
                 result.shardTargetId = shardStatus.getValue()->getId();
@@ -310,6 +320,12 @@ private:
             results->push_back(result);
         }
 
+        auto optime = timer.millis();
+        if(optime > serverGlobalParams.slowMS) {
+            if(endpoints.size() > 0){
+                log()<<"write cmd shardid = "<< endpoints[0]->shardName.toString()<<",command="<<command.toString()<<",optime="<<optime<<"ms";
+            }
+        }
         return dispatchStatus;
     }
 };
