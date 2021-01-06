@@ -312,6 +312,8 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         }
     }
 
+    log() << "fenglin i create one connection";
+
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
 
     string errmsg;

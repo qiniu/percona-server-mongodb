@@ -176,6 +176,7 @@ private:
 
     std::string _hostName;
     double _socketTimeout;
+    // 空闲的一些连接会存放在这里
     std::stack<StoredConnection> _pool;
 
     int64_t _created;
