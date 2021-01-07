@@ -270,10 +270,9 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    stdx::unique_lock<stdx::mutex> lk(_mutex);
-    PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
-
     {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
         log() << "(url)limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
@@ -301,10 +300,10 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
-    stdx::unique_lock<stdx::mutex> lk(_mutex);
-    PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
-
     {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
+
         log() << "(host)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
@@ -335,9 +334,10 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         return c.release();
     }
 
-    stdx::unique_lock<stdx::mutex> lk(_mutex);
-    PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
     {
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
+
         log() << "(mongouri)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
