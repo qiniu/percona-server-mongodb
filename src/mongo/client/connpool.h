@@ -116,6 +116,15 @@ public:
         return _checkedOut;
     }
 
+    void incrCheckout() {
+        ++_checkedOut;
+    }
+
+    void descCheckout() {
+        --_checkedOut;
+    }
+
+
     /**
      * Returns the number of open connections in this pool.
      */
@@ -123,7 +132,7 @@ public:
         return numInUse() + numAvailable();
     }
 
-    void createdOne(DBClientBase* base);
+    void createdOne(DBClientBase* base, bool tryAddCheckout = false);
     long long numCreated() const {
         return _created;
     }
@@ -190,7 +199,7 @@ private:
     int _maxInUse;
 
     // The number of currently active connections from this pool
-    int _checkedOut;
+    std::atomic_int32_t _checkedOut;
 
     // The number of connections that we did not reuse because they went bad.
     int _badConns;
@@ -321,7 +330,7 @@ private:
 
     DBClientBase* _get(const std::string& ident, double socketTimeout);
 
-    DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn);
+    DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn, bool tryAddCheckout = false);
 
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}
