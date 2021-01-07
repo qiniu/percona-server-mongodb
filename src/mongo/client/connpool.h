@@ -322,6 +322,7 @@ private:
     DBClientBase* _get(const std::string& ident, double socketTimeout);
 
     DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn);
+    DBClientBase* _finishCreateNoHost(const std::string& ident, double socketTimeout, DBClientBase* conn);
 
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}
