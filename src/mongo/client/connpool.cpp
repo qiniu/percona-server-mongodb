@@ -242,7 +242,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
         p.setMaxPoolSize(_maxPoolSize);
         p.setMaxInUse(_maxInUse);
         p.initializeHostName(ident);
-        p.createdOne(conn);
+        p.createdOne(conn, tryAddCheckout);
     }
 
     try {
