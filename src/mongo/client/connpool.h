@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <stack>
 #include <atomic>
+#include <string>
 
 #include "mongo/client/dbclientinterface.h"
 #include "mongo/client/mongo_uri.h"
@@ -40,6 +41,8 @@
 #include "mongo/util/concurrency/mutex.h"
 
 namespace mongo {
+
+using std::string;
 
 class BSONObjBuilder;
 class DBConnectionPool;
