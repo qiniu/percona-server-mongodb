@@ -333,6 +333,8 @@ private:
 
     DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn, bool tryAddCheckout = false);
 
+    bool _limitMaxInUse(string url, double socketTimeout);
+
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}
         std::string ident;

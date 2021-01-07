@@ -260,6 +260,24 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
+bool DBConnectionPool::_limitMaxInUse(string url, double socketTimeout) {
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
+
+    log() << url <<";limit:" << this->_maxInUse << ", now:" << p.openConnections()
+          << ",available:" << p.numAvailable() << ".user:" << p.numInUse();
+    if (p.openConnections() >= this->_maxInUse) {
+        log() << "Too many in-use connections; waiting until there are fewer than "
+              << this->_maxInUse;
+        uassert(17289,
+                "Too many in-use connections; waiting until there are fewer than " +
+                    std::to_string(this->_maxInUse),
+                false);
+    }
+    p.incrCheckout();
+    return true;
+}
+
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
     DBClientBase* c = _get(url.toString(), socketTimeout);
     if (c) {
@@ -272,20 +290,7 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    bool tryAddConnection = false;
-    {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
-        log() << "(url)limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
-        if (p.openConnections() >= this->_maxInUse) {
-            log() << "Too many in-use connections; waiting until there are fewer than "
-                  << this->_maxInUse;
-            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
-        }
-
-        tryAddConnection = true;
-        p.incrCheckout();
-    }
+    bool tryAddConnection = this->_limitMaxInUse(url.toString(), socketTimeout);
 
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
@@ -311,22 +316,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
-    bool tryAddConnection = false;
-    {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
-
-        log() << "(host)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
-        if (p.openConnections() >= this->_maxInUse) {
-            log() << "Too many in-use connections; waiting until there are fewer than "
-                  << this->_maxInUse;
-            uassert(65538, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
-        }
-
-        tryAddConnection = true;
-        p.incrCheckout();
-    }
-
+    bool tryAddConnection = this->_limitMaxInUse(host, socketTimeout);
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     string errmsg;
     c = cs.connect(StringData(), errmsg, socketTimeout);
@@ -353,21 +343,7 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         return c.release();
     }
 
-    bool tryAddConnection = false;
-    {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
-
-        log() << "(mongouri)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
-        if (p.openConnections() >= this->_maxInUse) {
-            log() << "Too many in-use connections; waiting until there are fewer than "
-                  << this->_maxInUse;
-            uassert(65539, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
-        }
-        tryAddConnection = true;
-        p.incrCheckout();
-    }
-
+    bool tryAddConnection = this->_limitMaxInUse(uri.toString(), socketTimeout);
     string errmsg;
     c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
 
