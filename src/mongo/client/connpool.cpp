@@ -258,25 +258,6 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
-
-DBClientBase* DBConnectionPool::_finishCreateNoHost(const string& ident,
-                                              double socketTimeout,
-                                              DBClientBase* conn) {
-    try {
-        onCreate(conn);
-        onHandedOut(conn);
-    } catch (std::exception&) {
-        delete conn;
-        throw;
-    }
-
-    log() << "Successfully connected to " << ident << " (" << openConnections(ident, socketTimeout)
-          << " connections now open to " << ident << " with a " << socketTimeout
-          << " second timeout)";
-
-    return conn;
-}
-
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
     DBClientBase* c = _get(url.toString(), socketTimeout);
     if (c) {
@@ -289,28 +270,23 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    {
-        stdx::lock_guard<stdx::mutex> L(_mutex);
-        PoolForHost& p = _pools[PoolKey(url.toString(), socketTimeout)];
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
 
+    {
         log() << "(url)limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
             uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
-
-        string errmsg;
-        c = url.connect(StringData(), errmsg, socketTimeout);
-        uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
-
-        p.setMaxPoolSize(_maxPoolSize);
-        p.setMaxInUse(_maxInUse);
-        p.initializeHostName(url.toString());
-        p.createdOne(c);
     }
 
-    return _finishCreateNoHost(url.toString(), socketTimeout, c);
+    string errmsg;
+    c = url.connect(StringData(), errmsg, socketTimeout);
+    uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
+
+    return _finishCreate(url.toString(), socketTimeout, c);
 }
 
 DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
@@ -325,33 +301,31 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
-    {
-        stdx::lock_guard<stdx::mutex> L(_mutex);
-        PoolForHost& p = _pools[PoolKey(host, socketTimeout)];
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
 
-        log() << "(url)limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
+    {
+        log() << "(host)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
-            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+            uassert(65538, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
-
-        const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
-        string errmsg;
-        c = cs.connect(StringData(), errmsg, socketTimeout);
-        if (!c)
-            throw SocketException(SocketException::CONNECT_ERROR,
-                                  host,
-                                  11002,
-                                  str::stream() << _name << " error: " << errmsg);
-
-        p.setMaxPoolSize(_maxPoolSize);
-        p.setMaxInUse(_maxInUse);
-        p.initializeHostName(host);
-        p.createdOne(c);
     }
 
-    return _finishCreateNoHost(host, socketTimeout, c);
+    log() << "fenglin i create one connection";
+
+    const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
+
+    string errmsg;
+    c = cs.connect(StringData(), errmsg, socketTimeout);
+    if (!c)
+        throw SocketException(SocketException::CONNECT_ERROR,
+                              host,
+                              11002,
+                              str::stream() << _name << " error: " << errmsg);
+
+    return _finishCreate(host, socketTimeout, c);
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
@@ -361,28 +335,22 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         return c.release();
     }
 
+    stdx::unique_lock<stdx::mutex> lk(_mutex);
+    PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
     {
-        stdx::lock_guard<stdx::mutex> L(_mutex);
-        PoolForHost& p = _pools[PoolKey(uri.toString(), socketTimeout)];
-
-        log() << "(url)limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
+        log() << "(mongouri)-limit:" << this->_maxInUse << ", now:" << p.openConnections() << ",available:" << p.numAvailable() << ".user:" << p.numInUse(); 
         if (p.openConnections() >= this->_maxInUse) {
             log() << "Too many in-use connections; waiting until there are fewer than "
                   << this->_maxInUse;
-            uassert(17289, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
+            uassert(65539, "Too many in-use connections; waiting until there are fewer than " + std::to_string(this->_maxInUse), false);
         }
-
-        string errmsg;
-        c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
-        uassert(40356, _name + ": connect failed " + uri.toString() + " : " + errmsg, c);
-
-        p.setMaxPoolSize(_maxPoolSize);
-        p.setMaxInUse(_maxInUse);
-        p.initializeHostName(uri.toString());
-        p.createdOne(c);
     }
 
-    return _finishCreateNoHost(uri.toString(), socketTimeout, c.release());
+    string errmsg;
+    c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
+    uassert(40356, _name + ": connect failed " + uri.toString() + " : " + errmsg, c);
+
+    return _finishCreate(uri.toString(), socketTimeout, c.release());
 }
 
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {
