@@ -223,7 +223,6 @@ DBClientBase* DBConnectionPool::_get(const string& ident, double socketTimeout) 
     p.setMaxInUse(_maxInUse);
     p.setSocketTimeout(socketTimeout);
     p.initializeHostName(ident);
-    log() << "(_get)limit:" << this->_maxInUse << ", now:" << p.openConnections();
     return p.get(this, socketTimeout);
 }
 
