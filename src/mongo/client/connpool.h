@@ -200,7 +200,7 @@ private:
     int _maxInUse;
 
     // The number of currently active connections from this pool
-    std::atomic_int32_t _checkedOut;
+    std::atomic<int32_t> _checkedOut;
 
     // The number of connections that we did not reuse because they went bad.
     int _badConns;
