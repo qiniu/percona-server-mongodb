@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <stack>
+#include <atomic>
 
 #include "mongo/client/dbclientinterface.h"
 #include "mongo/client/mongo_uri.h"

@@ -330,7 +330,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     string errmsg;
     c = cs.connect(StringData(), errmsg, socketTimeout);
-    if (!c)
+    if (!c) {
         if (tryAddConnection) {
             stdx::unique_lock<stdx::mutex> lk(_mutex);
             PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
@@ -341,6 +341,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
                               host,
                               11002,
                               str::stream() << _name << " error: " << errmsg);
+    }
 
     return _finishCreate(host, socketTimeout, c, tryAddConnection);
 }
