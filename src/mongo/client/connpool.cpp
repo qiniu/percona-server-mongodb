@@ -264,7 +264,7 @@ bool DBConnectionPool::_limitMaxInUse(string url, double socketTimeout) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
 
-    log() << url <<";limit:" << this->_maxInUse << ", now:" << p.openConnections()
+    log() << this->_name << ":" << url <<";limit:" << this->_maxInUse << ", now:" << p.openConnections()
           << ",available:" << p.numAvailable() << ".user:" << p.numInUse();
     if (p.openConnections() >= this->_maxInUse) {
         log() << "Too many in-use connections; waiting until there are fewer than "
