@@ -176,9 +176,9 @@ var st = new ShardingTest({shards: 2, mongos: 2});
 
 var dbName = 'test';
 var collNS = dbName + '.foo';
-var numShardKeys = 10;
-var numDocs = numShardKeys * 2;
-var splitPoint = numShardKeys / 2;
+var numShardKeys = 10; 
+var numDocs = numShardKeys * 2; //20
+var splitPoint = numShardKeys / 2; //5
 
 assert.commandWorked(st.s.adminCommand({enableSharding: dbName}));
 assert.commandWorked(st.s.adminCommand({shardCollection: collNS, key: {x: 1}}));

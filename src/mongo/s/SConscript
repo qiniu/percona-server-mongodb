@@ -199,7 +199,6 @@ env.Library(
         'balancer_configuration.cpp',
         'catalog_cache.cpp',
         'chunk.cpp',
-        'chunk_manager.cpp',
         'chunk_manager_inlock.cpp',
         'cluster_identity_loader.cpp',
         'config_server_catalog_cache_loader.cpp',

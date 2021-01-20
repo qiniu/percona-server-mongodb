@@ -1091,9 +1091,9 @@ var MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoPro
      */
     MongoRunner._startWithArgs = function(argArray, env, waitForConnect) {
         // TODO: Make there only be one codepath for starting mongo processes
-
+        
         argArray = appendSetParameterArgs(argArray);
-        var port = _parsePort.apply(null, argArray);
+       
         var pid = -1;
         if (env === undefined) {
             pid = _startMongoProgram.apply(null, argArray);
@@ -1106,6 +1106,9 @@ var MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoPro
                 pid: pid,
             };
         }
+
+        var port = _parsePort.apply(null, argArray);
+        print("lixin port="+port)
 
         var conn = null;
         assert.soon(function() {
@@ -1136,14 +1139,14 @@ var MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoPro
      * command line arguments to the program.
      */
     startMongoProgram = function() {
-        var port = _parsePort.apply(null, arguments);
-
+        
         // Enable test commands.
         // TODO: Make this work better with multi-version testing so that we can support
         // enabling this on 2.4 when testing 2.6
         var args = Array.from(arguments);
         args = appendSetParameterArgs(args);
         var pid = _startMongoProgram.apply(null, args);
+        var port = _parsePort.apply(null, arguments);
 
         var m;
         assert.soon(function() {

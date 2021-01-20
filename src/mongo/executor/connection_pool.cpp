@@ -40,7 +40,7 @@
 #include "mongo/util/destructor_guard.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
-
+#include "mongo/util/timer.h"
 // One interesting implementation note herein concerns how setup() and
 // refresh() are invoked outside of the global lock, but setTimeout is not.
 // This implementation detail simplifies mocks, allowing them to return
@@ -365,7 +365,12 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
 
     updateStateInLock();
 
+    Timer t;
     spawnConnections(lk);
+    long long millisElapsed = t.millis();
+    if(millisElapsed > 50){
+        log()<<hostAndPort.toString()<<":spawnConnections connection optime = "<<millisElapsed<<"ms";
+    }
     fulfillRequests(lk);
 }
 
@@ -591,6 +596,7 @@ void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex
         lk.unlock();
         cb(ConnectionHandle(connPtr, ConnectionHandleDeleter(_parent)));
         lk.lock();
+        
     }
 }
 
@@ -601,7 +607,6 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
     // don't keep padding the callstack.
     if (_inSpawnConnections)
         return;
-
     _inSpawnConnections = true;
     auto guard = MakeGuard([&] { _inSpawnConnections = false; });
 

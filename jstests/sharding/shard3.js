@@ -112,7 +112,9 @@
     print("counts after move: " + tojson(s.shardCounts("foo")));
     s.printCollectionInfo("test.foo");
     assert.eq(1, s.onNumShards("foo"), "on 1 shard again");
+    printjson(a.findOne({num: 1}));
     assert(a.findOne({num: 1}), "post move 1");
+    printjson(b.findOne({num: 1}));
     assert(b.findOne({num: 1}), "post move 2");
 
     print("*** drop");

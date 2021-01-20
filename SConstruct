@@ -479,7 +479,7 @@ add_option('cache-dir',
 
 add_option("cxx-std",
     choices=["11", "14"],
-    default="11",
+    default="14",
     help="Select the C++ langauge standard to build with",
 )
 
