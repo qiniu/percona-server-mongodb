@@ -203,6 +203,7 @@ StatusWith<CachedCollectionRoutingInfo> CatalogCache::getCollectionRoutingInfo(
                 try {
                     Timer timer_wait_refresh;
                     const Milliseconds kReportingInterval{250};
+                    // 等待路由刷新完成，其他的不做刷新任务的连接也会在这边等待刷新；
                     while (!refreshNotification->waitFor(opCtx, kReportingInterval)) {
                         _stats.totalRefreshWaitTimeMicros.addAndFetch(t.micros());
                         t.reset();

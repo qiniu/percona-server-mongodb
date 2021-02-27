@@ -172,10 +172,15 @@ public:
         // that the parsing be pulled into this function.
         uassertStatusOK(createShardDatabase(opCtx, nss.db()));
 
+        Timer routeCacheTimer;
         auto routingInfo =
             uassertStatusOK(Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfo(opCtx, nss));
         if (!routingInfo.cm()) {
             return _runCommand(opCtx, nullptr, routingInfo.primaryId(), nss, cmdObj, result);
+        }
+
+        if (routeCacheTimer.millis() > 100) {
+            log() << cmdObj.toString() << " refresh route is " << routeCacheTimer.millis();
         }
 
         const auto chunkMgr = routingInfo.cm();
@@ -196,10 +201,15 @@ public:
 
         auto chunk = chunkMgr->findIntersectingChunk(shardKey, collation);
 
+        Timer runCommandTimer;
         const bool ok = _runCommand(opCtx, chunkMgr, chunk->getShardId(), nss, cmdObj, result);
         if (ok) {
             updateChunkWriteStatsAndSplitIfNeeded(
                 opCtx, chunkMgr.get(), chunk.get(), cmdObj.getObjectField("update").objsize());
+        }
+
+        if (runCommandTimer.millis() > 100) {
+            log() << cmdObj.toString() << " runCmd  " << routeCacheTimer.millis();
         }
 
         return ok;

@@ -45,6 +45,7 @@
 #include "mongo/util/exit.h"
 #include "mongo/util/log.h"
 #include "mongo/util/net/socket_exception.h"
+#include "mongo/util/timer.h"
 
 namespace mongo {
 
@@ -290,8 +291,10 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
+    
     bool tryAddConnection = this->_limitMaxInUse(url.toString(), socketTimeout);
 
+    Timer connection_timer;
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
     if (!c && tryAddConnection) {
@@ -300,6 +303,10 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         p.descCheckout();
     }
     uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
+
+    if (connection_timer.millis() > 10) {
+        log() << "[MongoStat] wait create timer = " << connection_timer.millis() << "ms";
+    }
 
     return _finishCreate(url.toString(), socketTimeout, c, tryAddConnection);
 }
