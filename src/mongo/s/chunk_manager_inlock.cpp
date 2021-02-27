@@ -524,7 +524,8 @@ ShardVersionMapEX ChunkManagerEX::_constructShardVersionMap(const OID& epoch,
         }
 
         auto& maxShardVersion = shardVersionIt->second;
-
+        //找到下一个遍历的current，找寻条件为，下一个shardid！= currnet.shardid
+        //如果shardid == currnet.shardid，更新maxShardVersion，保证shardVersions中每个shard的version是最新的chunks的version
         current = std::find_if(
             current,
             chunkMap.cend(),

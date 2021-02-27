@@ -34,7 +34,7 @@
 #include <set>
 #include <string>
 
-#include "chunk_manager.h"
+//#include "chunk_manager.h"
 #include "mongo/base/disallow_copying.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/namespace_string.h"
@@ -48,6 +48,12 @@
 //#include "chunk_manager.h"
 
 namespace mongo {
+
+
+
+
+// Map from a shard is to the max chunk version on that shard
+//using ShardVersionMap = std::map<ShardId, ChunkVersion>;
 
 // Ordered map from the max for each chunk to an entry describing the chunk
 

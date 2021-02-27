@@ -53,6 +53,7 @@
 #include "mongo/util/net/ssl_manager.h"
 #include "mongo/util/table_formatter.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/timer.h"
 
 namespace mongo {
 namespace executor {
@@ -276,7 +277,7 @@ Status NetworkInterfaceASIO::startCommand(const TaskExecutor::CallbackHandle& cb
 
     auto nextStep = [this, getConnectionStartTime, cbHandle, request, onFinish](
         StatusWith<ConnectionPool::ConnectionHandle> swConn) {
-
+        //log()<<"nextStep call:"<<request.toString();
         if (!swConn.isOK()) {
             LOG(2) << "Failed to get connection from pool for request " << request.id << ": "
                    << swConn.getStatus();
@@ -352,9 +353,14 @@ Status NetworkInterfaceASIO::startCommand(const TaskExecutor::CallbackHandle& cb
 
         // This ditches the lock and gets us onto the strand (so we're
         // threadsafe)
-        op->_strand.post([this, op, getConnectionStartTime] {
+        Timer t;
+        op->_strand.post([this, op, getConnectionStartTime,t] {
             const auto timeout = op->_request.timeout;
-
+            auto postTime = t.millis();
+            if(postTime > 50){
+                 log()<<"nextStop to Network :"<<t.millis()<<"ms"<<",op="<<op->_request.toString();
+            }
+           
             // Set timeout now that we have the correct request object
             if (timeout != RemoteCommandRequest::kNoTimeout) {
                 // Subtract the time it took to get the connection from the pool from the request
@@ -367,6 +373,9 @@ Status NetworkInterfaceASIO::startCommand(const TaskExecutor::CallbackHandle& cb
                     // manually.
                     std::stringstream msg;
                     msg << "Remote command timed out while waiting to get a connection from the "
+                        << "pool, took " << getConnectionDuration << ", timeout was set to "
+                        << timeout;
+                    log()<< "Remote command timed out while waiting to get a connection from the "
                         << "pool, took " << getConnectionDuration << ", timeout was set to "
                         << timeout;
                     auto rs = ResponseStatus(ErrorCodes::NetworkInterfaceExceededTimeLimit,

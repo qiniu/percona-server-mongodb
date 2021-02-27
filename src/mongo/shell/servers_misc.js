@@ -190,10 +190,19 @@ allocatePort = (function() {
         nextPort = nextPort || jsTestOptions().minPort || 20000;
         maxPort = maxPort || jsTestOptions().maxPort || Math.pow(2, 16) - 1;
 
-        if (nextPort === maxPort) {
-            throw new Error("Exceeded maximum port range in allocatePort()");
+        while(true){
+            if (nextPort === maxPort) {
+                throw new Error("Exceeded maximum port range in allocatePort()");
+            }
+
+            nextPort++
+            if(checkPort(nextPort)){
+                break;
+            }
+            print('port can not use port = ' + nextPort);
         }
-        return nextPort++;
+
+        return nextPort;
     };
 })();
 

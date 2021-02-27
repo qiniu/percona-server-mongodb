@@ -369,8 +369,8 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
     Timer t;
     spawnConnections(lk);
     long long millisElapsed = t.millis();
-    if(millisElapsed > 10){
-        log()<< hostAndPort.toString() <<" spawnConnections connection optime = "<<millisElapsed<<"ms";
+    if(millisElapsed > 50){
+        log()<<hostAndPort.toString()<<":spawnConnections connection optime = "<<millisElapsed<<"ms";
     }
     fulfillRequests(lk);
 }
@@ -597,6 +597,7 @@ void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex
         lk.unlock();
         cb(ConnectionHandle(connPtr, ConnectionHandleDeleter(_parent)));
         lk.lock();
+        
     }
 }
 
@@ -607,7 +608,6 @@ void ConnectionPool::SpecificPool::spawnConnections(stdx::unique_lock<stdx::mute
     // don't keep padding the callstack.
     if (_inSpawnConnections)
         return;
-
     _inSpawnConnections = true;
     auto guard = MakeGuard([&] { _inSpawnConnections = false; });
 

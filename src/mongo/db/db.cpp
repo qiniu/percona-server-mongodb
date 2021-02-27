@@ -145,6 +145,8 @@
 #include "mongo/util/text.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
+#include "mongo/db/s/auto_refresh_routing.h"
+#include "mongo/db/watchdog_mongod.h"
 
 #ifdef MONGO_CONFIG_SSL
 #include "mongo/util/net/ssl_options.h"
@@ -689,6 +691,8 @@ ExitCode _initAndListen(int listenPort) {
     if (mmapv1GlobalOptions.journalOptions & MMAPV1Options::JournalRecoverOnly)
         return EXIT_NET_ERROR;
 
+    startWatchdog(globalServiceContext);
+    
     if (mongodGlobalParams.scriptingEnabled) {
         ScriptEngine::setup();
     }
@@ -772,6 +776,7 @@ ExitCode _initAndListen(int listenPort) {
                             ->initializeShardingAwarenessIfNeeded(startupOpCtx.get()));
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
+        static AutoRefreshRouting task = AutoRefreshRouting(0);
     }
 
     if (!storageGlobalParams.readOnly) {

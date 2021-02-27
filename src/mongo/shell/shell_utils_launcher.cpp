@@ -100,6 +100,20 @@ inline int pipe(int fds[2]) {
 }
 #endif
 
+#if !defined(_WIN32)
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#if defined(__OpenBSD__)
+#include <sys/uio.h>
+#endif
+#endif
+
 /**
  * These utilities are thread safe but do not provide mutually exclusive access to resources
  * identified by the caller.  Resources identified by a pid or port should not be accessed
@@ -851,6 +865,32 @@ BSONObj CopyDbpath(const BSONObj& a, void* data) {
     return undefinedReturn;
 }
 
+
+BSONObj CheckPort(const BSONObj& args, void* data){
+   int nFields = args.nFields();
+    verify(nFields == 1);
+    uassert(15854, "CheckPort needs a number", args.firstElement().isNumber());
+    int port = int(args.firstElement().number());
+
+    int serv_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    struct sockaddr_in servaddr;
+    bzero(&servaddr,sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servaddr.sin_port = htons(port);
+    bool can_use = true;
+
+   // bind(serv_sock, (struct sockaddr*)&servaddr, sizeof(servaddr));
+    if (::bind(serv_sock, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) {
+           log() << "lixin port in use.port=" << port;
+           can_use = false;
+
+     }
+
+     ::close(serv_sock);
+
+    return BSON(string("") << can_use);
+}
 inline void kill_wrapper(ProcessId pid, int sig, int port, const BSONObj& opt) {
 #ifdef _WIN32
     if (sig == SIGKILL || port == 0) {
@@ -1041,6 +1081,7 @@ void installShellUtilsLauncher(Scope& scope) {
     scope.injectNative("resetDbpath", ResetDbpath);
     scope.injectNative("pathExists", PathExists);
     scope.injectNative("copyDbpath", CopyDbpath);
+    scope.injectNative("checkPort", CheckPort);
 }
 }
 }

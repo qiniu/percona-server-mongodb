@@ -12,12 +12,16 @@
     var mongos = st.s0;
     var admin = mongos.getDB("admin");
     var coll = mongos.getCollection("foo.bar");
-
+    var wt = null;
     assert(admin.runCommand({enableSharding: coll.getDB() + ""}).ok);
     printjson(admin.runCommand({movePrimary: coll.getDB() + "", to: st.shard0.shardName}));
     assert(admin.runCommand({shardCollection: coll + "", key: {_id: 1}}).ok);
+    wt = st.shard0.getDB("admin").runCommand({getShardVersion: coll.toString()}).global
     assert(admin.runCommand({split: coll + "", middle: {_id: 0}}).ok);
-
+    wt = st.shard0.getDB("admin").runCommand({getShardVersion: coll.toString()}).global
+    assert(admin.runCommand({split: coll + "", middle: {_id: 100}}).ok);
+    wt = st.shard0.getDB("admin").runCommand({getShardVersion: coll.toString()}).global
+  
     st.printShardingStatus();
 
     jsTest.log("Testing failed migrations...");
@@ -73,13 +77,13 @@
         admin.runCommand({moveChunk: coll + "", find: {_id: -1}, to: st.shard1.shardName}));
 
     newVersion = st.shard0.getDB("admin").runCommand({getShardVersion: coll.toString()}).global;
-
+    
     assert.gt(oldVersion.t,
               newVersion.t,
               "The version prior to the migration should be greater than the reset value");
 
     assert.eq(
-        0, newVersion.t, "The shard version should have reset, but the major value is not zero");
+        2, newVersion.t, "The shard version should have reset, but the major value is not zero");
     assert.eq(
         0, newVersion.i, "The shard version should have reset, but the minor value is not zero");
 
