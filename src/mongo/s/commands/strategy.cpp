@@ -315,6 +315,11 @@ void Strategy::clientCommandOp(OperationContext* opCtx,
                 runAgainstRegistered(opCtx, q.ns, cmdObj, builder, q.queryOptions);
             }
             reply.sendCommandReply(client->session(), dbm->msg());
+            if (execTimer.millis() > 100) {
+                log() << "[MongoStat] command: " << q.ns << " " << redact(q.query) << " ntoreturn: " << q.ntoreturn
+                << " options: " << q.queryOptions << "optime=" << execTimer.millis() << "ms";
+            }
+
             return;
         } catch (const StaleConfigException& e) {
             if (loops <= 0)
@@ -345,10 +350,6 @@ void Strategy::clientCommandOp(OperationContext* opCtx,
         }
     }
 
-    if (execTimer.millis() > 100) {
-        log() << "[MongoStat] command: " << q.ns << " " << redact(q.query) << " ntoreturn: " << q.ntoreturn
-           << " options: " << q.queryOptions << "optime=" << execTimer.millis() << "ms";
-    }
 }
 
 void Strategy::commandOp(OperationContext* opCtx,

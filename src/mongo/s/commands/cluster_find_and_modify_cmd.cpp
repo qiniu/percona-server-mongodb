@@ -179,10 +179,7 @@ public:
             return _runCommand(opCtx, nullptr, routingInfo.primaryId(), nss, cmdObj, result);
         }
 
-        if (routeCacheTimer.millis() > 100) {
-            log() << cmdObj.toString() << " refresh route is " << routeCacheTimer.millis();
-        }
-
+        auto routeConsume = routeCacheTimer.millis();
         const auto chunkMgr = routingInfo.cm();
 
         const BSONObj query = cmdObj.getObjectField("query");
@@ -209,7 +206,7 @@ public:
         }
 
         if (runCommandTimer.millis() > 100) {
-            log() << cmdObj.toString() << " runCmd  " << routeCacheTimer.millis();
+            log() << "[MongoStat] "<< cmdObj.toString() << " runCmd  " << routeCacheTimer.millis() << "refresh route is " << routeConsume << "ms";
         }
 
         return ok;
@@ -247,8 +244,11 @@ private:
 
         const auto shard =
             uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, shardId));
-
+        Timer connectionTimer;
         ShardConnection conn(shard->getConnString(), nss.ns(), chunkManager);
+
+        log() << "MongoStat create connection " << shard->getConnString().toString() << ",  optime:" << connectionTimer.millis() << "ms";
+
         Timer time;
         bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
         conn.done();
