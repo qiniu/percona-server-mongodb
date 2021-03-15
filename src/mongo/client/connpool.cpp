@@ -75,8 +75,8 @@ void PoolForHost::clear() {
     }
 }
 
-void PoolForHost::setMaxInUse(int maxInUse) {
-    this->_maxInUse = maxInUse;
+void PoolForHost::setMaxOpenConnectionSize(int maxOpenConnectionSize) {
+    this->_maxOpenConnectionSize = maxOpenConnectionSize;
 }
 
 void PoolForHost::done(DBConnectionPool* pool, DBClientBase* c) {
@@ -208,12 +208,12 @@ void PoolForHost::initializeHostName(const std::string& hostName) {
 // ------ DBConnectionPool ------
 
 const int PoolForHost::kPoolSizeUnlimited(-1);
-const int PoolForHost::kDefaultMaxInUse(-1);
+const int PoolForHost::kDefaultMaxOpenConnectionSize(-1);
 
 DBConnectionPool::DBConnectionPool()
     : _name("dbconnectionpool"),
       _maxPoolSize(PoolForHost::kPoolSizeUnlimited),
-      _maxInUse(PoolForHost::kDefaultMaxInUse),
+      _maxOpenConnectionSize(PoolForHost::kDefaultMaxOpenConnectionSize),
       _hooks(new list<DBConnectionHook*>()) {}
 
 DBClientBase* DBConnectionPool::_get(const string& ident, double socketTimeout) {
@@ -221,7 +221,7 @@ DBClientBase* DBConnectionPool::_get(const string& ident, double socketTimeout) 
     stdx::lock_guard<stdx::mutex> L(_mutex);
     PoolForHost& p = _pools[PoolKey(ident, socketTimeout)];
     p.setMaxPoolSize(_maxPoolSize);
-    p.setMaxInUse(_maxInUse);
+    p.setMaxOpenConnectionSize(_maxOpenConnectionSize);
     p.setSocketTimeout(socketTimeout);
     p.initializeHostName(ident);
     return p.get(this, socketTimeout);
@@ -241,7 +241,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
         stdx::lock_guard<stdx::mutex> L(_mutex);
         PoolForHost& p = _pools[PoolKey(ident, socketTimeout)];
         p.setMaxPoolSize(_maxPoolSize);
-        p.setMaxInUse(_maxInUse);
+        p.setMaxOpenConnectionSize(_maxOpenConnectionSize);
         p.initializeHostName(ident);
         p.createdOne(conn, tryAddCheckout);
     }
@@ -261,18 +261,16 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
-bool DBConnectionPool::_limitMaxInUse(string url, double socketTimeout) {
+bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTimeout) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
 
-    log() << this->_name << ":" << url <<";limit:" << this->_maxInUse << ", now:" << p.openConnections()
-          << ",available:" << p.numAvailable() << ".user:" << p.numInUse();
-    if (p.openConnections() >= this->_maxInUse) {
-        log() << "Too many in-use connections; waiting until there are fewer than "
-              << this->_maxInUse;
+    if (p.triggleMaxOpenConnectionSize()) {
+        log() << "Too many open connections; waiting until there are fewer than "
+              << this->_maxOpenConnectionSize;
         uassert(17289,
                 "Too many in-use connections; waiting until there are fewer than " +
-                    std::to_string(this->_maxInUse),
+                    std::to_string(this->_maxOpenConnectionSize),
                 false);
     }
     p.incrCheckout();
@@ -291,8 +289,8 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    
-    bool tryAddConnection = this->_limitMaxInUse(url.toString(), socketTimeout);
+
+    bool tryAddConnection = this->_limitMaxOpenConnectionSize(url.toString(), socketTimeout);
 
     Timer connection_timer;
     string errmsg;
@@ -543,8 +541,8 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
     return true;
 }
 
-void DBConnectionPool::setMaxInUse(int maxInUse) {
-    this->_maxInUse = maxInUse;
+void DBConnectionPool::setMaxOpenConnectionSize(int maxOpenConnectionSize) {
+    this->_maxOpenConnectionSize = maxOpenConnectionSize;
 }
 
 void DBConnectionPool::taskDoWork() {

@@ -485,21 +485,28 @@ Refresher::Refresher(const SetStatePtr& setState)
 
 Refresher::NextStep Refresher::getNextStep() {
     // No longer the current scan
+    // 如果连刷新任务的scan都不一样，那么这次就不需要刷新了，
     if (_scan != _set->currentScan) {
         return NextStep(NextStep::DONE);
     }
 
     // Wait for all dispatched hosts to return before trying any fallback hosts.
+    // 说明当前refresher正在等待机器返回结果，所以这边是处于wait状态
     if (_scan->hostsToScan.empty() && !_scan->waitingFor.empty()) {
         return NextStep(NextStep::WAIT);
     }
 
+    // 走到这步: 1. hostsToScan不为空 2. waiting为空
+
     // If we haven't yet found a master, try contacting unconfirmed hosts
+    // 如果任务队列为空，而且没有发现master,
     if (_scan->hostsToScan.empty() && !_scan->foundUpMaster) {
+        // 将这些可能节点再次放入到任务队列中
         _scan->enqueAllUntriedHosts(_scan->possibleNodes, _set->rand);
         _scan->possibleNodes.clear();
     }
 
+    //如果经过上面这个操作，任务队列依然还会为空
     if (_scan->hostsToScan.empty()) {
         // We've tried all hosts we can, so nothing more to do in this round.
         if (!_scan->foundUpMaster) {
@@ -519,6 +526,7 @@ Refresher::NextStep Refresher::getNextStep() {
             for (UnconfirmedReplies::iterator it = _scan->unconfirmedReplies.begin();
                  it != _scan->unconfirmedReplies.end();
                  ++it) {
+                     // 更新节点的ismasterreply
                 _set->findOrCreateNode(it->host)->update(*it);
             }
 
@@ -987,6 +995,7 @@ void Node::update(const IsMasterReply& reply) {
     lastWriteDateUpdateTime = Date_t::now();
 }
 
+//副本的状态管理
 SetState::SetState(StringData name, const std::set<HostAndPort>& seedNodes)
     : name(name.toString()),
       consecutiveFailedScans(0),
@@ -1069,6 +1078,7 @@ HostAndPort SetState::getMatchingHost(const ReadPreferenceSetting& criteria) con
                             upNodes.push_back(&(*nodeIt));
                         }
                     }
+                    // 选择一个最大的;
                     auto latestSecNode =
                         std::max_element(upNodes.begin(), upNodes.end(), writeDateCmp);
                     if (latestSecNode == upNodes.end()) {
@@ -1286,6 +1296,7 @@ void ScanState::enqueAllUntriedHosts(const Container& container, PseudoRandom& r
             hostsToScan.push_back(*it);
         }
     }
+    //将host进行混淆
     std::random_shuffle(hostsToScan.begin(), hostsToScan.end(), rand);
 }
 }

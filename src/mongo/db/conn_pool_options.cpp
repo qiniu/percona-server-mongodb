@@ -41,8 +41,8 @@ namespace mongo {
 int ConnPoolOptions::maxConnsPerHost(200);
 int ConnPoolOptions::maxShardedConnsPerHost(200);
 
-int ConnPoolOptions::maxInUseConnsPerHost(200);
-int ConnPoolOptions::maxShardedInUseConnsPerHost(200);
+int ConnPoolOptions::maxOpenConnsPerHost(200);
+int ConnPoolOptions::maxShardedOpenConnsPerHost(200);
 
 namespace {
 
@@ -58,13 +58,13 @@ ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
 
 ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
     maxInUseConnsPerHostParameter(ServerParameterSet::getGlobal(),
-                             "connPoolMaxInUseConnsPerHost",
-                             &ConnPoolOptions::maxInUseConnsPerHost);
+                             "connPoolMaxOpenConnsPerHost",
+                             &ConnPoolOptions::maxOpenConnsPerHost);
 
 ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
     maxInUseShardedConnsPerHostParameter(ServerParameterSet::getGlobal(),
-                                    "connPoolMaxShardedInUseConnsPerHost",
-                                    &ConnPoolOptions::maxShardedInUseConnsPerHost);
+                                    "connPoolMaxShardedOpenConnsPerHost",
+                                    &ConnPoolOptions::maxShardedOpenConnsPerHost);
 
 MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     // Initialize the sharded and unsharded outgoing connection pools
@@ -75,11 +75,11 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
 
     globalConnPool.setName("connection pool");
     globalConnPool.setMaxPoolSize(ConnPoolOptions::maxConnsPerHost);
-    globalConnPool.setMaxInUse(ConnPoolOptions::maxInUseConnsPerHost);
+    globalConnPool.setMaxOpenConnectionSize(ConnPoolOptions::maxOpenConnsPerHost);
 
     shardConnectionPool.setName("sharded connection pool");
     shardConnectionPool.setMaxPoolSize(ConnPoolOptions::maxShardedConnsPerHost);
-    shardConnectionPool.setMaxInUse(ConnPoolOptions::maxShardedInUseConnsPerHost);
+    shardConnectionPool.setMaxOpenConnectionSize(ConnPoolOptions::maxShardedOpenConnsPerHost);
 
     return Status::OK();
 }

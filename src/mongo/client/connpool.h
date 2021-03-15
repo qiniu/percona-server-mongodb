@@ -61,7 +61,7 @@ class PoolForHost {
 public:
     // Sentinel value indicating pool has no cleanup limit
     static const int kPoolSizeUnlimited;
-    static const int kDefaultMaxInUse;
+    static const int kDefaultMaxOpenConnectionSize;
 
     friend class DBConnectionPool;
 
@@ -70,12 +70,22 @@ public:
           _minValidCreationTimeMicroSec(0),
           _type(ConnectionString::INVALID),
           _maxPoolSize(kPoolSizeUnlimited),
-          _maxInUse(kDefaultMaxInUse),
+          _maxOpenConnectionSize(kDefaultMaxOpenConnectionSize),
           _checkedOut(0),
           _badConns(0),
           _parentDestroyed(false) {}
 
     ~PoolForHost();
+
+    /**
+     * triggle maxOpenConnectionSize
+     */ 
+    bool triggleMaxOpenConnectionSize() {
+        if (this->openConnections() >= this->_maxOpenConnectionSize) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Returns the number of connections in this pool that went bad.
@@ -100,10 +110,9 @@ public:
 
 
     /**
-     * Sets the maximum number of in-use connections per host.
+     * 每一个host最大可以被使用的连接总数(poolsize + inUse)
      */
-    void setMaxInUse(int maxInUse); 
-
+    void setMaxOpenConnectionSize(int maxOpenConnectionSize); 
 
     /**
      * Sets the socket timeout on this host, for reporting purposes only.
@@ -120,7 +129,7 @@ public:
         return _checkedOut;
     }
 
-    void incrCheckout() {
+    bool incrCheckout() {
         ++_checkedOut;
     }
 
@@ -199,8 +208,8 @@ private:
     // The maximum number of connections we'll save in the pool
     int _maxPoolSize;
 
-    // The maximum number of connections allowed to be in-use in this pool
-    int _maxInUse;
+    // 最大被打开的连接总数;
+    int _maxOpenConnectionSize;
 
     // The number of currently active connections from this pool
     std::atomic<int32_t> _checkedOut;
@@ -260,7 +269,7 @@ public:
     /**
      * Sets the maximum number of in-use connections per host.
      */
-    void setMaxInUse(int maxInUse);
+    void setMaxOpenConnectionSize(int maxOpenConnectionSize);
     
 
     /**
@@ -336,7 +345,7 @@ private:
 
     DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn, bool tryAddCheckout = false);
 
-    bool _limitMaxInUse(string url, double socketTimeout);
+    bool _limitMaxOpenConnectionSize(string url, double socketTimeout);
 
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}
@@ -358,8 +367,8 @@ private:
     // 0 effectively disables the pool
     int _maxPoolSize;
 
-    // The maximum number of connections allowed to be in-use in this pool
-    int _maxInUse;
+    // 对于每一个host，最大可以被打开的连接数;
+    int _maxOpenConnectionSize;
 
     PoolMap _pools;
 
