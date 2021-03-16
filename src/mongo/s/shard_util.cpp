@@ -53,7 +53,7 @@ const char kShouldMigrate[] = "shouldMigrate";
 
 }  // namespace
 
-StatusWith<long long> src/qiniu.com/kodo/tools/mongodb/sharding/movechunk/metaservice/loader.goretrieveTotalShardSize(OperationContext* txn, const ShardId& shardId) {
+StatusWith<long long> retrieveTotalShardSize(OperationContext* txn, const ShardId& shardId) {
     auto shardStatus = Grid::get(txn)->shardRegistry()->getShard(txn, shardId);
     if (!shardStatus.isOK()) {
         return shardStatus.getStatus();

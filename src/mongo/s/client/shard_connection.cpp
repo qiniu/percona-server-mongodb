@@ -117,6 +117,7 @@ public:
                      mongo::BSONObjBuilder& result) {
         // Connection information
         executor::ConnectionPoolStats stats{};
+        // 统计shardConnectionPool的连接池使用状态
         shardConnectionPool.appendConnectionStats(&stats);
         stats.appendToBSON(result);
 
@@ -268,6 +269,8 @@ public:
         // used - as thread local variables. This means that threads won't be able to
         // see the s->avail connection of other threads.
 
+        //因为是线程局部变量，所以这边清理的坏的连接在别的地方还是依然被使用;
+
         s->avail = conn;
     }
 
@@ -328,6 +331,7 @@ public:
         }
         hostsArrB.done();
 
+        //当前连接目前或者之前访问过哪些ns
         BSONArrayBuilder nsArrB(b.subarrayStart("seenNS"));
         for (set<string>::const_iterator i = _seenNS.begin(); i != _seenNS.end(); ++i) {
             nsArrB.append(*i);
@@ -419,6 +423,7 @@ ShardConnection::ShardConnection(const ConnectionString& connectionString,
     usingAShardConnection(_cs.toString());
 }
 
+//当连接被使用关闭之后会归还到底层的连接池中去;
 ShardConnection::~ShardConnection() {
     if (_conn) {
         if (_conn->isFailed()) {
