@@ -35,6 +35,7 @@
 #include "mongo/client/global_conn_pool.h"
 #include "mongo/db/server_parameters.h"
 #include "mongo/s/client/shard_connection.h"
+#include <algorithm>
 
 namespace mongo {
 
@@ -73,12 +74,12 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     // - The connection hooks for sharding are added on startup (mongos) or on first sharded
     //   operation (mongod)
 
-    globalConnPool.setName("connection pool");
-    globalConnPool.setMaxPoolSize(ConnPoolOptions::maxConnsPerHost);
+    globalConnPool.setName("global connection pool");
+    globalConnPool.setMaxPoolSize(std::min(ConnPoolOptions::maxConnsPerHost, ConnPoolOptions::maxOpenConnsPerHost));
     globalConnPool.setMaxOpenConnectionSize(ConnPoolOptions::maxOpenConnsPerHost);
 
     shardConnectionPool.setName("sharded connection pool");
-    shardConnectionPool.setMaxPoolSize(ConnPoolOptions::maxShardedConnsPerHost);
+    shardConnectionPool.setMaxPoolSize(std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxConnsPerHost));
     shardConnectionPool.setMaxOpenConnectionSize(ConnPoolOptions::maxShardedOpenConnsPerHost);
 
     return Status::OK();

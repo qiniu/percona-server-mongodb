@@ -276,6 +276,7 @@ Status AsyncResultsMerger::askForNextBatch_inlock(size_t remoteIndex) {
             adjustedBatchSize = *_params.batchSize - remote.fetchedCount;
         }
 
+        log() << "[MongoStat] async awaitDataTimeout:" << *_awaitDataTimeout; 
         cmdObj = GetMoreRequest(_params.nsString,
                                 *remote.cursorId,
                                 adjustedBatchSize,
@@ -286,6 +287,7 @@ Status AsyncResultsMerger::askForNextBatch_inlock(size_t remoteIndex) {
     } else {
         // Do the first time shard host resolution.
         invariant(_params.readPreference);
+        //get host may be blocking
         Status resolveStatus = remote.resolveShardIdToHostAndPort(*_params.readPreference);
         if (!resolveStatus.isOK()) {
             return resolveStatus;

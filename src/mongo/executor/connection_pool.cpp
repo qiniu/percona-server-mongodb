@@ -42,6 +42,8 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/timer.h"
 
+#include <atomic>
+
 // One interesting implementation note herein concerns how setup() and
 // refresh() are invoked outside of the global lock, but setTimeout is not.
 // This implementation detail simplifies mocks, allowing them to return
@@ -152,6 +154,17 @@ public:
      */
     size_t openConnections(const stdx::unique_lock<stdx::mutex>& lk);
 
+    //获得当前_requests的size
+    size_t reqQueueLimit(const stdx::unique_lock<stdx::mutex>& lk);
+
+    /**
+     * 用来限制当前hostport的_requests的queue长度，原因在于不限制就会导致当出现一些问题的时候，会死等超时，目前的getconnection的超时是30s，这就很过分了；
+     * 所以通过这个限制，如果request的请求超过limits就直接返回错误，这样用户可以继续访问可能正确的shard的请求;
+     */ 
+    void setRequestQueueLimit(int64_t limits) {
+        this->_limits = limits;
+    }
+
 private:
     using OwnedConnection = std::unique_ptr<ConnectionInterface>;
     using OwnershipPool = stdx::unordered_map<ConnectionInterface*, OwnedConnection>;
@@ -220,9 +233,12 @@ private:
     };
 
     State _state;
+
+    size_t _limits;   
 };
 
 constexpr Milliseconds ConnectionPool::kDefaultHostTimeout;
+size_t const ConnectionPool::kDefaultRequestQueueLimit = std::numeric_limits<size_t>::max();
 size_t const ConnectionPool::kDefaultMaxConns = std::numeric_limits<size_t>::max();
 size_t const ConnectionPool::kDefaultMinConns = 1;
 size_t const ConnectionPool::kDefaultMaxConnecting = std::numeric_limits<size_t>::max();
@@ -266,6 +282,11 @@ void ConnectionPool::get(const HostAndPort& hostAndPort,
     if (iter == _pools.end()) {
         auto handle = stdx::make_unique<SpecificPool>(this, hostAndPort);
         pool = handle.get();
+
+        if (this->_options.requestQueueLimits != kDefaultRequestQueueLimit) {
+            log() << "[MongoStat] SpecificPool connectionPoolName:" << this->_name << ", hostport:" << hostAndPort.toString() << ", requestQueueLimit:" << this->_options.requestQueueLimits;
+            pool->setRequestQueueLimit(this->_options.requestQueueLimits);
+        }
         _pools[hostAndPort] = std::move(handle);
     } else {
         pool = iter->second.get();
@@ -288,7 +309,8 @@ void ConnectionPool::appendConnectionStats(ConnectionPoolStats* stats) const {
         ConnectionStatsPer hostStats{pool->inUseConnections(lk),
                                      pool->availableConnections(lk),
                                      pool->createdConnections(lk),
-                                     pool->refreshingConnections(lk)};
+                                     pool->refreshingConnections(lk), 
+                                     pool->reqQueueLimit(lk)};
         stats->updateStatsForHost(_name, host, hostStats);
     }
 }
@@ -324,7 +346,9 @@ ConnectionPool::SpecificPool::SpecificPool(ConnectionPool* parent, const HostAnd
       _inFulfillRequests(false),
       _inSpawnConnections(false),
       _created(0),
-      _state(State::kRunning) {}
+      _state(State::kRunning) {
+          _limits = ConnectionPool::kDefaultRequestQueueLimit;
+      }
 
 ConnectionPool::SpecificPool::~SpecificPool() {
     DESTRUCTOR_GUARD(_requestTimer->cancelTimeout();)
@@ -344,6 +368,7 @@ size_t ConnectionPool::SpecificPool::refreshingConnections(
     return _processingPool.size();
 }
 
+
 size_t ConnectionPool::SpecificPool::createdConnections(const stdx::unique_lock<stdx::mutex>& lk) {
     return _created;
 }
@@ -352,16 +377,39 @@ size_t ConnectionPool::SpecificPool::openConnections(const stdx::unique_lock<std
     return _checkedOutPool.size() + _readyPool.size() + _processingPool.size();
 }
 
+size_t ConnectionPool::SpecificPool::reqQueueLimit(const stdx::unique_lock<stdx::mutex>& lk) {
+    return _requests.size();
+}
+
+/**
+ * 这边的逻辑是这样的： connection线程驱动这个函数来获得连接;大概逻辑是
+ * 1. 将请求放到到当前主机的请求队列中，这个请求队列是用来获得一条连接的请求队列
+ * 2. 设置一个异步超时的task,如果get connection的task达到超时时间就返回错误;
+ * 3. 尽可能在允许范围内创建出可用连接
+ * 4. 调用fulfillRequests函数去处理请求，这个函数只会被其中一个connection线程调用，用来将_request中的任务消费掉；如果没有可用连接就会直接返回给上层;
+ * 
+ * 这里面存在一个问题，就是_requests中的请求队列的任务在遇到一些host有问题的情况的话，会处理起来非常缓慢，这个时候就会造成这些task会通过等待超时来返回给客户端，
+ * 客户端这个时候就会遇到问题；所以为了尽快的范围，还是必须加入一些限制，限制request的队列长度;
+ */
 void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
                                                  Milliseconds timeout,
                                                  stdx::unique_lock<stdx::mutex> lk,
                                                  GetConnectionCallback cb) {
+    log() << "[MongoStat] [ConnectionPool::SpecificPool] get asio connection timeout:" << timeout;
+
+    if (_requests.size() >= this->_limits) {
+        log() << "[MongoStat] [ConnectionPool::SpecificPool] hostAndPort:" << hostAndPort.toString() << ", queue size:" << _requests.size() << ", limit:" << this->_limits;
+        uassert(17291,
+                "Too many wait get connection task in queue; waiting until there are fewer than " +
+                    std::to_string(this->_limits),
+                false);
+    }
+
     if (timeout < Milliseconds(0) || timeout > _parent->_options.refreshTimeout) {
         timeout = _parent->_options.refreshTimeout;
     }
 
     const auto expiration = _parent->_factory->now() + timeout;
-
     _requests.push(make_pair(expiration, std::move(cb)));
 
     updateStateInLock();
@@ -370,7 +418,7 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
     spawnConnections(lk);
     long long millisElapsed = t.millis();
     if(millisElapsed > 50){
-        log()<<hostAndPort.toString()<<":spawnConnections connection optime = "<<millisElapsed<<"ms";
+        log()<< "[MongoStat] [ConnectionPool::SpecificPool] "<< hostAndPort.toString()<<":spawnConnections connection optime = "<<millisElapsed<<"ms";
     }
     fulfillRequests(lk);
 }
@@ -590,6 +638,7 @@ void ConnectionPool::SpecificPool::fulfillRequests(stdx::unique_lock<stdx::mutex
         // check out the connection
         _checkedOutPool[connPtr] = std::move(conn);
 
+        //重新更新timer的时间
         updateStateInLock();
 
         // pass it to the user

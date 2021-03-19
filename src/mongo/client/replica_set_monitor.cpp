@@ -42,6 +42,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/bson_extract_optime.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/conn_pool_options.h"
 #include "mongo/s/grid.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
@@ -55,6 +56,7 @@
 #include "mongo/util/static_observer.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
@@ -177,10 +179,16 @@ bool ReplicaSetMonitor::useDeterministicHostSelection = false;
 
 ReplicaSetMonitor::ReplicaSetMonitor(StringData name, const std::set<HostAndPort>& seeds)
     : _state(std::make_shared<SetState>(name, seeds)),
-      _executor(globalRSMonitorManager.getExecutor()) {}
+      _executor(globalRSMonitorManager.getExecutor()) {
+          //并行度 = 低层连接池的2倍，其实不用那么大，因为它只是为了防止最大阻塞线程数;
+           this->_limiter = NewCountLimiter(2 * std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
+      }
 
 ReplicaSetMonitor::ReplicaSetMonitor(const MongoURI& uri)
-    : _state(std::make_shared<SetState>(uri)), _executor(globalRSMonitorManager.getExecutor()) {}
+    : _state(std::make_shared<SetState>(uri)), _executor(globalRSMonitorManager.getExecutor()) {
+          //并行度 = 低层连接池的2倍，其实不用那么大，因为它只是为了防止最大阻塞线程数;
+           this->_limiter = NewCountLimiter(2 * std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
+    }
 
 void ReplicaSetMonitor::init() {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
@@ -279,34 +287,39 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
             return out;
     }
 
-    const auto startTimeMs = Date_t::now();
+    {
+        const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
+        if (!_limiter->Acquire()) {
+            return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
+                      str::stream() << "could'n find host matching read preference and trigge limiter"
+                                    << criteria.toString() << " for set " << getName() << " , limiter's value:" << _limiter->Running());
+        }
+        const auto startTimeMs = Date_t::now();
+        while (true) {
+            // We might not have found any matching hosts due to the scan, which just completed may
+            // have seen stale data from before we joined. Therefore we should participate in a new
+            // scan to make sure all hosts are contacted at least once (possibly by other threads)
+            // before this function gives up.
+            Refresher refresher(startOrContinueRefresh());
 
-    while (true) {
-        // We might not have found any matching hosts due to the scan, which just completed may have
-        // seen stale data from before we joined. Therefore we should participate in a new scan to
-        // make sure all hosts are contacted at least once (possibly by other threads) before this
-        // function gives up.
-        Refresher refresher(startOrContinueRefresh());
+            HostAndPort out = refresher.refreshUntilMatches(criteria);
+            if (!out.empty())
+                return out;
 
-        HostAndPort out = refresher.refreshUntilMatches(criteria);
-        if (!out.empty())
-            return out;
+            const Milliseconds remaining = maxWait - (Date_t::now() - startTimeMs);
 
-        const Milliseconds remaining = maxWait - (Date_t::now() - startTimeMs);
+            if (remaining < kFindHostMaxBackOffTime) {
+                break;
+            }
 
-        if (remaining < kFindHostMaxBackOffTime) {
-            break;
+            // Back-off so we don't spam the replica set hosts too much
+            sleepFor(kFindHostMaxBackOffTime);
         }
 
-        // Back-off so we don't spam the replica set hosts too much
-        sleepFor(kFindHostMaxBackOffTime);
+        return Status(ErrorCodes::FailedToSatisfyReadPreference,
+                      str::stream() << "could n find host matching read preference "
+                                    << criteria.toString() << " for set " << getName());
     }
-
-    return Status(ErrorCodes::FailedToSatisfyReadPreference,
-                  str::stream() << "could not find host matching read preference "
-                                << criteria.toString()
-                                << " for set "
-                                << getName());
 }
 
 HostAndPort ReplicaSetMonitor::getMasterOrUassert() {
@@ -416,6 +429,8 @@ void ReplicaSetMonitor::setSynchronousConfigChangeHook(ConfigChangeHook hook) {
 void ReplicaSetMonitor::appendInfo(BSONObjBuilder& bsonObjBuilder) const {
     stdx::lock_guard<stdx::mutex> lk(_state->mutex);
 
+    //添加监控信息;
+    bsonObjBuilder.append("getHostLimit", this->_limiter->Running());
     // NOTE: the format here must be consistent for backwards compatibility
     BSONArrayBuilder hosts(bsonObjBuilder.subarrayStart("hosts"));
     for (unsigned i = 0; i < _state->nodes.size(); i++) {

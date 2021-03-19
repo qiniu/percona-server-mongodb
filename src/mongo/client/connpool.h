@@ -284,6 +284,7 @@ public:
      * unaffected.
      */
     void setMaxPoolSize(int maxPoolSize) {
+        log() << "[MongoStat] name:" << this->_name << " set MaxPoolSize:" << maxPoolSize;
         _maxPoolSize = maxPoolSize;
     }
 

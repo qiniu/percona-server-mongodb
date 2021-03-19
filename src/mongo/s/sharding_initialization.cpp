@@ -85,6 +85,9 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshTimeoutMS,
                                       int,
                                       ConnectionPool::kDefaultRefreshTimeout.count());
 
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRequestQueueLimit,
+                                      int64_t,
+                                      ConnectionPool::kDefaultRequestQueueLimit);
 namespace {
 
 using executor::NetworkInterface;
@@ -120,12 +123,26 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     ConnectionPool::Options connPoolOptions) {
     std::vector<std::unique_ptr<executor::TaskExecutor>> executors;
 
+    size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
+    if (connPoolOptions.requestQueueLimits != ConnectionPool::kDefaultRequestQueueLimit) {
+        if (TaskExecutorPool::getSuggestedPoolSize != 0) {
+            //将队列长度分给不同的TaskExecutor
+            tmpQueueLimit = (connPoolOptions.requestQueueLimits) / TaskExecutorPool::getSuggestedPoolSize();
+            if (tmpQueueLimit == 0) {
+                tmpQueueLimit = 1;
+            }
+        }
+    }
+
     for (size_t i = 0; i < TaskExecutorPool::getSuggestedPoolSize(); ++i) {
+        //重新复制一个对象为了防止相互干扰；
+        ConnectionPool::Options tmp = connPoolOptions;
+        tmp.requestQueueLimits = tmpQueueLimit;
         auto net = executor::makeNetworkInterface(
             "NetworkInterfaceASIO-TaskExecutorPool-" + std::to_string(i),
             stdx::make_unique<ShardingNetworkConnectionHook>(),
             metadataHookBuilder(),
-            connPoolOptions);
+            tmp);
         auto netPtr = net.get();
         auto exec = stdx::make_unique<ThreadPoolTaskExecutor>(
             stdx::make_unique<NetworkInterfaceThreadPool>(netPtr), std::move(net));
@@ -181,6 +198,7 @@ Status initializeGlobalShardingState(OperationContext* txn,
     connPoolOptions.minConnections = ShardingTaskExecutorPoolMinSize;
     connPoolOptions.refreshRequirement = Milliseconds(ShardingTaskExecutorPoolRefreshRequirementMS);
     connPoolOptions.refreshTimeout = Milliseconds(ShardingTaskExecutorPoolRefreshTimeoutMS);
+    connPoolOptions.requestQueueLimits = int64_t(ShardingTaskExecutorPoolRequestQueueLimit);
 
     if (connPoolOptions.refreshRequirement <= connPoolOptions.refreshTimeout) {
         auto newRefreshTimeout = connPoolOptions.refreshRequirement - Milliseconds(1);

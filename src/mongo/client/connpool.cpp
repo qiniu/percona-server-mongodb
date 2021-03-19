@@ -479,7 +479,7 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             executor::ConnectionStatsPer hostStats{static_cast<size_t>(i->second.numInUse()),
                                                    static_cast<size_t>(i->second.numAvailable()),
                                                    static_cast<size_t>(i->second.numCreated()),
-                                                   0};
+                                                   0, 0};
             stats->updateStatsForHost("global", host, hostStats);
         }
     }
@@ -542,6 +542,7 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
 }
 
 void DBConnectionPool::setMaxOpenConnectionSize(int maxOpenConnectionSize) {
+    log() << "[MongoStat] name:" << this->_name << " set MaxOpenPoolSize:" << maxOpenConnectionSize;
     this->_maxOpenConnectionSize = maxOpenConnectionSize;
 }
 
