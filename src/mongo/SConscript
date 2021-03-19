@@ -122,7 +122,7 @@ baseSource=[
     'util/hex.cpp',
     'util/itoa.cpp',
     'util/log.cpp',
-    'util/limit.cpp'
+    'util/limit.cpp',
     'util/platform_init.cpp',
     'util/signal_handlers_synchronous.cpp',
     'util/stacktrace.cpp',
