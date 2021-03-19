@@ -30,7 +30,7 @@ namespace mongo
             }
 
         private:
-            std::atomic_int64_t _limits;
+            std::atomic<int64_t> _limits;
     };
 
     shared_ptr<Limiter> NewCountLimiter(int64_t limitNum) {
