@@ -1,11 +1,15 @@
 #include "limit.h"
+#include <atomic>
+
 namespace mongo 
 {
     class CountLimiter: public Limiter {
         public:
-            CountLimiter(int64_t limits):_limits(limits) {
+            CountLimiter(int64_t limits) {
                 if (limits < 0) {
                     _limits = kDefaultLimits; 
+                } else {
+                    _limits = limits;
                 }
             }
             virtual ~CountLimiter() = default;
@@ -26,7 +30,7 @@ namespace mongo
             }
 
         private:
-            std::atomic<int64_t> _limits;
+            std::atomic_int64_t _limits;
     };
 
     shared_ptr<Limiter> NewCountLimiter(int64_t limitNum) {
