@@ -129,7 +129,7 @@ public:
         return _checkedOut;
     }
 
-    bool incrCheckout() {
+    void incrCheckout() {
         ++_checkedOut;
     }
 
@@ -265,13 +265,6 @@ public:
         return _maxPoolSize;
     }
 
-
-    /**
-     * Sets the maximum number of in-use connections per host.
-     */
-    void setMaxOpenConnectionSize(int maxOpenConnectionSize);
-    
-
     /**
      * Returns the number of connections to the given host pool.
      */
@@ -283,10 +276,13 @@ public:
      * This setting only applies to new host connection pools, previously-pooled host pools are
      * unaffected.
      */
-    void setMaxPoolSize(int maxPoolSize) {
-        log() << "[MongoStat] name:" << this->_name << " set MaxPoolSize:" << maxPoolSize;
-        _maxPoolSize = maxPoolSize;
-    }
+    void setMaxPoolSize(int maxPoolSize);
+
+    /**
+     * Sets the maximum number of in-use connections per host.
+     */
+    void setMaxOpenConnectionSize(int maxOpenConnectionSize);
+    
 
     void onCreate(DBClientBase* conn);
     void onHandedOut(DBClientBase* conn);

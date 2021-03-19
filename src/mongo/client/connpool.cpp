@@ -321,7 +321,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
-    bool tryAddConnection = this->_limitMaxInUse(host, socketTimeout);
+    bool tryAddConnection = this->_limitMaxOpenConnectionSize(host, socketTimeout);
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     string errmsg;
     c = cs.connect(StringData(), errmsg, socketTimeout);
@@ -348,7 +348,7 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         return c.release();
     }
 
-    bool tryAddConnection = this->_limitMaxInUse(uri.toString(), socketTimeout);
+    bool tryAddConnection = this->_limitMaxOpenConnectionSize(uri.toString(), socketTimeout);
     string errmsg;
     c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
 
@@ -479,7 +479,7 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             executor::ConnectionStatsPer hostStats{static_cast<size_t>(i->second.numInUse()),
                                                    static_cast<size_t>(i->second.numAvailable()),
                                                    static_cast<size_t>(i->second.numCreated()),
-                                                   0, 0};
+                                                   0};
             stats->updateStatsForHost("global", host, hostStats);
         }
     }
@@ -544,6 +544,11 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
 void DBConnectionPool::setMaxOpenConnectionSize(int maxOpenConnectionSize) {
     log() << "[MongoStat] name:" << this->_name << " set MaxOpenPoolSize:" << maxOpenConnectionSize;
     this->_maxOpenConnectionSize = maxOpenConnectionSize;
+}
+
+void DBConnectionPool::setMaxPoolSize(int maxPoolSize) {
+    log() << "[MongoStat] name:" << this->_name << " set MaxPoolSize:" << maxPoolSize;
+    _maxPoolSize = maxPoolSize;
 }
 
 void DBConnectionPool::taskDoWork() {
