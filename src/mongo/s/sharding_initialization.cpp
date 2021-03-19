@@ -86,7 +86,7 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshTimeoutMS,
                                       ConnectionPool::kDefaultRefreshTimeout.count());
 
 MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRequestQueueLimit,
-                                      int64_t,
+                                      int,
                                       ConnectionPool::kDefaultRequestQueueLimit);
 namespace {
 
