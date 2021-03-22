@@ -125,12 +125,10 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
 
     size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
     if (ShardingTaskExecutorPoolRequestQueueLimit != ConnectionPool::kDefaultRequestQueueLimit) {
-        if (TaskExecutorPool::getSuggestedPoolSize != 0) {
-            //将队列长度分给不同的TaskExecutor
-            tmpQueueLimit = (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
-            if (tmpQueueLimit == 0) {
-                tmpQueueLimit = 1;
-            }
+        tmpQueueLimit =
+            (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
+        if (tmpQueueLimit == 0) {
+            tmpQueueLimit = 1;
         }
     }
 
