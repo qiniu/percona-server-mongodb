@@ -108,6 +108,7 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
             hostInfo.appendNumber("available", hostStats.available);
             hostInfo.appendNumber("created", hostStats.created);
             hostInfo.appendNumber("refreshing", hostStats.refreshing);
+            hostInfo.appendNumber("reqQueueLimit", hostStats.reqQueueLimit);
         }
     }
 }
