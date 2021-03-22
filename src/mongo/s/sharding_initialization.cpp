@@ -124,10 +124,10 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     std::vector<std::unique_ptr<executor::TaskExecutor>> executors;
 
     size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
-    if (connPoolOptions.requestQueueLimits != ConnectionPool::kDefaultRequestQueueLimit) {
+    if (ShardingTaskExecutorPoolRequestQueueLimit != ConnectionPool::kDefaultRequestQueueLimit) {
         if (TaskExecutorPool::getSuggestedPoolSize != 0) {
             //将队列长度分给不同的TaskExecutor
-            tmpQueueLimit = (connPoolOptions.requestQueueLimits) / TaskExecutorPool::getSuggestedPoolSize();
+            tmpQueueLimit = (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
             if (tmpQueueLimit == 0) {
                 tmpQueueLimit = 1;
             }
@@ -198,7 +198,8 @@ Status initializeGlobalShardingState(OperationContext* txn,
     connPoolOptions.minConnections = ShardingTaskExecutorPoolMinSize;
     connPoolOptions.refreshRequirement = Milliseconds(ShardingTaskExecutorPoolRefreshRequirementMS);
     connPoolOptions.refreshTimeout = Milliseconds(ShardingTaskExecutorPoolRefreshTimeoutMS);
-    connPoolOptions.requestQueueLimits = int64_t(ShardingTaskExecutorPoolRequestQueueLimit);
+    // 这个参数目前只想对网络的taskexecutor有效果
+    //connPoolOptions.requestQueueLimits = int64_t(ShardingTaskExecutorPoolRequestQueueLimit);
 
     if (connPoolOptions.refreshRequirement <= connPoolOptions.refreshTimeout) {
         auto newRefreshTimeout = connPoolOptions.refreshRequirement - Milliseconds(1);
