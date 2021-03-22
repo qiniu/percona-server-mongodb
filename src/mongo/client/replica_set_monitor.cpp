@@ -181,7 +181,9 @@ ReplicaSetMonitor::ReplicaSetMonitor(StringData name, const std::set<HostAndPort
     : _state(std::make_shared<SetState>(name, seeds)),
       _executor(globalRSMonitorManager.getExecutor()) {
           //并行度 = 低层连接池的2倍，其实不用那么大，因为它只是为了防止最大阻塞线程数;
-           this->_limiter = NewCountLimiter(2 * std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
+          int64_t limit = std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost) * 1.5;
+           this->_limiter = NewCountLimiter(limit);
+           log() << "[MongoStat] [ReplicaSetMonitor] getHostOrRefresh Limit:" << limit;
       }
 
 ReplicaSetMonitor::ReplicaSetMonitor(const MongoURI& uri)

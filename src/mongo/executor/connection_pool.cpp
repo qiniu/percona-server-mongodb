@@ -163,6 +163,7 @@ public:
      */ 
     void setRequestQueueLimit(int64_t limits) {
         this->_limits = limits;
+        log() << "[MongoStat] [connection_pool] " << this->_hostAndPort.toString() << ". queue limit:" << this->_limits;
     }
 
 private:
@@ -395,8 +396,6 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
                                                  Milliseconds timeout,
                                                  stdx::unique_lock<stdx::mutex> lk,
                                                  GetConnectionCallback cb) {
-    log() << "[MongoStat] [ConnectionPool::SpecificPool] get asio connection timeout:" << timeout;
-
     if (_requests.size() >= this->_limits) {
         log() << "[MongoStat] [ConnectionPool::SpecificPool] hostAndPort:" << hostAndPort.toString() << ", queue size:" << _requests.size() << ", limit:" << this->_limits;
         uassert(17291,
