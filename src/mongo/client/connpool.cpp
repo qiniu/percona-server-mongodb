@@ -264,7 +264,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
 bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTimeout) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
-
+    
     if (p.triggleMaxOpenConnectionSize()) {
         log() << "Too many open connections; waiting until there are fewer than "
               << this->_maxOpenConnectionSize;
@@ -273,6 +273,8 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
                     std::to_string(this->_maxOpenConnectionSize),
                 false);
     }
+
+    log() << "[MongoStat] limit:" << this->_maxOpenConnectionSize << ", avaliable:" << p.numAvailable() << ", inUse:" << p.numInUse();
     p.incrCheckout();
     return true;
 }
