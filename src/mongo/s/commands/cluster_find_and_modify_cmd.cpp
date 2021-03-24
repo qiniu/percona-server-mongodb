@@ -246,8 +246,7 @@ private:
             uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, shardId));
         Timer connectionTimer;
         ShardConnection conn(shard->getConnString(), nss.ns(), chunkManager);
-
-        log() << "MongoStat create connection " << shard->getConnString().toString() << ",  optime:" << connectionTimer.millis() << "ms";
+        auto getConnectionMs = connectionTimer.millis();
 
         Timer time;
         bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
@@ -262,7 +261,7 @@ private:
         if (!ok && res.getIntField("code") == ErrorCodes::RecvStaleConfig) {
             // Command code traps this exception and re-runs
             if(slow_log){
-                log()<<"FindAndModify err. target="<<shardId.toString()<<",ips:"<<shard->getConnString() <<" ;req="<<cmdObj.toString()<<" ;resp="<<res.toString()<<";optime="<< optime<<"ms";
+                log()<<"[MongoStat] FindAndModify err. target="<<shardId.toString()<<",ips:"<<shard->getConnString() <<" ;req="<<cmdObj.toString()<<" ;resp="<<res.toString()<<";optime="<< optime<<"ms";
             }
             throw RecvStaleConfigException("FindAndModify", res);
         }
@@ -274,7 +273,7 @@ private:
         }
 
         if(slow_log){
-            log()<<"FindAndModify ok. target="<<shardId.toString()<<",ips:" << shard->getConnString() << " ;req="<<cmdObj.toString()<<"  resp="<<res.toString()<<" optime="<< optime<<"ms";
+            log()<<"[MongoStat] FindAndModify ok. target="<<shardId.toString()<<",ips:" << shard->getConnString() << " ;req="<<cmdObj.toString()<<"  resp="<<res.toString()<<" optime="<< optime<<"ms ,get connection time:" << getConnectionMs << "ms";
         }
         result.appendElementsUnique(res);
 

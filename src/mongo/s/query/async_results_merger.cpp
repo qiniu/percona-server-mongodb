@@ -276,7 +276,7 @@ Status AsyncResultsMerger::askForNextBatch_inlock(size_t remoteIndex) {
             adjustedBatchSize = *_params.batchSize - remote.fetchedCount;
         }
 
-        log() << "[MongoStat] async awaitDataTimeout:" << *_awaitDataTimeout; 
+        //log() << "[MongoStat] async awaitDataTimeout:" << *_awaitDataTimeout; 
         cmdObj = GetMoreRequest(_params.nsString,
                                 *remote.cursorId,
                                 adjustedBatchSize,

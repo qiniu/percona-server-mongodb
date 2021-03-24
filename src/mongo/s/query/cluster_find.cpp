@@ -379,7 +379,7 @@ StatusWith<CursorResponse> ClusterFind::runGetMore(OperationContext* opCtx,
     while (MONGO_FAIL_POINT(keepCursorPinnedDuringGetMore)) {
     }
 
-    log() << "[MongoStat] awaitDataTimeout:" << *request.awaitDataTimeout; 
+    //log() << "[MongoStat] awaitDataTimeout:" << *request.awaitDataTimeout; 
     if (request.awaitDataTimeout) {
         auto status = pinnedCursor.getValue().setAwaitDataTimeout(*request.awaitDataTimeout);
         if (!status.isOK()) {
