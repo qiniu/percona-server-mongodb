@@ -290,12 +290,13 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
     }
 
     {
-        const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
         if (!_limiter->Acquire()) {
             return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
                       str::stream() << "could'n find host matching read preference and trigge limiter"
                                     << criteria.toString() << " for set " << getName() << " , limiter's value:" << _limiter->Running());
         }
+
+        const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
         const auto startTimeMs = Date_t::now();
         while (true) {
             // We might not have found any matching hosts due to the scan, which just completed may
