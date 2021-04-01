@@ -46,7 +46,7 @@
 #include "mongo/rpc/metadata/server_selection_metadata.h"
 #include "mongo/util/log.h"
 
-namespace mongo{
+namespace mongo {
 
 using std::shared_ptr;
 using std::unique_ptr;
