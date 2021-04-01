@@ -73,36 +73,33 @@ public:
                      int options,
                      std::string& errmsg,
                      BSONObjBuilder& result) {
-
+                         
         const NamespaceString nss(parseNs(dbname, cmdObj));
-        log() << "dump chunks. cmdObj" << cmdObj.toString();
+        log()<<"dump chunks. cmdObj"<<cmdObj.toString();
         const int start = cmdObj["start"].numberInt();
         const int limit = cmdObj["limit"].numberInt();
         bool print = false;
-        if (cmdObj.hasField("print")) {
+        if (cmdObj.hasField("print")){
             print = true;
         }
-        std::shared_ptr<ChunkManagerEX> cm;
-        if (start == 0) {  //从0开始遍历的默认刷一下路由
-            auto routingInfo = uassertStatusOK(
-                Grid::get(txn)->catalogCache()->getShardedCollectionRoutingInfoWithRefresh(txn,
-                                                                                           nss));
+        std::shared_ptr<ChunkManagerEX>  cm;
+        if(start == 0){ //从0开始遍历的默认刷一下路由
+            auto routingInfo = uassertStatusOK(Grid::get(txn)->catalogCache()->getShardedCollectionRoutingInfoWithRefresh(txn, nss));
             cm = routingInfo.cm();
-        } else {
-            auto routingInfo =
-                uassertStatusOK(Grid::get(txn)->catalogCache()->getCollectionRoutingInfo(txn, nss));
+        }else{
+            auto routingInfo = uassertStatusOK(Grid::get(txn)->catalogCache()->getCollectionRoutingInfo(txn, nss));
             cm = routingInfo.cm();
         }
-
+        
         auto iterator_result = cm->iteratorChunks(start, limit, print);
-        if (iterator_result->hashErr) {
+        if (iterator_result->hashErr){
             errmsg = iterator_result->errmsg;
             return false;
-        } else {
-            result.append("chunks", iterator_result->bson.arr());
-            result.append("chunksSize", iterator_result->chunksSize);
+        }else{
+            result.append("chunks",iterator_result->bson.arr());
+            result.append("chunksSize",iterator_result->chunksSize);
         }
-
+       
         return true;
     }
 
