@@ -74,7 +74,7 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     // - The connection hooks for sharding are added on startup (mongos) or on first sharded
     //   operation (mongod)
 
-    globalConnPool.setName("global connection pool");
+    globalConnPool.setName("connection pool");
     globalConnPool.setMaxPoolSize(std::min(ConnPoolOptions::maxConnsPerHost, ConnPoolOptions::maxOpenConnsPerHost));
     globalConnPool.setMaxOpenConnectionSize(ConnPoolOptions::maxOpenConnsPerHost);
 
