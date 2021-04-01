@@ -79,7 +79,7 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     globalConnPool.setMaxOpenConnectionSize(ConnPoolOptions::maxOpenConnsPerHost);
 
     shardConnectionPool.setName("sharded connection pool");
-    shardConnectionPool.setMaxPoolSize(std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxConnsPerHost));
+    shardConnectionPool.setMaxPoolSize(std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
     shardConnectionPool.setMaxOpenConnectionSize(ConnPoolOptions::maxShardedOpenConnsPerHost);
 
     return Status::OK();

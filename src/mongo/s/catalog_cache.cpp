@@ -418,13 +418,13 @@ void CatalogCache::_scheduleCollectionRefresh_inlock(
             if (!status.isOK()) {
                 _stats.countFailedRefreshes.addAndFetch(1);
 
-                log() << "Refresh for collection " << nss << " took " << t.millis()
+                log() << "[MongoStat] Refresh for collection " << nss << " took " << t.millis()
                       << " ms and failed" << causedBy(redact(status));
             } else if (routingInfoAfterRefresh) {
-                log() << "Refresh for collection " << nss << " took " << t.millis()
+                log() << "[MongoStat] Refresh for collection " << nss << " took " << t.millis()
                       << " ms and found version " << routingInfoAfterRefresh->getVersion();
             } else {
-                log() << "Refresh for collection " << nss << " took " << t.millis()
+                log() << "[MongoStat] Refresh for collection " << nss << " took " << t.millis()
                       << " ms and found the collection is not sharded";
             }
         };
@@ -490,7 +490,7 @@ void CatalogCache::_scheduleCollectionRefresh_inlock(
     const ChunkVersion startingCollectionVersion =
         (existingRoutingInfo ? existingRoutingInfo->getVersion() : ChunkVersion::UNSHARDED());
 
-    log() << "Refreshing chunks for collection " << nss << " based on version "
+    log() << "[MongoStat] Refreshing chunks for collection " << nss << " based on version "
           << startingCollectionVersion;
 
     try {

@@ -254,7 +254,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
         throw;
     }
 
-    log() << "Successfully connected to " << ident << " (" << openConnections(ident, socketTimeout)
+    log() << "[MongoStat] Successfully connected to " << ident << " (" << openConnections(ident, socketTimeout)
           << " connections now open to " << ident << " with a " << socketTimeout
           << " second timeout)";
 
@@ -294,7 +294,6 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
 
     bool tryAddConnection = this->_limitMaxOpenConnectionSize(url.toString(), socketTimeout);
 
-    Timer connection_timer;
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
     if (!c && tryAddConnection) {
@@ -303,10 +302,6 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         p.descCheckout();
     }
     uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
-
-    if (connection_timer.millis() > 10) {
-        log() << "[MongoStat] wait create timer = " << connection_timer.millis() << "ms";
-    }
 
     return _finishCreate(url.toString(), socketTimeout, c, tryAddConnection);
 }

@@ -506,6 +506,16 @@ env.CppUnitTest(
 )
 
 env.CppUnitTest(
+    target='limit_test',
+    source=[
+        'limit_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+    ]
+)
+
+env.CppUnitTest(
     target='producer_consumer_queue_test',
     source=[
         'producer_consumer_queue_test.cpp',

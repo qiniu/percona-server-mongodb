@@ -180,8 +180,11 @@ public:
         }
 
         auto routeConsume = routeCacheTimer.millis();
-        const auto chunkMgr = routingInfo.cm();
+        if (routeConsume > 100) {
+            log() << "[MongoStat] "<< cmdObj.toString() << " runCmd  " << routeCacheTimer.millis() << "refresh route is " << routeConsume << "ms";
+        }
 
+        const auto chunkMgr = routingInfo.cm();
         const BSONObj query = cmdObj.getObjectField("query");
 
         BSONObj collation;
@@ -198,16 +201,12 @@ public:
 
         auto chunk = chunkMgr->findIntersectingChunk(shardKey, collation);
 
-        Timer runCommandTimer;
         const bool ok = _runCommand(opCtx, chunkMgr, chunk->getShardId(), nss, cmdObj, result);
         if (ok) {
             updateChunkWriteStatsAndSplitIfNeeded(
                 opCtx, chunkMgr.get(), chunk.get(), cmdObj.getObjectField("update").objsize());
         }
 
-        if (runCommandTimer.millis() > 100) {
-            log() << "[MongoStat] "<< cmdObj.toString() << " runCmd  " << routeCacheTimer.millis() << "refresh route is " << routeConsume << "ms";
-        }
 
         return ok;
     }
