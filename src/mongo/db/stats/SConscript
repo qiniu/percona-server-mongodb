@@ -66,28 +66,6 @@ env.Library(
 )
 
 env.Library(
-    target='detail_counter',
-    source=[
-	    'detail_counter.cpp'
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/base',
-        '$BUILD_DIR/mongo/util/concurrency/spin_lock',
-    ],
-)
-
-env.CppUnitTest(
-    target='detail_counter_test',
-    source=[
-        'detail_counter_test.cpp',
-    ],
-    LIBDEPS=[
-        'detail_counter',
-        'top'
-    ],
-)
-
-env.Library(
     target='fill_locker_info',
     source=[
         'fill_locker_info.cpp',
@@ -129,4 +107,3 @@ env.Library(
         'incomplete',
     ],
 )
-

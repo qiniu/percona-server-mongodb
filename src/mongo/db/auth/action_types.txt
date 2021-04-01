@@ -111,7 +111,5 @@
 "validate",
 "viewRole",
 "viewUser",
-"dumpChunks", # 新增的，dump mongos中的chunks路由]
-"getShardInfoWithQuery" # 新增的,通过用户查询获得对应的shard信息;
-] 
+"dumpChunks"] # 新增的，dump mongos中的chunks路由]
 

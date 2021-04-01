@@ -77,7 +77,6 @@ env.Library(
         'commands_public.cpp',
         'dbclient_multi_command.cpp',
 	'mongos_dump_chunks_info.cpp',        
-	'mongos_getshardinfo_with_query.cpp',
 	'run_on_all_shards_cmd.cpp',
         'sharded_command_processing.cpp',
         'strategy.cpp',

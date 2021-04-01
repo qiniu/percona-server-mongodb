@@ -342,22 +342,6 @@ public:
             getHostFQDNs(getHostNameCached(), HostnameCanonicalizationMode::kForwardAndReverse));
     }
 } advisoryHostFQDNs;
-
-class DetailCmdCounterStatusSection : public ServerStatusSection {
-public:
-    DetailCmdCounterStatusSection()
-        : ServerStatusSection("detailCmdCounterStatus") {}
-
-    virtual bool includeByDefault() const {
-        return true;
-    }
-
-    virtual BSONObj generateSection(OperationContext* txn, const BSONElement& configElement) const {                
-        BSONObjBuilder ob;
-        G_D_C_CONTAINER.buildObj(ob);
-        return ob.obj();
-    }
-} detailCmdCounterStatusSection;
 }  // namespace
 
 }  // namespace mongo
