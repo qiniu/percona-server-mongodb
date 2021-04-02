@@ -159,7 +159,7 @@ env.Library(
         '$BUILD_DIR/mongo/rpc/rpc',
         '$BUILD_DIR/mongo/util/md5',
         '$BUILD_DIR/mongo/util/net/network',
-        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/util/limiter',
         'authentication',
         'connection_string',
         'read_preference',
