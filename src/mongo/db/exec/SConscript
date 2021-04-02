@@ -55,6 +55,7 @@ env.Library(
         "index_iterator.cpp",
         "index_scan.cpp",
         "keep_mutations.cpp",
+        "limit.cpp",
         "merge_sort.cpp",
         "multi_iterator.cpp",
         "multi_plan.cpp",
