@@ -93,6 +93,9 @@ public:
      */
     executor::TaskExecutor* getExecutor();
 
+    int64_t getRefreshLimit();
+    void setRefreshLimit(int64_t limit);
+
 private:
     using ReplicaSetMonitorsMap = StringMap<std::weak_ptr<ReplicaSetMonitor>>;
 
@@ -109,6 +112,9 @@ private:
 
     // set to true when shutdown has been called.
     bool _isShutdown{false};
+
+    // controll refresh shard get primary的并发度
+    int64_t _refreshLimits;
 };
 
 }  // namespace mongo

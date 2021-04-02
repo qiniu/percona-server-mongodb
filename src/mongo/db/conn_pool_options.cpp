@@ -82,6 +82,8 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     shardConnectionPool.setMaxPoolSize(std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
     shardConnectionPool.setMaxOpenConnectionSize(ConnPoolOptions::maxShardedOpenConnsPerHost);
 
+    globalRSMonitorManager.setRefreshLimit(1.5 * std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
+
     return Status::OK();
 }
 }
