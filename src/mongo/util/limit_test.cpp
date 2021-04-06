@@ -23,7 +23,7 @@ namespace {
         ASSERT_EQ(iter->Running(), 1);
     }
 
-    TEST(Limiter, Release) {
+    TEST(Limiter, Running) {
         auto iter = NewCountLimiter(10);
         ASSERT_NE(iter, nullptr);
 
