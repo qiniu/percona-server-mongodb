@@ -140,20 +140,22 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     std::unique_ptr<NetworkInterface> fixedNet,
     rpc::ShardingEgressMetadataHookBuilder metadataHookBuilder,
     ConnectionPool::Options connPoolOptions, 
-    std::string taskNamePrefix) {
+    std::string taskNamePrefix, 
+    int poolSize) {
+        invariant(poolSize);
     std::vector<std::unique_ptr<executor::TaskExecutor>> executors;
 
     size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
     if (ShardingTaskExecutorPoolRequestQueueLimit != static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit)) {
         tmpQueueLimit =
-            (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
+            (ShardingTaskExecutorPoolRequestQueueLimit) / poolSize;
         if (tmpQueueLimit == 0) {
             tmpQueueLimit = 1;
         }
     }
     connPoolOptions.requestQueueLimits = tmpQueueLimit;
 
-    for (size_t i = 0; i < TaskExecutorPool::getSuggestedPoolSize(); ++i) {
+    for (size_t i = 0; i < poolSize; ++i) {
         auto net = executor::makeNetworkInterface(
             taskNamePrefix + std::to_string(i),
             stdx::make_unique<ShardingNetworkConnectionHook>(),
@@ -224,7 +226,7 @@ std::unique_ptr<TaskExecutorPool> makeAPTaskExecutorPool(
                                        stdx::make_unique<ShardingNetworkConnectionHook>(),
                                        hookBuilder(),
                                        connPoolOptions);
-    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-APTaskExecutorPool-");
+    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-APTaskExecutorPool-", TaskExecutorPool::getSuggestedAPPoolSize());
     return executorPool;
 }
 
@@ -301,7 +303,7 @@ Status initializeGlobalShardingState(OperationContext* txn,
                                        hookBuilder(),
                                        connPoolOptions);
     auto networkPtr = network.get();
-    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-TaskExecutorPool-");
+    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-TaskExecutorPool-", TaskExecutorPool::getSuggestedPoolSize());
     executorPool->startup();
 
     std::unique_ptr<TaskExecutorPool> apExecutorPool = nullptr;

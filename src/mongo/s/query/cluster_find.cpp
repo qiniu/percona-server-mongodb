@@ -57,6 +57,7 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/db/stats/apcounter.h"
+#include "mongo/s/query/ap_strategy.h"
 
 namespace mongo {
 
@@ -233,7 +234,7 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
 
     //根据请求的readPref进行区分
     executor::TaskExecutor* executor = nullptr;
-    if (readPref.pref == ReadPreference::SecondaryOnly || readPref.pref == ReadPreference::SecondaryPreferred) {
+    if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
         executor = Grid::get(opCtx)->getAPExecutorPool()->getArbitraryExecutor();
 
         auto tmp = Grid::get(opCtx)->getAPExecutorPool();
@@ -246,6 +247,7 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
         }
     } else {
         executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor();
+        globalApCounter.gotReadNotAp();
     }
     auto ccc = ClusterClientCursorImpl::make(executor, std::move(params));
 

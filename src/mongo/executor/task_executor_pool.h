@@ -57,6 +57,9 @@ public:
      */
     static size_t getSuggestedPoolSize();
 
+    //用于确定ap连接池的个数; 
+    static size_t getSuggestedAPPoolSize();
+
     /**
      * Initializes the underlying executors. This method may be called at most once for the lifetime
      * of an executor.

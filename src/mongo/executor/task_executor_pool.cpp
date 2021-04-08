@@ -43,10 +43,23 @@ namespace executor {
 // If less than or equal to 0, the suggested pool size will be determined by the number of cores. If
 // set to a particular positive value, this will be used as the pool size.
 MONGO_EXPORT_SERVER_PARAMETER(taskExecutorPoolSize, int, 0);
+MONGO_EXPORT_SERVER_PARAMETER(taskApExecutorPoolSize, int, 0);
 
 size_t TaskExecutorPool::getSuggestedPoolSize() {
     if (taskExecutorPoolSize > 0) {
         return taskExecutorPoolSize;
+    }
+
+    ProcessInfo p;
+    unsigned numCores = p.getNumCores();
+
+    // Never suggest a number outside the range [4, 64].
+    return std::max(4U, std::min(64U, numCores));
+}
+
+size_t TaskExecutorPool::getSuggestedAPPoolSize() {
+    if (taskApExecutorPoolSize > 0) {
+        return taskApExecutorPoolSize;
     }
 
     ProcessInfo p;
