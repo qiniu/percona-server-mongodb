@@ -56,6 +56,7 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
+#include "mongo/db/stats/apcounter.h"
 
 namespace mongo {
 
@@ -230,8 +231,23 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
         params.remotes.emplace_back(shard->getId(), cmdBuilder.obj());
     }
 
-    auto ccc = ClusterClientCursorImpl::make(
-        Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(), std::move(params));
+    //根据请求的readPref进行区分
+    executor::TaskExecutor* executor = nullptr;
+    if (readPref.pref == ReadPreference::SecondaryOnly || readPref.pref == ReadPreference::SecondaryPreferred) {
+        executor = Grid::get(opCtx)->getAPExecutorPool()->getArbitraryExecutor();
+
+        auto tmp = Grid::get(opCtx)->getAPExecutorPool();
+        if (!tmp) {
+            executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(); 
+            globalApCounter.gotReadNotAp();
+        } else {
+            executor = tmp->getArbitraryExecutor();
+            globalApCounter.gotReadAp();
+        }
+    } else {
+        executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor();
+    }
+    auto ccc = ClusterClientCursorImpl::make(executor, std::move(params));
 
     auto cursorState = ClusterCursorManager::CursorState::NotExhausted;
     int bytesBuffered = 0;

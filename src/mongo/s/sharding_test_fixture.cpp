@@ -186,6 +186,9 @@ void ShardingTestFixture::setUp() {
 
 void ShardingTestFixture::tearDown() {
     Grid::get(operationContext())->getExecutorPool()->shutdownAndJoin();
+    if (!Grid::get(operationContext())->getAPExecutorPool()) {
+        Grid::get(operationContext())->getAPExecutorPool()->shutdownAndJoin();
+    }
     Grid::get(operationContext())->catalogClient(_opCtx.get())->shutDown(_opCtx.get());
     Grid::get(operationContext())->clearForUnitTests();
 

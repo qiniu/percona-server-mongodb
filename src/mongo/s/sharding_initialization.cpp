@@ -87,7 +87,26 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRefreshTimeoutMS,
 
 MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRequestQueueLimit,
                                       int,
-                                      ConnectionPool::kDefaultRequestQueueLimit);
+                                      static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit));
+
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolHostTimeoutMS,
+                                      int,
+                                      ConnectionPool::kDefaultHostTimeout.count());
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolMaxSize, int, -1);
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolMaxConnecting, int, -1);
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolMinSize,
+                                      int,
+                                      static_cast<int>(ConnectionPool::kDefaultMinConns));
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolRefreshRequirementMS,
+                                      int,
+                                      ConnectionPool::kDefaultRefreshRequirement.count());
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolRefreshTimeoutMS,
+                                      int,
+                                      ConnectionPool::kDefaultRefreshTimeout.count());
+
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolRequestQueueLimit,
+                                      int,
+                                      static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit));
 namespace {
 
 using executor::NetworkInterface;
@@ -120,27 +139,26 @@ std::unique_ptr<ShardingCatalogClient> makeCatalogClient(ServiceContext* service
 std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     std::unique_ptr<NetworkInterface> fixedNet,
     rpc::ShardingEgressMetadataHookBuilder metadataHookBuilder,
-    ConnectionPool::Options connPoolOptions) {
+    ConnectionPool::Options connPoolOptions, 
+    std::string taskNamePrefix) {
     std::vector<std::unique_ptr<executor::TaskExecutor>> executors;
 
     size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
-    if (ShardingTaskExecutorPoolRequestQueueLimit != ConnectionPool::kDefaultRequestQueueLimit) {
+    if (ShardingTaskExecutorPoolRequestQueueLimit != static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit)) {
         tmpQueueLimit =
             (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
         if (tmpQueueLimit == 0) {
             tmpQueueLimit = 1;
         }
     }
+    connPoolOptions.requestQueueLimits = tmpQueueLimit;
 
     for (size_t i = 0; i < TaskExecutorPool::getSuggestedPoolSize(); ++i) {
-        //重新复制一个对象为了防止相互干扰；
-        ConnectionPool::Options tmp = connPoolOptions;
-        tmp.requestQueueLimits = tmpQueueLimit;
         auto net = executor::makeNetworkInterface(
-            "NetworkInterfaceASIO-TaskExecutorPool-" + std::to_string(i),
+            taskNamePrefix + std::to_string(i),
             stdx::make_unique<ShardingNetworkConnectionHook>(),
             metadataHookBuilder(),
-            tmp);
+            connPoolOptions);
         auto netPtr = net.get();
         auto exec = stdx::make_unique<ThreadPoolTaskExecutor>(
             stdx::make_unique<NetworkInterfaceThreadPool>(netPtr), std::move(net));
@@ -155,6 +173,58 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
 
     auto executorPool = stdx::make_unique<TaskExecutorPool>();
     executorPool->addExecutors(std::move(executors), std::move(fixedExec));
+    return executorPool;
+}
+
+
+std::unique_ptr<TaskExecutorPool> makeAPTaskExecutorPool(
+                                rpc::ShardingEgressMetadataHookBuilder hookBuilder
+) {
+    // We don't set the ConnectionPool's static const variables to be the default value in
+    // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
+    // The following code is a workaround.
+    ConnectionPool::Options connPoolOptions;
+    connPoolOptions.hostTimeout = Milliseconds(APShardingTaskExecutorPoolHostTimeoutMS);
+    connPoolOptions.maxConnections = (APShardingTaskExecutorPoolMaxSize != -1)
+        ? APShardingTaskExecutorPoolMaxSize
+        : ConnectionPool::kDefaultMaxConns;
+    connPoolOptions.maxConnecting = (APShardingTaskExecutorPoolMaxConnecting != -1)
+        ? APShardingTaskExecutorPoolMaxConnecting
+        : ConnectionPool::kDefaultMaxConnecting;
+    connPoolOptions.minConnections = APShardingTaskExecutorPoolMinSize;
+    connPoolOptions.refreshRequirement = Milliseconds(APShardingTaskExecutorPoolRefreshRequirementMS);
+    connPoolOptions.refreshTimeout = Milliseconds(APShardingTaskExecutorPoolRefreshTimeoutMS);
+
+    if (connPoolOptions.refreshRequirement <= connPoolOptions.refreshTimeout) {
+        auto newRefreshTimeout = connPoolOptions.refreshRequirement - Milliseconds(1);
+        warning() << "APShardingTaskExecutorPoolRefreshRequirementMS ("
+                  << connPoolOptions.refreshRequirement
+                  << ") set below APShardingTaskExecutorPoolRefreshTimeoutMS ("
+                  << connPoolOptions.refreshTimeout
+                  << "). Adjusting APShardingTaskExecutorPoolRefreshTimeoutMS to "
+                  << newRefreshTimeout;
+        connPoolOptions.refreshTimeout = newRefreshTimeout;
+    }
+
+    if (connPoolOptions.hostTimeout <=
+        connPoolOptions.refreshRequirement + connPoolOptions.refreshTimeout) {
+        auto newHostTimeout =
+            connPoolOptions.refreshRequirement + connPoolOptions.refreshTimeout + Milliseconds(1);
+        warning() << "APShardingTaskExecutorPoolHostTimeoutMS (" << connPoolOptions.hostTimeout
+                  << ") set below APShardingTaskExecutorPoolRefreshRequirementMS ("
+                  << connPoolOptions.refreshRequirement
+                  << ") + APShardingTaskExecutorPoolRefreshTimeoutMS ("
+                  << connPoolOptions.refreshTimeout
+                  << "). Adjusting APShardingTaskExecutorPoolHostTimeoutMS to " << newHostTimeout;
+        connPoolOptions.hostTimeout = newHostTimeout;
+    }
+
+    auto network =
+        executor::makeNetworkInterface("NetworkInterfaceASIO-APShardRegistry-NoAvailable",
+                                       stdx::make_unique<ShardingNetworkConnectionHook>(),
+                                       hookBuilder(),
+                                       connPoolOptions);
+    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-APTaskExecutorPool-");
     return executorPool;
 }
 
@@ -181,6 +251,8 @@ Status initializeGlobalShardingState(OperationContext* txn,
     if (configCS.type() == ConnectionString::INVALID) {
         return {ErrorCodes::BadValue, "Unrecognized connection string."};
     }
+
+    log() << "[MongoStat] clusterRole:" << static_cast<int>(serverGlobalParams.clusterRole);
 
     // We don't set the ConnectionPool's static const variables to be the default value in
     // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
@@ -229,8 +301,17 @@ Status initializeGlobalShardingState(OperationContext* txn,
                                        hookBuilder(),
                                        connPoolOptions);
     auto networkPtr = network.get();
-    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions);
+    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-TaskExecutorPool-");
     executorPool->startup();
+
+    std::unique_ptr<TaskExecutorPool> apExecutorPool = nullptr;
+    //只有mongos才需要用这个队列;
+    if (serverGlobalParams.clusterRole == ClusterRole::None) {
+        //ap连接池
+        apExecutorPool = makeAPTaskExecutorPool(hookBuilder);
+        apExecutorPool->startup();
+        grid.setAPTaskExecutorPool(std::move(apExecutorPool));
+    }
 
     auto shardRegistry(stdx::make_unique<ShardRegistry>(std::move(shardFactory), configCS));
 

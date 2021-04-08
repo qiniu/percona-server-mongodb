@@ -33,6 +33,7 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/stats/counters.h"
+#include "mongo/db/stats/apcounter.h"
 #include "mongo/platform/atomic_word.h"
 #include <string>
 
@@ -118,5 +119,18 @@ public:
 
 private:
     const OpCounters* _counters;
+};
+
+class ApCounterServerStatusSection : public ServerStatusSection {
+    public:
+    ApCounterServerStatusSection(const std::string& sectionName, ApCounter* counters);
+    virtual bool includeByDefault() const {
+        return true;
+    }
+
+    virtual BSONObj generateSection(OperationContext* txn, const BSONElement& configElement) const;
+
+    private:
+    const ApCounter* _counters;
 };
 }

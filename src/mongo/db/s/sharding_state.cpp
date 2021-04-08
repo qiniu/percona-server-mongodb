@@ -171,6 +171,9 @@ void ShardingState::shutDown(OperationContext* txn) {
 
     if (_getInitializationState() == InitializationState::kInitialized) {
         grid.getExecutorPool()->shutdownAndJoin();
+        if (auto pool = grid.getAPExecutorPool()) {
+            pool->shutdownAndJoin();
+        } 
         grid.catalogClient(txn)->shutDown(txn);
     }
 }
