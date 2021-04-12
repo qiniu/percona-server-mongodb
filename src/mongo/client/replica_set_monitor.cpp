@@ -289,6 +289,7 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
 
     {
         if (!_limiter->Acquire()) {
+            globalApCounter.gotShardHostLimit();
             return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
                       str::stream() << "could'n find host matching read preference and trigge limiter"
                                     << criteria.toString() << " for set " << getName() << " , limiter's value:" << _limiter->Running());

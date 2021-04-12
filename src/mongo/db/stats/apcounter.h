@@ -12,10 +12,16 @@ class ApCounter {
     void gotReadNotAp();
     void gotReadAp();
     void gotErrorGetApExecutorPool();
+
     void gotReadSlowLog();
     void gotWriteSlowLog();
     void gotFamSlowLog();
     void gotCmdSlowLog();
+
+    //limit counter
+    void gotLegacyConnectionLimit();
+    void gotAsioWaitReqQueueLimit();
+    void gotShardHostLimit();
 
     BSONObj getObj() const;
 
@@ -44,16 +50,33 @@ class ApCounter {
         return &_cmdSlowLog;
     }
 
+    // for limiter
+    const AtomicUInt32* getLegacyConnectionLimit() const {
+        return &_legacyConnectionLimit;
+    }
+    const AtomicUInt32* getAsioWaitReqQueueLimit() const {
+        return &_asioWaitReqQueueLimit;
+    }
+    const AtomicUInt32* getShardHostLimit() const {
+        return &_shardHostLimit;
+    }
+
     private:
     
         void _checkWrap();
         AtomicUInt32 _readNotAp;
         AtomicUInt32 _readAp;
         AtomicUInt32 _readApExecutorPoolError;
+
         AtomicUInt32 _readSlowLog;
         AtomicUInt32 _writeSlowLog;
         AtomicUInt32 _famSlowLog;
         AtomicUInt32 _cmdSlowLog;
+
+        // connection limit
+        AtomicUInt32 _legacyConnectionLimit;
+        AtomicUInt32 _asioWaitReqQueueLimit;
+        AtomicUInt32 _shardHostLimit;
 };
 
 extern ApCounter globalApCounter;

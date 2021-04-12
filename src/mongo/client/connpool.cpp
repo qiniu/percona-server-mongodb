@@ -46,6 +46,7 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/socket_exception.h"
 #include "mongo/util/timer.h"
+#include "mongo/db/stats/apcounter.h"
 
 namespace mongo {
 
@@ -266,6 +267,7 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
     
     if (p.triggleMaxOpenConnectionSize()) {
+        globalApCounter.gotLegacyConnectionLimit();
         log() << "Too many open connections; waiting until there are fewer than "
               << this->_maxOpenConnectionSize;
         uassert(17289,
