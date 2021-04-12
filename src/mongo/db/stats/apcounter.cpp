@@ -24,16 +24,39 @@ namespace mongo {
         _readApExecutorPoolError.fetchAndAdd(1);
     }
 
+    void ApCounter::gotReadSlowLog() {
+        RARELY _checkWrap();
+        _readSlowLog.fetchAndAdd(1);
+    }
+
+    void ApCounter::gotCmdSlowLog() {
+        RARELY _checkWrap();
+        _cmdSlowLog.fetchAndAdd(1);
+    }
+
+    void ApCounter::gotFamSlowLog() {
+        RARELY _checkWrap();
+        _famSlowLog.fetchAndAdd(1);
+    }
+
+    void ApCounter::gotWriteSlowLog() {
+        RARELY _checkWrap();
+        _writeSlowLog.fetchAndAdd(1);
+    }
 
     void ApCounter::_checkWrap() {
         const unsigned MAX = 1 << 30;
 
-        bool wrap = _readAp.loadRelaxed() > MAX || _readNotAp.loadRelaxed() > MAX || _readApExecutorPoolError.loadRelaxed() > MAX;
+        bool wrap = _readAp.loadRelaxed() > MAX || _readNotAp.loadRelaxed() > MAX ||
+            _readApExecutorPoolError.loadRelaxed() > MAX || _readSlowLog.loadRelaxed() > MAX ||
+            _cmdSlowLog.loadRelaxed() > MAX || _writeSlowLog.loadRelaxed() > MAX ||
+            _famSlowLog.loadRelaxed() > MAX;
 
         if (wrap) {
             _readAp.store(0);
             _readNotAp.store(0);
             _readApExecutorPoolError.store(0);
+            _readSlowLog.store(0);
         }
     }
 

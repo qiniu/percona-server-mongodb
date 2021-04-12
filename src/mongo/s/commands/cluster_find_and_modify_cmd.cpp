@@ -1,5 +1,4 @@
-/**
- *    Copyright (C) 2014 MongoDB Inc.
+/**    Copyright (C) 2014 MongoDB Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -52,6 +51,7 @@
 #include "mongo/s/stale_exception.h"
 #include "mongo/util/timer.h"
 #include "mongo/util/log.h"
+#include "mongo/db/stats/apcounter.h"
 #include "mongo/executor/async_timer_asio.h"
 namespace mongo {
 namespace {
@@ -254,6 +254,7 @@ private:
         bool slow_log = false;
         if(optime > serverGlobalParams.slowMS){
             slow_log = true;
+            globalApCounter.gotFamSlowLog();
         }
 
         // ErrorCodes::RecvStaleConfig is the code for RecvStaleConfigException.

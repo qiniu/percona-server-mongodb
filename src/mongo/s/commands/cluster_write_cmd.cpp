@@ -305,6 +305,7 @@ private:
                 if (!shardStatus.isOK()) {
                     auto optime = timer.millis();
                     if (optime > serverGlobalParams.slowMS) {
+                        globalApCounter.gotWriteSlowLog();
                         if (endpoints.size() > 0) {
                             log() << "write cmd shardid = " << endpoints[0]->shardName.toString()
                                   << ",command=" << command.toString() << ",optime=" << optime
@@ -322,6 +323,7 @@ private:
 
         auto optime = timer.millis();
         if(optime > serverGlobalParams.slowMS) {
+            globalApCounter.gotWriteSlowLog();
             if(endpoints.size() > 0){
                 log()<<"write cmd shardid = "<< endpoints[0]->shardName.toString()<<",command="<<command.toString()<<",optime="<<optime<<"ms";
             }

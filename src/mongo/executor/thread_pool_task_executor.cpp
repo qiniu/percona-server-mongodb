@@ -47,6 +47,7 @@
 #include "mongo/util/log.h"
 #include "mongo/util/time_support.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/stats/apcounter.h"
 namespace mongo {
 namespace executor {
 
@@ -369,9 +370,12 @@ StatusWith<TaskExecutor::CallbackHandle> ThreadPoolTaskExecutor::scheduleRemoteC
                    << redact(response.isOK() ? response.toString() : response.status.toString());
             auto optime = this->_net->now() - scheduledRequest.start_time;
             //slow remote command
-           if(optime.count() >  serverGlobalParams.slowMS){
-                 log() << "single remote req: " <<redact(scheduledRequest.toString())<<";remote resp:"
-                   << redact(response.isOK() ? response.toString() : response.status.toString())<<";optime:"<<optime;
+            if (optime.count() > serverGlobalParams.slowMS) {
+                globalApCounter.gotReadSlowLog();
+                log() << "single remote req: " << redact(scheduledRequest.toString())
+                      << ";remote resp:"
+                      << redact(response.isOK() ? response.toString() : response.status.toString())
+                      << ";optime:" << optime;
             }
             swap(cbState->callback, newCb);
             scheduleIntoPool_inlock(&_networkInProgressQueue, cbState->iter, std::move(lk));

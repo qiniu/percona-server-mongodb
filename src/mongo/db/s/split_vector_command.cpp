@@ -52,6 +52,7 @@
 #include "mongo/s/catalog/type_chunk.h"
 #include "mongo/util/log.h"
 #include "mongo/util/timer.h"
+#include "mongo/db/stats/apcounter.h"
 
 namespace mongo {
 
@@ -363,6 +364,7 @@ public:
             splitKeys.erase(splitKeys.begin());
 
             if (timer.millis() > serverGlobalParams.slowMS) {
+                globalApCounter.gotCmdSlowLog();
                 warning() << "Finding the split vector for " << nss.toString() << " over "
                           << redact(keyPattern) << " keyCount: " << keyCount
                           << " numSplits: " << splitKeys.size() << " lookedAt: " << currCount
