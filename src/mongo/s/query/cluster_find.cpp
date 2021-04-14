@@ -57,6 +57,8 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/db/stats/apcounter.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/s/query/ap_strategy.h"
 
 namespace mongo {
@@ -235,8 +237,6 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
     //根据请求的readPref进行区分
     executor::TaskExecutor* executor = nullptr;
     if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
-        executor = Grid::get(opCtx)->getAPExecutorPool()->getArbitraryExecutor();
-
         auto tmp = Grid::get(opCtx)->getAPExecutorPool();
         if (!tmp) {
             executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(); 
@@ -323,6 +323,16 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                            const ReadPreferenceSetting& readPref,
                                            std::vector<BSONObj>* results,
                                            BSONObj* viewDefinition) {
+    Timer startTimer;
+    auto timing = MakeGuard([&startTimer, readPref](){
+        if (startTimer.millis() >= serverGlobalParams.slowMS) {
+            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
+                globalApCounter.gotReadApSlowLog();
+            } else {
+                globalApCounter.gotReadSlowLog();
+            }
+        }
+    });
     invariant(results);
 
     // Projection on the reserved sort key field is illegal in mongos.
@@ -385,6 +395,7 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
 
 StatusWith<CursorResponse> ClusterFind::runGetMore(OperationContext* opCtx,
                                                    const GetMoreRequest& request) {
+                                                       //TODO 后面再统计
     auto cursorManager = Grid::get(opCtx)->getCursorManager();
 
     auto pinnedCursor = cursorManager->checkOutCursor(request.nss, request.cursorid, opCtx);

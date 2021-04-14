@@ -13,6 +13,7 @@ class ApCounter {
     void gotReadAp();
     void gotErrorGetApExecutorPool();
 
+    void gotReadApSlowLog();
     void gotReadSlowLog();
     void gotWriteSlowLog();
     void gotFamSlowLog();
@@ -39,6 +40,10 @@ class ApCounter {
 
     const AtomicUInt32* getReadSlowLog() const {
         return &_readSlowLog;
+    }
+
+    const AtomicUInt32* getReadApSlowLog() const {
+        return &_readApSlowLog;
     }
     const AtomicUInt32* getWriteSlowLog() const {
         return &_writeSlowLog;
@@ -68,6 +73,7 @@ class ApCounter {
         AtomicUInt32 _readAp;
         AtomicUInt32 _readApExecutorPoolError;
 
+        AtomicUInt32 _readApSlowLog;
         AtomicUInt32 _readSlowLog;
         AtomicUInt32 _writeSlowLog;
         AtomicUInt32 _famSlowLog;

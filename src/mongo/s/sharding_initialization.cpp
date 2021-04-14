@@ -270,8 +270,6 @@ Status initializeGlobalShardingState(OperationContext* txn,
     connPoolOptions.minConnections = ShardingTaskExecutorPoolMinSize;
     connPoolOptions.refreshRequirement = Milliseconds(ShardingTaskExecutorPoolRefreshRequirementMS);
     connPoolOptions.refreshTimeout = Milliseconds(ShardingTaskExecutorPoolRefreshTimeoutMS);
-    // 这个参数目前只想对网络的taskexecutor有效果
-    //connPoolOptions.requestQueueLimits = int64_t(ShardingTaskExecutorPoolRequestQueueLimit);
 
     if (connPoolOptions.refreshRequirement <= connPoolOptions.refreshTimeout) {
         auto newRefreshTimeout = connPoolOptions.refreshRequirement - Milliseconds(1);
