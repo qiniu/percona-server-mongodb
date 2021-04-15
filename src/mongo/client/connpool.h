@@ -81,7 +81,7 @@ public:
      * triggle maxOpenConnectionSize
      */ 
     bool triggleMaxOpenConnectionSize() {
-        if (this->openConnections() >= this->_maxOpenConnectionSize) {
+        if (_maxOpenConnectionSize >= 0 && (this->openConnections() >= this->_maxOpenConnectionSize)) {
             return true;
         }
         return false;
