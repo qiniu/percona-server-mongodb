@@ -13,7 +13,12 @@ env.Library(target="unittest",
             LIBDEPS=[
                 '$BUILD_DIR/mongo/base',
                 '$BUILD_DIR/mongo/util/options_parser/options_parser',
-            ])
+            ],
+            LIBDEPS_TAGS=[
+                # Depends on mongo::getDeleter from db/serveronly
+                'incomplete',
+            ]
+            )
 
 env.Library("unittest_main", ['unittest_main.cpp'],
             LIBDEPS=[
