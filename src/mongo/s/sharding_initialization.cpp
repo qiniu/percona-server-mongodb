@@ -155,7 +155,7 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     }
     connPoolOptions.requestQueueLimits = tmpQueueLimit;
 
-    for (size_t i = 0; i < poolSize; ++i) {
+    for (int i = 0; i < poolSize; ++i) {
         auto net = executor::makeNetworkInterface(
             taskNamePrefix + std::to_string(i),
             stdx::make_unique<ShardingNetworkConnectionHook>(),
