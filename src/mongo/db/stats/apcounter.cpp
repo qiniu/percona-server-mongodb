@@ -14,9 +14,9 @@ void ApCounter::gotReadAp() {
     _readAp.fetchAndAdd(1);
 }
 
-void ApCounter::gotReadNotAp() {
+void ApCounter::gotReadTp() {
     RARELY _checkWrap();
-    _readNotAp.fetchAndAdd(1);
+    _readTp.fetchAndAdd(1);
 }
 
 void ApCounter::gotErrorGetApExecutorPool() {
@@ -67,7 +67,7 @@ void ApCounter::gotShardHostLimit() {
 void ApCounter::_checkWrap() {
     const unsigned MAX = 1 << 30;
 
-    bool wrap = _readAp.loadRelaxed() > MAX || _readNotAp.loadRelaxed() > MAX ||
+    bool wrap = _readAp.loadRelaxed() > MAX || _readTp.loadRelaxed() > MAX ||
         _readApExecutorPoolError.loadRelaxed() > MAX || _readSlowLog.loadRelaxed() > MAX ||
         _readApSlowLog.loadRelaxed() > MAX || _cmdSlowLog.loadRelaxed() > MAX ||
         _writeSlowLog.loadRelaxed() > MAX || _famSlowLog.loadRelaxed() > MAX ||
@@ -76,7 +76,7 @@ void ApCounter::_checkWrap() {
 
     if (wrap) {
         _readAp.store(0);
-        _readNotAp.store(0);
+        _readTp.store(0);
         _readApExecutorPoolError.store(0);
 
         _readSlowLog.store(0);
@@ -94,7 +94,7 @@ void ApCounter::_checkWrap() {
 BSONObj ApCounter::getObj() const {
     BSONObjBuilder b;
     b.append("readAp", _readAp.loadRelaxed());
-    b.append("readNotAp", _readNotAp.loadRelaxed());
+    b.append("readTp", _readTp.loadRelaxed());
     b.append("error_apexecutor_pool", _readApExecutorPoolError.loadRelaxed());
 
     b.append("read_slowlog", _readSlowLog.loadRelaxed());
@@ -103,9 +103,9 @@ BSONObj ApCounter::getObj() const {
     b.append("fam_slowlog", _famSlowLog.loadRelaxed());
     b.append("cmd_slowlog", _cmdSlowLog.loadRelaxed());
 
-    b.append("legacy_limit", _legacyConnectionLimit.loadRelaxed());
-    b.append("asio_reqQueue_limit", _asioWaitReqQueueLimit.loadRelaxed());
-    b.append("shardHost_limit", _shardHostLimit.loadRelaxed());
+    b.append("limitForLegacy", _legacyConnectionLimit.loadRelaxed());
+    b.append("limitForAsioReqQ", _asioWaitReqQueueLimit.loadRelaxed());
+    b.append("limitForRefresh", _shardHostLimit.loadRelaxed());
     return b.obj();
 }
 

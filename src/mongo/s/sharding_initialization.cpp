@@ -182,9 +182,6 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
 std::unique_ptr<TaskExecutorPool> makeAPTaskExecutorPool(
                                 rpc::ShardingEgressMetadataHookBuilder hookBuilder
 ) {
-    // We don't set the ConnectionPool's static const variables to be the default value in
-    // MONGO_EXPORT_STARTUP_SERVER_PARAMETER because it's not guaranteed to be initialized.
-    // The following code is a workaround.
     ConnectionPool::Options connPoolOptions;
     connPoolOptions.hostTimeout = Milliseconds(APShardingTaskExecutorPoolHostTimeoutMS);
     connPoolOptions.maxConnections = (APShardingTaskExecutorPoolMaxSize != -1)
@@ -307,6 +304,8 @@ Status initializeGlobalShardingState(OperationContext* txn,
     std::unique_ptr<TaskExecutorPool> apExecutorPool = nullptr;
     //只有mongos才需要用这个队列;
     if (serverGlobalParams.clusterRole == ClusterRole::None) {
+        log() << "ap executor initing";
+
         //ap连接池
         apExecutorPool = makeAPTaskExecutorPool(hookBuilder);
         apExecutorPool->startup();

@@ -172,16 +172,10 @@ public:
         // that the parsing be pulled into this function.
         uassertStatusOK(createShardDatabase(opCtx, nss.db()));
 
-        Timer routeCacheTimer;
         auto routingInfo =
             uassertStatusOK(Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfo(opCtx, nss));
         if (!routingInfo.cm()) {
             return _runCommand(opCtx, nullptr, routingInfo.primaryId(), nss, cmdObj, result);
-        }
-
-        auto routeConsume = routeCacheTimer.millis();
-        if (routeConsume > 100) {
-            log() << "[MongoStat] "<< cmdObj.toString() << " runCmd  " << routeCacheTimer.millis() << "refresh route is " << routeConsume << "ms";
         }
 
         const auto chunkMgr = routingInfo.cm();
@@ -261,7 +255,10 @@ private:
         if (!ok && res.getIntField("code") == ErrorCodes::RecvStaleConfig) {
             // Command code traps this exception and re-runs
             if(slow_log){
-                log()<<"[MongoStat] FindAndModify err. target="<<shardId.toString()<<",ips:"<<shard->getConnString() <<" ;req="<<cmdObj.toString()<<" ;resp="<<res.toString()<<";optime="<< optime<<"ms";
+                log() << "[MongoStat] FindAndModify err. target=" << shardId.toString()
+                      << ",ips:" << shard->getConnString() << " ;req=" << cmdObj.toString()
+                      << " ;resp=" << res.toString() << ";optime=" << optime
+                      << "ms, get connection time:" << getConnectionMs << "ms";
             }
             throw RecvStaleConfigException("FindAndModify", res);
         }
@@ -272,8 +269,11 @@ private:
             appendWriteConcernErrorToCmdResponse(shardId, wcErrorElem, result);
         }
 
-        if(slow_log){
-            log()<<"[MongoStat] FindAndModify ok. target="<<shardId.toString()<<",ips:" << shard->getConnString() << " ;req="<<cmdObj.toString()<<"  resp="<<res.toString()<<" optime="<< optime<<"ms ,get connection time:" << getConnectionMs << "ms";
+        if (slow_log) {
+            log() << "[MongoStat] FindAndModify ok. target=" << shardId.toString()
+                  << ",ips:" << shard->getConnString() << " ;req=" << cmdObj.toString()
+                  << "  resp=" << res.toString() << " optime=" << optime
+                  << "ms,get connection time:" << getConnectionMs << "ms";
         }
         result.appendElementsUnique(res);
 

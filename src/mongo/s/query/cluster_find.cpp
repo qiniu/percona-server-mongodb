@@ -58,7 +58,6 @@
 #include "mongo/util/log.h"
 #include "mongo/db/stats/apcounter.h"
 #include "mongo/util/timer.h"
-#include "mongo/util/scopeguard.h"
 #include "mongo/s/query/ap_strategy.h"
 
 namespace mongo {
@@ -240,14 +239,14 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
         auto tmp = Grid::get(opCtx)->getAPExecutorPool();
         if (!tmp) {
             executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(); 
-            globalApCounter.gotReadNotAp();
+            globalApCounter.gotReadTp();
         } else {
             executor = tmp->getArbitraryExecutor();
             globalApCounter.gotReadAp();
         }
     } else {
         executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor();
-        globalApCounter.gotReadNotAp();
+        globalApCounter.gotReadTp();
     }
     auto ccc = ClusterClientCursorImpl::make(executor, std::move(params));
 
@@ -323,16 +322,6 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                            const ReadPreferenceSetting& readPref,
                                            std::vector<BSONObj>* results,
                                            BSONObj* viewDefinition) {
-    Timer startTimer;
-    auto timing = MakeGuard([&startTimer, readPref](){
-        if (startTimer.millis() >= serverGlobalParams.slowMS) {
-            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
-                globalApCounter.gotReadApSlowLog();
-            } else {
-                globalApCounter.gotReadSlowLog();
-            }
-        }
-    });
     invariant(results);
 
     // Projection on the reserved sort key field is illegal in mongos.
@@ -349,6 +338,8 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
     // Re-target and re-send the initial find command to the shards until we have established the
     // shard version.
     for (size_t retries = 1; retries <= kMaxStaleConfigRetries; ++retries) {
+        Timer startTimer;
+
         auto routingInfoStatus = catalogCache->getCollectionRoutingInfo(opCtx, query.nss());
         if (routingInfoStatus == ErrorCodes::NamespaceNotFound) {
             // If the database doesn't exist, we successfully return an empty result set without
@@ -367,6 +358,24 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                                 routingInfo.primary(),
                                                 results,
                                                 viewDefinition);
+
+        auto optime = startTimer.millis(); 
+        if (optime >= serverGlobalParams.slowMS) {
+            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
+                log() << "[MongoStat][AP] single remote req: " << redact(query.toString())
+                      << ";remote resp:"
+                      << redact(cursorId.getStatus())
+                      << ";optime:" << optime;
+                globalApCounter.gotReadApSlowLog();
+            } else {
+                log() << "[MongoStat][TP] single remote req: " << redact(query.toString())
+                      << ";remote resp:"
+                      << redact(cursorId.getStatus())
+                      << ";optime:" << optime;
+                globalApCounter.gotReadSlowLog();
+            }
+        }
+
         if (cursorId.isOK()) {
             return cursorId;
         }

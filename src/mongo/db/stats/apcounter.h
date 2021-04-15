@@ -9,7 +9,7 @@ namespace mongo {
 class ApCounter {
     public:
     ApCounter();
-    void gotReadNotAp();
+    void gotReadTp();
     void gotReadAp();
     void gotErrorGetApExecutorPool();
 
@@ -26,8 +26,8 @@ class ApCounter {
 
     BSONObj getObj() const;
 
-    const AtomicUInt32* getReadNotAp() const{
-        return &_readNotAp;
+    const AtomicUInt32* getReadTp() const{
+        return &_readTp;
     }
 
     const AtomicUInt32* getReadAp() const {
@@ -69,7 +69,7 @@ class ApCounter {
     private:
     
         void _checkWrap();
-        AtomicUInt32 _readNotAp;
+        AtomicUInt32 _readTp;
         AtomicUInt32 _readAp;
         AtomicUInt32 _readApExecutorPoolError;
 

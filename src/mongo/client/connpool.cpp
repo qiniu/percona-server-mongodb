@@ -268,15 +268,15 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
     
     if (p.triggleMaxOpenConnectionSize()) {
         globalApCounter.gotLegacyConnectionLimit();
-        log() << "Too many open connections; waiting until there are fewer than "
+        log() << "[MongoStat] (" << this->_name << "," << url
+              << ") Too many open connections; waiting until there are fewer than "
               << this->_maxOpenConnectionSize;
+
         uassert(17289,
                 "Too many in-use connections; waiting until there are fewer than " +
                     std::to_string(this->_maxOpenConnectionSize),
                 false);
     }
-
-    log() << "[MongoStat] limit:" << this->_maxOpenConnectionSize << ", avaliable:" << p.numAvailable() << ", inUse:" << p.numInUse();
     p.incrCheckout();
     return true;
 }

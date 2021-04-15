@@ -134,7 +134,10 @@ void Grid::clearForUnitTests() {
     _cursorManager.reset();
     _balancerConfig.reset();
     _executorPool.reset();
-    _apExecutorPool.reset();
+
+    if (_apExecutorPool != nullptr) {
+        _apExecutorPool.reset();
+    }
     _network = nullptr;
 
     _configOpTime = repl::OpTime();
