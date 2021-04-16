@@ -162,7 +162,7 @@ public:
      * 用来限制当前hostport的_requests的queue长度，原因在于不限制就会导致当出现一些问题的时候，会死等超时，目前的getconnection的超时是30s，这就很过分了；
      * 所以通过这个限制，如果request的请求超过limits就直接返回错误，这样用户可以继续访问可能正确的shard的请求;
      */ 
-    void setRequestQueueLimit(int64_t limits) {
+    void setRequestQueueLimit(size_t limits) {
         this->_limits = limits;
         log() << "[MongoStat] [connection_pool] " << this->_hostAndPort.toString() << ". queue limit:" << this->_limits;
     }

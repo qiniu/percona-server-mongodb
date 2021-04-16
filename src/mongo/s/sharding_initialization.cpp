@@ -89,6 +89,10 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(ShardingTaskExecutorPoolRequestQueueLimit,
                                       int,
                                       static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit));
 
+/**
+ * ap连接池主要是为访问secondary的find请求所使用; 
+ */ 
+
 MONGO_EXPORT_STARTUP_SERVER_PARAMETER(APShardingTaskExecutorPoolHostTimeoutMS,
                                       int,
                                       ConnectionPool::kDefaultHostTimeout.count());
@@ -141,20 +145,12 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
     rpc::ShardingEgressMetadataHookBuilder metadataHookBuilder,
     ConnectionPool::Options connPoolOptions, 
     std::string taskNamePrefix, 
+    size_t poolReqQueueLimit,
     int poolSize) {
-        invariant(poolSize);
+    invariant(poolSize);
     std::vector<std::unique_ptr<executor::TaskExecutor>> executors;
 
-    size_t tmpQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
-    if (ShardingTaskExecutorPoolRequestQueueLimit != static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit)) {
-        tmpQueueLimit =
-            (ShardingTaskExecutorPoolRequestQueueLimit) / poolSize;
-        if (tmpQueueLimit == 0) {
-            tmpQueueLimit = 1;
-        }
-    }
-    connPoolOptions.requestQueueLimits = tmpQueueLimit;
-
+    connPoolOptions.requestQueueLimits = poolReqQueueLimit;
     for (int i = 0; i < poolSize; ++i) {
         auto net = executor::makeNetworkInterface(
             taskNamePrefix + std::to_string(i),
@@ -164,7 +160,6 @@ std::unique_ptr<TaskExecutorPool> makeTaskExecutorPool(
         auto netPtr = net.get();
         auto exec = stdx::make_unique<ThreadPoolTaskExecutor>(
             stdx::make_unique<NetworkInterfaceThreadPool>(netPtr), std::move(net));
-
         executors.emplace_back(std::move(exec));
     }
 
@@ -187,9 +182,11 @@ std::unique_ptr<TaskExecutorPool> makeAPTaskExecutorPool(
     connPoolOptions.maxConnections = (APShardingTaskExecutorPoolMaxSize != -1)
         ? APShardingTaskExecutorPoolMaxSize
         : ConnectionPool::kDefaultMaxConns;
+
     connPoolOptions.maxConnecting = (APShardingTaskExecutorPoolMaxConnecting != -1)
         ? APShardingTaskExecutorPoolMaxConnecting
         : ConnectionPool::kDefaultMaxConnecting;
+
     connPoolOptions.minConnections = APShardingTaskExecutorPoolMinSize;
     connPoolOptions.refreshRequirement = Milliseconds(APShardingTaskExecutorPoolRefreshRequirementMS);
     connPoolOptions.refreshTimeout = Milliseconds(APShardingTaskExecutorPoolRefreshTimeoutMS);
@@ -223,7 +220,22 @@ std::unique_ptr<TaskExecutorPool> makeAPTaskExecutorPool(
                                        stdx::make_unique<ShardingNetworkConnectionHook>(),
                                        hookBuilder(),
                                        connPoolOptions);
-    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-APTaskExecutorPool-", TaskExecutorPool::getSuggestedAPPoolSize());
+
+    size_t reqQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
+    if (APShardingTaskExecutorPoolRequestQueueLimit >= 0 && APShardingTaskExecutorPoolRequestQueueLimit != static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit)) {
+        reqQueueLimit = (APShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedAPPoolSize();
+        if (reqQueueLimit < 0 ) {
+            reqQueueLimit = 1;
+        }
+    }
+    log() << "[MongoStat] ap executor reqQueueLimit:" << reqQueueLimit;
+
+    auto executorPool = makeTaskExecutorPool(std::move(network),
+                                             hookBuilder,
+                                             connPoolOptions,
+                                             "NetworkInterfaceASIO-APTaskExecutorPool-",
+                                             reqQueueLimit,
+                                             TaskExecutorPool::getSuggestedAPPoolSize());
     return executorPool;
 }
 
@@ -298,13 +310,27 @@ Status initializeGlobalShardingState(OperationContext* txn,
                                        hookBuilder(),
                                        connPoolOptions);
     auto networkPtr = network.get();
-    auto executorPool = makeTaskExecutorPool(std::move(network), hookBuilder, connPoolOptions, "NetworkInterfaceASIO-TaskExecutorPool-", TaskExecutorPool::getSuggestedPoolSize());
+
+    size_t reqQueueLimit = ConnectionPool::kDefaultRequestQueueLimit;
+    if (ShardingTaskExecutorPoolRequestQueueLimit >= 0 && ShardingTaskExecutorPoolRequestQueueLimit != static_cast<int>(ConnectionPool::kDefaultRequestQueueLimit)) {
+        reqQueueLimit = (ShardingTaskExecutorPoolRequestQueueLimit) / TaskExecutorPool::getSuggestedPoolSize();
+        if (reqQueueLimit < 0 ) {
+            reqQueueLimit = 1;
+        }
+    }
+    log() << "[MongoStat] tp executor reqQueueLimit:" << reqQueueLimit;
+    auto executorPool = makeTaskExecutorPool(std::move(network),
+                                             hookBuilder,
+                                             connPoolOptions,
+                                             "NetworkInterfaceASIO-TaskExecutorPool-",
+                                             reqQueueLimit,
+                                             TaskExecutorPool::getSuggestedPoolSize());
     executorPool->startup();
 
     std::unique_ptr<TaskExecutorPool> apExecutorPool = nullptr;
     //只有mongos才需要用这个队列;
     if (serverGlobalParams.clusterRole == ClusterRole::None) {
-        log() << "ap executor initing";
+        log() << "[MongoStat] ap executor initing";
 
         //ap连接池
         apExecutorPool = makeAPTaskExecutorPool(hookBuilder);

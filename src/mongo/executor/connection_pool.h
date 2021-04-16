@@ -124,7 +124,7 @@ public:
         /**
          * 关于请求队列长度的限制;
          */ 
-        int64_t requestQueueLimits = kDefaultRequestQueueLimit;         
+        size_t requestQueueLimits = kDefaultRequestQueueLimit;         
     };
 
     explicit ConnectionPool(std::unique_ptr<DependentTypeFactoryInterface> impl,
