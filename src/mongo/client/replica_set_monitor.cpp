@@ -430,8 +430,6 @@ void ReplicaSetMonitor::setSynchronousConfigChangeHook(ConfigChangeHook hook) {
 void ReplicaSetMonitor::appendInfo(BSONObjBuilder& bsonObjBuilder) const {
     stdx::lock_guard<stdx::mutex> lk(_state->mutex);
 
-    //添加监控信息;
-    bsonObjBuilder.append("refreshLimiter", this->_limiter->Running());
     // NOTE: the format here must be consistent for backwards compatibility
     BSONArrayBuilder hosts(bsonObjBuilder.subarrayStart("hosts"));
     for (unsigned i = 0; i < _state->nodes.size(); i++) {
@@ -459,6 +457,8 @@ void ReplicaSetMonitor::appendInfo(BSONObjBuilder& bsonObjBuilder) const {
 
         hosts.append(builder.obj());
     }
+    //添加监控信息;
+    bsonObjBuilder.append("refreshLimiter", this->_limiter->Running());
     hosts.done();
 }
 
