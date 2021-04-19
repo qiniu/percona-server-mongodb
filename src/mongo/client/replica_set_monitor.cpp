@@ -457,9 +457,9 @@ void ReplicaSetMonitor::appendInfo(BSONObjBuilder& bsonObjBuilder) const {
 
         hosts.append(builder.obj());
     }
+    hosts.done();
     //添加监控信息;
     bsonObjBuilder.append("refreshLimiter", this->_limiter->Running());
-    hosts.done();
 }
 
 void ReplicaSetMonitor::shutdown() {
