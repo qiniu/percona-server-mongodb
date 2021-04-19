@@ -180,14 +180,13 @@ ReplicaSetMonitor::ReplicaSetMonitor(StringData name, const std::set<HostAndPort
     : _state(std::make_shared<SetState>(name, seeds)),
       _executor(globalRSMonitorManager.getExecutor()) {
            this->_limiter = NewCountLimiter(globalRSMonitorManager.getRefreshLimit());
-           log() << "[MongoStat] [ReplicaSetMonitor] getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
+           log() << "[MongoStat] [ReplicaSetMonitor] name:" << name.toString() << ", getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
       }
 
 ReplicaSetMonitor::ReplicaSetMonitor(const MongoURI& uri)
     : _state(std::make_shared<SetState>(uri)), _executor(globalRSMonitorManager.getExecutor()) {
-          //并行度 = 低层连接池的1.5倍，其实不用那么大，因为它只是为了防止最大阻塞线程数;
            this->_limiter = NewCountLimiter(globalRSMonitorManager.getRefreshLimit());
-           log() << "[MongoStat] [ReplicaSetMonitor] getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
+           log() << "[MongoStat] [ReplicaSetMonitor] name:" << uri.getSetName() <<", getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
     }
 
 void ReplicaSetMonitor::init() {
@@ -536,6 +535,7 @@ Refresher::NextStep Refresher::getNextStep() {
             for (UnconfirmedReplies::iterator it = _scan->unconfirmedReplies.begin();
                  it != _scan->unconfirmedReplies.end();
                  ++it) {
+                     // 更新节点的ismasterreply
                 _set->findOrCreateNode(it->host)->update(*it);
             }
 
