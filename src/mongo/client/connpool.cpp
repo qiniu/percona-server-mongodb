@@ -552,7 +552,6 @@ void DBConnectionPool::setMaxPoolSize(int maxPoolSize) {
 
 void DBConnectionPool::taskDoWork() {
     vector<DBClientBase*> toDelete;
-    
     {
         // we need to get the connections inside the lock
         // but we can actually delete them outside
