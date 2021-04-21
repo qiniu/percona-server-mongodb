@@ -276,6 +276,7 @@ env.Library(
     ],
     LIBDEPS=[
         'task_executor_interface',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
         '$BUILD_DIR/mongo/util/fail_point',
     ]
 )
