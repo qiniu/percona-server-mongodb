@@ -58,6 +58,7 @@
 #include "mongo/util/log.h"
 #include "mongo/db/stats/apcounter.h"
 #include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/s/query/ap_strategy.h"
 
 namespace mongo {
@@ -324,6 +325,18 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                            BSONObj* viewDefinition) {
     invariant(results);
 
+    auto startTimer = std::make_shared<Timer>();
+    ON_BLOCK_EXIT([startTimer, readPref](){
+        auto opMS = startTimer->millis();
+        if (opMS >= serverGlobalParams.slowMS) {
+            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
+                globalApCounter.gotReadApSlowLog();
+            } else {
+                globalApCounter.gotReadSlowLog();
+            }
+        }
+    });
+
     // Projection on the reserved sort key field is illegal in mongos.
     if (query.getQueryRequest().getProj().hasField(ClusterClientCursorParams::kSortKeyField)) {
         return {ErrorCodes::BadValue,
@@ -338,8 +351,6 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
     // Re-target and re-send the initial find command to the shards until we have established the
     // shard version.
     for (size_t retries = 1; retries <= kMaxStaleConfigRetries; ++retries) {
-        Timer startTimer;
-
         auto routingInfoStatus = catalogCache->getCollectionRoutingInfo(opCtx, query.nss());
         if (routingInfoStatus == ErrorCodes::NamespaceNotFound) {
             // If the database doesn't exist, we successfully return an empty result set without
@@ -358,23 +369,6 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                                 routingInfo.primary(),
                                                 results,
                                                 viewDefinition);
-
-        auto optime = startTimer.millis(); 
-        if (optime >= serverGlobalParams.slowMS) {
-            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
-                log() << "[MongoStat][AP] single remote req: " << redact(query.toString())
-                      << ";remote resp:"
-                      << redact(cursorId.getStatus())
-                      << ";optime:" << optime;
-                globalApCounter.gotReadApSlowLog();
-            } else {
-                log() << "[MongoStat][TP] single remote req: " << redact(query.toString())
-                      << ";remote resp:"
-                      << redact(cursorId.getStatus())
-                      << ";optime:" << optime;
-                globalApCounter.gotReadSlowLog();
-            }
-        }
 
         if (cursorId.isOK()) {
             return cursorId;

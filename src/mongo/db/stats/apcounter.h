@@ -14,7 +14,10 @@ class ApCounter {
     void gotErrorGetApExecutorPool();
 
     void gotReadApSlowLog();
+    void gotReadApDSlowLog();
     void gotReadSlowLog();
+    void gotReadDSlowLog();
+    void gotReadUnSlowLog();
     void gotWriteSlowLog();
     void gotFamSlowLog();
     void gotCmdSlowLog();
@@ -42,9 +45,22 @@ class ApCounter {
         return &_readSlowLog;
     }
 
+    const AtomicUInt32* getReadDSlowLog() const {
+        return &_readDSlowLog;
+    }
+
     const AtomicUInt32* getReadApSlowLog() const {
         return &_readApSlowLog;
     }
+    
+    const AtomicUInt32* getReadApDSlowLog() const {
+        return &_readApDSlowLog;
+    }
+
+    const AtomicUInt32* getReadUnSlowLog() const {
+        return &_readUnSlowLog;
+    }
+
     const AtomicUInt32* getWriteSlowLog() const {
         return &_writeSlowLog;
     }
@@ -73,8 +89,15 @@ class ApCounter {
         AtomicUInt32 _readAp;
         AtomicUInt32 _readApExecutorPoolError;
 
+        //一个请求的慢日志计数
         AtomicUInt32 _readApSlowLog;
         AtomicUInt32 _readSlowLog;
+
+        //往各个shard的慢日志计数
+        AtomicUInt32 _readDSlowLog;
+        AtomicUInt32 _readApDSlowLog;
+        AtomicUInt32 _readUnSlowLog;
+
         AtomicUInt32 _writeSlowLog;
         AtomicUInt32 _famSlowLog;
         AtomicUInt32 _cmdSlowLog;
