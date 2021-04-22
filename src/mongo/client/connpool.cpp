@@ -84,6 +84,9 @@ void PoolForHost::done(DBConnectionPool* pool, DBClientBase* c) {
     bool isFailed = c->isFailed();
 
     --_checkedOut;
+    log() << "fenglin to host " << _hostName << "(with timeout of " << _socketTimeout << " seconds)"
+          << " due to bad connection status; " << openConnections() << ",inUse:" << _checkedOut;
+
 
     // Remember that this host had a broken connection for later
     if (isFailed) {
