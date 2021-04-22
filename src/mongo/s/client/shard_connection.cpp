@@ -235,7 +235,6 @@ public:
         verify(s);
 
         const bool isConnGood = shardConnectionPool.isConnectionGood(addr, conn);
-        log() << "fenglin:addr:" << addr << ", isConnGood:" << isConnGood << ",s->avail:" << (s->avail != nullptr);
         if (s->avail != NULL) {
             warning() << "Detected additional sharded connection in the "
                       << "thread local pool for " << addr;
