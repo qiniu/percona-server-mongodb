@@ -390,6 +390,12 @@ void DBConnectionPool::release(const string& host, DBClientBase* c) {
     _pools[PoolKey(host, c->getSoTimeout())].done(this, c);
 }
 
+void DBConnectionPool::decrementEgress(const string& host, DBClientBase* c) {
+    stdx::lock_guard L(_mutex);
+    PoolForHost& p = _pools[PoolKey(host, c->getSoTimeout())];
+    p.descCheckout();
+}
+
 
 DBConnectionPool::~DBConnectionPool() {
     // Do not log in destruction, because global connection pools get

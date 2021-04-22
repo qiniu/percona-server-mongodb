@@ -420,18 +420,14 @@ ShardConnection::ShardConnection(const ConnectionString& connectionString,
     }
 
     _conn = ClientConnections::threadInstance()->get(_cs.toString(), _ns);
-    log() << "fenglin:ShardConnection create:" << ShardConnection::getNumConnections() << ",validConn:" << (_conn != nullptr);
     usingAShardConnection(_cs.toString());
 }
 
 //当连接被使用关闭之后会归还到底层的连接池中去;
 ShardConnection::~ShardConnection() {
-    log() << "fenglin:ShardConnection destory:" << ShardConnection::getNumConnections() << ",validConn:" << (_conn != nullptr);
     if (_conn) {
-        log() << "fenglin:ShardConnection:isFailed():" << _conn->isFailed();
         if (_conn->isFailed()) {
             if (_conn->getSockCreationMicroSec() == DBClientBase::INVALID_SOCK_CREATION_TIME) {
-                log() << "fenglin:ShardConnection:kill"; 
                 kill();
             } else {
                 // The pool takes care of deleting the failed connection - this
@@ -483,7 +479,7 @@ void ShardConnection::kill() {
             // Let the pool know about the bad connection and also delegate disposal to it.
             ClientConnections::threadInstance()->done(_cs.toString(), _conn);
         } else {
-            log() << "fenglin:delete";
+            shardConnectionPool.decrementEgress(_cs.toString(), _conn);
             delete _conn;
         }
 

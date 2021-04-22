@@ -212,7 +212,7 @@ private:
     int _maxOpenConnectionSize;
 
     // The number of currently active connections from this pool
-    std::atomic<int32_t> _checkedOut;
+    int _checkedOut;
 
     // The number of connections that we did not reuse because they went bad.
     int _badConns;
@@ -302,6 +302,7 @@ public:
     int getNumBadConns(const std::string& host, double socketTimeout = 0) const;
 
     void release(const std::string& host, DBClientBase* c);
+    void decrementEgress(const std::string& host, DBClientBase* c);
 
     void addHook(DBConnectionHook* hook);  // we take ownership
     void appendConnectionStats(executor::ConnectionPoolStats* stats) const;
