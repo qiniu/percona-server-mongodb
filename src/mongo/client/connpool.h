@@ -130,11 +130,11 @@ public:
     }
 
     void incrCheckout() {
-        _checkedOut++;
+        ++_checkedOut;
     }
 
     void descCheckout() {
-        _checkedOut--;
+        --_checkedOut;
     }
 
 

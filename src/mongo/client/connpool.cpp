@@ -83,11 +83,7 @@ void PoolForHost::setMaxOpenConnectionSize(int maxOpenConnectionSize) {
 void PoolForHost::done(DBConnectionPool* pool, DBClientBase* c) {
     bool isFailed = c->isFailed();
 
-    --_checkedOut;
-    log() << "fenglin to host " << _hostName << "(with timeout of " << _socketTimeout << " seconds)"
-          << " due to bad connection status; " << openConnections() << ",inUse:" << _checkedOut.load();
-
-
+    descCheckout();
     // Remember that this host had a broken connection for later
     if (isFailed) {
         reportBadConnectionAt(c->getSockCreationMicroSec());
@@ -147,7 +143,7 @@ DBClientBase* PoolForHost::get(DBConnectionPool* pool, double socketTimeout) {
 
         verify(sc.conn->getSoTimeout() == socketTimeout);
 
-        ++_checkedOut;
+        incrCheckout();
         return sc.conn;
     }
 
@@ -199,7 +195,7 @@ void PoolForHost::createdOne(DBClientBase* base, bool tryAddCheckout) {
     // _checkedOut is used to indicate the number of in-use connections so
     // though we didn't actually check this connection out, we bump it here.
     if (!tryAddCheckout) {
-        ++_checkedOut;
+        incrCheckout();
     }
 }
 
