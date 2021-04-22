@@ -391,7 +391,7 @@ void DBConnectionPool::release(const string& host, DBClientBase* c) {
 }
 
 void DBConnectionPool::decrementEgress(const string& host, DBClientBase* c) {
-    stdx::lock_guard L(_mutex);
+    stdx::lock_guard<stdx::mutex> L(_mutex);
     PoolForHost& p = _pools[PoolKey(host, c->getSoTimeout())];
     p.descCheckout();
 }
