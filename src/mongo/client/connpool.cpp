@@ -267,9 +267,10 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
     
     if (p.triggleMaxOpenConnectionSize()) {
         globalApCounter.gotLegacyConnectionLimit();
-        log() << "[MongoStat] (" << this->_name << "," << url
+        log() << "[MongoStat] (" << this->_name << ",key:" << url << ":" << socketTimeout
               << ") Too many open connections; waiting until there are fewer than "
-              << this->_maxOpenConnectionSize;
+              << this->_maxOpenConnectionSize << ",inUse:" << p.numInUse()
+              << ".available:" << p.numAvailable();
 
         uassert(17289,
                 "Too many in-use connections; waiting until there are fewer than " +
