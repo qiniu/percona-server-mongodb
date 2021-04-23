@@ -461,6 +461,7 @@ public:
         a bad state.  Destructor will do this too, but it is verbose.
     */
     void kill() {
+        globalConnPool.decrementEgress(_host, _conn);
         delete _conn;
         _conn = 0;
     }
