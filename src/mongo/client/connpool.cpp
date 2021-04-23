@@ -638,6 +638,13 @@ void ScopedDbConnection::clearPool() {
     globalConnPool.clear();
 }
 
+void ScopedDbConnection::kill() {
+    globalConnPool.decrementEgress(_host, _conn);
+    delete _conn;
+    _conn = 0;
+}
+
+
 AtomicInt32 AScopedConnection::_numConnections;
 
 }  // namespace mongo

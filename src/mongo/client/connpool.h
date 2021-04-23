@@ -39,7 +39,6 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/mutex.h"
-#include "mongo/client/global_conn_pool.h"
 
 namespace mongo {
 
@@ -461,12 +460,7 @@ public:
     /** Force closure of the connection.  You should call this if you leave it in
         a bad state.  Destructor will do this too, but it is verbose.
     */
-    void kill() {
-        globalConnPool.decrementEgress(_host, _conn);
-        delete _conn;
-        _conn = 0;
-    }
-
+    void kill();
     /** Call this when you are done with the connection.
 
         If you do not call done() before this object goes out of scope,
