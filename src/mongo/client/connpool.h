@@ -39,6 +39,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/mutex.h"
+#include "mongo/client/global_conn_pool.h"
 
 namespace mongo {
 
