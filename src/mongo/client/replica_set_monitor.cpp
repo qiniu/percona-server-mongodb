@@ -286,41 +286,41 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
             return out;
     }
 
-    {
-        if (!_limiter->Acquire()) {
-            globalApCounter.gotShardHostLimit();
-            return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
-                      str::stream() << "could'n find host matching read preference and trigge limiter"
-                                    << criteria.toString() << " for set " << getName() << " , limiter's value:" << _limiter->Running());
-        }
-
-        const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
-        const auto startTimeMs = Date_t::now();
-        while (true) {
-            // We might not have found any matching hosts due to the scan, which just completed may
-            // have seen stale data from before we joined. Therefore we should participate in a new
-            // scan to make sure all hosts are contacted at least once (possibly by other threads)
-            // before this function gives up.
-            Refresher refresher(startOrContinueRefresh());
-
-            HostAndPort out = refresher.refreshUntilMatches(criteria);
-            if (!out.empty())
-                return out;
-
-            const Milliseconds remaining = maxWait - (Date_t::now() - startTimeMs);
-
-            if (remaining < kFindHostMaxBackOffTime) {
-                break;
-            }
-
-            // Back-off so we don't spam the replica set hosts too much
-            sleepFor(kFindHostMaxBackOffTime);
-        }
-
-        return Status(ErrorCodes::FailedToSatisfyReadPreference,
-                      str::stream() << "could n find host matching read preference "
-                                    << criteria.toString() << " for set " << getName());
+    if (!_limiter->Acquire()) {
+        globalApCounter.gotShardHostLimit();
+        return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
+                      str::stream()
+                          << "could'n find host matching read preference and trigge limiter"
+                          << criteria.toString() << " for set " << getName()
+                          << " , limiter's value:" << _limiter->Running());
     }
+
+    const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
+    const auto startTimeMs = Date_t::now();
+    while (true) {
+        // We might not have found any matching hosts due to the scan, which just completed may
+        // have seen stale data from before we joined. Therefore we should participate in a new
+        // scan to make sure all hosts are contacted at least once (possibly by other threads)
+        // before this function gives up.
+        Refresher refresher(startOrContinueRefresh());
+
+        HostAndPort out = refresher.refreshUntilMatches(criteria);
+        if (!out.empty())
+            return out;
+
+        const Milliseconds remaining = maxWait - (Date_t::now() - startTimeMs);
+
+        if (remaining < kFindHostMaxBackOffTime) {
+            break;
+        }
+
+        // Back-off so we don't spam the replica set hosts too much
+        sleepFor(kFindHostMaxBackOffTime);
+    }
+
+    return Status(ErrorCodes::FailedToSatisfyReadPreference,
+                  str::stream() << "could n find host matching read preference "
+                                << criteria.toString() << " for set " << getName());
 }
 
 HostAndPort ReplicaSetMonitor::getMasterOrUassert() {

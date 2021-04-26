@@ -84,15 +84,6 @@ AsyncResultsMerger::AsyncResultsMerger(executor::TaskExecutor* executor,
 
 AsyncResultsMerger::~AsyncResultsMerger() {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
-
-    if (!(remotesExhausted_inlock() || _lifecycleState == kKillComplete)) {
-        log() << "fenglin:" << static_cast<int>(_lifecycleState);
-        for (const auto& remote : _remotes) {
-            if (!remote.exhausted()) {
-                log() << "fenglin remote:" << remote.getTargetHost().toString() << ":" << remote.exhausted();
-            }
-        }
-    }
     invariant(remotesExhausted_inlock() || _lifecycleState == kKillComplete);
 }
 

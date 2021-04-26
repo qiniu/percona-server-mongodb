@@ -265,7 +265,7 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
     
-    if (p.triggleMaxOpenConnectionSize()) {
+    if (p.triggerMaxOpenConnectionSize()) {
         globalApCounter.gotLegacyConnectionLimit();
         log() << "[MongoStat] (" << this->_name << ",key:" << url << ":" << socketTimeout
               << ") Too many open connections; waiting until there are fewer than "
@@ -294,18 +294,17 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
     }
 
 
-    bool tryAddConnection = this->_limitMaxOpenConnectionSize(url.toString(), socketTimeout);
-
+    this->_limitMaxOpenConnectionSize(url.toString(), socketTimeout);
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
-    if (!c && tryAddConnection) {
+    if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
         PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
         p.descCheckout();
     }
     uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
 
-    return _finishCreate(url.toString(), socketTimeout, c, tryAddConnection);
+    return _finishCreate(url.toString(), socketTimeout, c, true);
 }
 
 DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
@@ -320,24 +319,22 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
         return c;
     }
 
-    bool tryAddConnection = this->_limitMaxOpenConnectionSize(host, socketTimeout);
+    this->_limitMaxOpenConnectionSize(host, socketTimeout);
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     string errmsg;
     c = cs.connect(StringData(), errmsg, socketTimeout);
     if (!c) {
-        if (tryAddConnection) {
-            stdx::unique_lock<stdx::mutex> lk(_mutex);
-            PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
-            p.descCheckout();
-        }
-        
+        stdx::unique_lock<stdx::mutex> lk(_mutex);
+        PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
+        p.descCheckout();
+
         throw SocketException(SocketException::CONNECT_ERROR,
                               host,
                               11002,
                               str::stream() << _name << " error: " << errmsg);
     }
 
-    return _finishCreate(host, socketTimeout, c, tryAddConnection);
+    return _finishCreate(host, socketTimeout, c, true);
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
@@ -347,18 +344,18 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
         return c.release();
     }
 
-    bool tryAddConnection = this->_limitMaxOpenConnectionSize(uri.toString(), socketTimeout);
+    this->_limitMaxOpenConnectionSize(uri.toString(), socketTimeout);
     string errmsg;
     c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
 
-    if (!c && tryAddConnection) {
+    if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
         PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
         p.descCheckout();
     }
     uassert(40356, _name + ": connect failed " + uri.toString() + " : " + errmsg, c);
 
-    return _finishCreate(uri.toString(), socketTimeout, c.release(), tryAddConnection);
+    return _finishCreate(uri.toString(), socketTimeout, c.release(), true);
 }
 
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {

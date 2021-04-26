@@ -80,7 +80,7 @@ public:
     /**
      * triggle maxOpenConnectionSize
      */ 
-    bool triggleMaxOpenConnectionSize() {
+    bool triggerMaxOpenConnectionSize() {
         if (_maxOpenConnectionSize >= 0 && (this->openConnections() >= this->_maxOpenConnectionSize)) {
             return true;
         }
