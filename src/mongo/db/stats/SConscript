@@ -66,6 +66,16 @@ env.Library(
 )
 
 env.Library(
+    target='apcounter',
+    source=[
+        'apcounter.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+    ],
+)
+
+env.Library(
     target='fill_locker_info',
     source=[
         'fill_locker_info.cpp',

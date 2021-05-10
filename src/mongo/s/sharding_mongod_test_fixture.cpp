@@ -306,6 +306,10 @@ void ShardingMongodTestFixture::tearDown() {
         Grid::get(operationContext())->getExecutorPool()->shutdownAndJoin();
     }
 
+    if (auto pool = Grid::get(operationContext())->getAPExecutorPool()) {
+        pool->shutdownAndJoin();
+    }
+
     if (Grid::get(operationContext())->catalogManager()) {
         Grid::get(operationContext())->catalogManager()->shutDown(operationContext());
     }

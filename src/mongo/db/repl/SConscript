@@ -1163,6 +1163,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/s/balancer',
         '$BUILD_DIR/mongo/db/service_context',
         '$BUILD_DIR/mongo/db/stats/counters',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
     ],
     LIBDEPS_TAGS=[
         # TODO: Many missing libdeps above

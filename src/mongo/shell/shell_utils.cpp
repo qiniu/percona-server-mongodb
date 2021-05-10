@@ -187,7 +187,6 @@ BSONObj replMonitorStats(const BSONObj& a, void* data) {
     uassert(17134,
             "replMonitorStats requires a single string argument (the ReplSet name)",
             a.nFields() == 1 && a.firstElement().type() == String);
-
     ReplicaSetMonitorPtr rsm = ReplicaSetMonitor::get(a.firstElement().valuestrsafe());
     if (!rsm) {
         return BSON(""
@@ -196,7 +195,10 @@ BSONObj replMonitorStats(const BSONObj& a, void* data) {
 
     BSONObjBuilder result;
     rsm->appendInfo(result);
-    return result.obj();
+
+    BSONObj tmp = result.obj();
+    log() << "rsm obj:" << tmp.toString();
+    return tmp;
 }
 
 BSONObj useWriteCommandsDefault(const BSONObj& a, void* data) {

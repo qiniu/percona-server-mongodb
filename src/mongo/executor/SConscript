@@ -80,6 +80,7 @@ env.Library(
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/util/net/hostandport',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
         'connection_pool_stats',
         'remote_command',
     ],
@@ -275,6 +276,7 @@ env.Library(
     ],
     LIBDEPS=[
         'task_executor_interface',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
         '$BUILD_DIR/mongo/util/fail_point',
     ]
 )

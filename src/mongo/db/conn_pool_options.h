@@ -48,5 +48,16 @@ struct ConnPoolOptions {
      * Maximum connections per host the sharded conn pool should use
      */
     static int maxShardedConnsPerHost;
+
+       /**
+     * Maximum open connections per host in the global connection pool.
+     */
+    static int maxOpenConnsPerHost;
+
+    /**
+     * Maximum open connections per host in the sharded connection pool.
+     */
+    static int maxShardedOpenConnsPerHost;
+ 
 };
 }

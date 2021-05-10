@@ -23,8 +23,8 @@
  *    file(s), but you are not obligated to do so. If you do not wish to do so,
  *    delete this exception statement from your version. If you delete this
  *    exception statement from all source files in the program, then also delete
- *    it in the license file.
- */
+ *    it in the license file. 
+ * */
 
 #pragma once
 
@@ -32,6 +32,7 @@
 
 #include "mongo/db/repl/optime.h"
 #include "mongo/stdx/mutex.h"
+#include "mongo/db/stats/apcounter.h"
 
 namespace mongo {
 
@@ -95,6 +96,11 @@ public:
     void setAllowLocalHost(bool allow);
 
     /**
+     * 手动进行赋值，不是所有的role都需要对这个进行赋值
+     */
+    void setAPTaskExecutorPool(std::unique_ptr<executor::TaskExecutorPool> apExecutorPool);
+
+    /**
      * Returns a pointer to a ShardingCatalogClient to use for accessing catalog data stored on the
      * config servers.
      */
@@ -124,6 +130,14 @@ public:
 
     executor::TaskExecutorPool* getExecutorPool() {
         return _executorPool.get();
+    }
+
+    executor::TaskExecutorPool* getAPExecutorPool() {
+        if (!_apExecutorPool) {
+            globalApCounter.gotErrorGetApExecutorPool();
+            return nullptr;
+        }
+        return _apExecutorPool.get();
     }
 
     executor::NetworkInterface* getNetwork() {
@@ -170,6 +184,9 @@ private:
     // Executor pool for scheduling work and remote commands to shards and config servers. Each
     // contained executor has a connection hook set on it for sending/receiving sharding metadata.
     std::unique_ptr<executor::TaskExecutorPool> _executorPool;
+
+    //新的线程池，专门用来处理长时间的请求使用；基本模式和_executorPool一样，但是在参数上会设置不一样点;
+    std::unique_ptr<executor::TaskExecutorPool> _apExecutorPool;
 
     // Network interface being used by the fixed executor in _executorPool.  Used for asking
     // questions about the network configuration, such as getting the current server's hostname.

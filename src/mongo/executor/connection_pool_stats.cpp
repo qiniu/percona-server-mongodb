@@ -39,8 +39,9 @@ namespace executor {
 ConnectionStatsPer::ConnectionStatsPer(size_t nInUse,
                                        size_t nAvailable,
                                        size_t nCreated,
-                                       size_t nRefreshing)
-    : inUse(nInUse), available(nAvailable), created(nCreated), refreshing(nRefreshing) {}
+                                       size_t nRefreshing, 
+                                       size_t reqQueueLimit)
+    : inUse(nInUse), available(nAvailable), created(nCreated), refreshing(nRefreshing), reqQueueLimit(reqQueueLimit){}
 
 ConnectionStatsPer::ConnectionStatsPer() = default;
 
@@ -49,6 +50,7 @@ ConnectionStatsPer& ConnectionStatsPer::operator+=(const ConnectionStatsPer& oth
     available += other.available;
     created += other.created;
     refreshing += other.refreshing;
+    this->reqQueueLimit += other.reqQueueLimit;
 
     return *this;
 }
@@ -66,6 +68,7 @@ void ConnectionPoolStats::updateStatsForHost(std::string pool,
     totalAvailable += newStats.available;
     totalCreated += newStats.created;
     totalRefreshing += newStats.refreshing;
+    totalReqQueueLimit += newStats.reqQueueLimit;
 }
 
 void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
@@ -73,6 +76,7 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
     result.appendNumber("totalAvailable", totalAvailable);
     result.appendNumber("totalCreated", totalCreated);
     result.appendNumber("totalRefreshing", totalRefreshing);
+    result.appendNumber("totalReqQueueLimit", totalReqQueueLimit);
 
     {
         BSONObjBuilder poolBuilder(result.subobjStart("pools"));
@@ -83,6 +87,7 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
             poolInfo.appendNumber("poolAvailable", poolStats.available);
             poolInfo.appendNumber("poolCreated", poolStats.created);
             poolInfo.appendNumber("poolRefreshing", poolStats.refreshing);
+            poolInfo.appendNumber("poolReqQueueLimit", poolStats.reqQueueLimit);
             for (auto&& host : statsByPoolHost[pool.first]) {
                 BSONObjBuilder hostInfo(poolInfo.subobjStart(host.first.toString()));
                 auto hostStats = host.second;
@@ -90,6 +95,7 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
                 hostInfo.appendNumber("available", hostStats.available);
                 hostInfo.appendNumber("created", hostStats.created);
                 hostInfo.appendNumber("refreshing", hostStats.refreshing);
+                hostInfo.appendNumber("reqQueueLimit", hostStats.reqQueueLimit);
             }
         }
     }
@@ -102,6 +108,7 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
             hostInfo.appendNumber("available", hostStats.available);
             hostInfo.appendNumber("created", hostStats.created);
             hostInfo.appendNumber("refreshing", hostStats.refreshing);
+            hostInfo.appendNumber("reqQueueLimit", hostStats.reqQueueLimit);
         }
     }
 }

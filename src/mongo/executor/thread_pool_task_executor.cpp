@@ -47,6 +47,9 @@
 #include "mongo/util/log.h"
 #include "mongo/util/time_support.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/stats/apcounter.h"
+#include "mongo/rpc/metadata/server_selection_metadata.h"
+
 namespace mongo {
 namespace executor {
 
@@ -78,9 +81,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    void waitForCompletion() override {
-        MONGO_UNREACHABLE;
-    }
+    void waitForCompletion() override { MONGO_UNREACHABLE; }
 
     // All fields except for "canceled" are guarded by the owning task executor's _mutex. The
     // "canceled" field may be observed without holding _mutex, but may only be set while holding
@@ -369,9 +370,33 @@ StatusWith<TaskExecutor::CallbackHandle> ThreadPoolTaskExecutor::scheduleRemoteC
                    << redact(response.isOK() ? response.toString() : response.status.toString());
             auto optime = this->_net->now() - scheduledRequest.start_time;
             //slow remote command
-           if(optime.count() >  serverGlobalParams.slowMS){
-                 log() << "single remote req: " <<redact(scheduledRequest.toString())<<";remote resp:"
-                   << redact(response.isOK() ? response.toString() : response.status.toString())<<";optime:"<<optime;
+            if (optime.count() > serverGlobalParams.slowMS) {
+                auto tmpMetaData = rpc::ServerSelectionMetadata::readFromMetadata(scheduledRequest.metadata);
+                if (tmpMetaData.isOK()) {
+                    if (tmpMetaData.getValue().isSecondaryOk()) {
+                        globalApCounter.gotReadApDSlowLog();
+                        log() << "[MongoStat] [AP] single remote req: " << redact(scheduledRequest.toString())
+                              << ";remote resp:"
+                              << redact(response.isOK() ? response.toString()
+                                                        : response.status.toString())
+                              << ";optime:" << optime << "ms";
+                    } else {
+                        globalApCounter.gotReadDSlowLog();
+                        log() << "[MongoStat] [TP] single remote req: " << redact(scheduledRequest.toString())
+                              << ";remote resp:"
+                              << redact(response.isOK() ? response.toString()
+                                                        : response.status.toString())
+                              << ";optime:" << optime << "ms";
+                    }
+                } else {
+                    globalApCounter.gotReadUnSlowLog();
+                    log() << "[MongoStat] toMetadata is error, msg:" << tmpMetaData.getStatus().toString();
+                    log() << "[MongoStat] [UN] single remote req: "
+                          << redact(scheduledRequest.toString()) << ";remote resp:"
+                          << redact(response.isOK() ? response.toString()
+                                                    : response.status.toString())
+                          << ";optime:" << optime << "ms";
+                }
             }
             swap(cbState->callback, newCb);
             scheduleIntoPool_inlock(&_networkInProgressQueue, cbState->iter, std::move(lk));

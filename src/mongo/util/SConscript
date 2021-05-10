@@ -495,6 +495,15 @@ env.Library(
     ],
 )
 
+env.Library(
+    target='limiter',
+    source=[
+        'limit.cpp',
+    ],
+    LIBDEPS=[
+    ],
+)
+
 env.CppUnitTest(
     target='itoa_test',
     source=[
@@ -502,6 +511,16 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+    ]
+)
+
+env.CppUnitTest(
+    target='limit_test',
+    source=[
+        'limit_test.cpp',
+    ],
+    LIBDEPS=[
+        'limiter',
     ]
 )
 

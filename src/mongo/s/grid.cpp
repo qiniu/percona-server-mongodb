@@ -87,6 +87,7 @@ void Grid::init(std::unique_ptr<ShardingCatalogClient> catalogClient,
     _cursorManager = std::move(cursorManager);
     _balancerConfig = std::move(balancerConfig);
     _executorPool = std::move(executorPool);
+
     _network = network;
 
     _shardRegistry->init();
@@ -98,6 +99,15 @@ bool Grid::allowLocalHost() const {
 
 void Grid::setAllowLocalHost(bool allow) {
     _allowLocalShard = allow;
+}
+
+void Grid::setAPTaskExecutorPool(std::unique_ptr<executor::TaskExecutorPool> apExecutorPool) {
+    invariant(serverGlobalParams.clusterRole == ClusterRole::None);
+    if(apExecutorPool == nullptr) {
+        return;
+    }
+    invariant(!_apExecutorPool);
+    _apExecutorPool = std::move(apExecutorPool);
 }
 
 repl::OpTime Grid::configOpTime() const {
@@ -124,6 +134,10 @@ void Grid::clearForUnitTests() {
     _cursorManager.reset();
     _balancerConfig.reset();
     _executorPool.reset();
+
+    if (_apExecutorPool != nullptr) {
+        _apExecutorPool.reset();
+    }
     _network = nullptr;
 
     _configOpTime = repl::OpTime();

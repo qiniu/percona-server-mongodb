@@ -59,7 +59,9 @@ using executor::TaskExecutorPool;
 using executor::TaskExecutor;
 using executor::ThreadPoolTaskExecutor;
 
-ReplicaSetMonitorManager::ReplicaSetMonitorManager() {}
+ReplicaSetMonitorManager::ReplicaSetMonitorManager() {
+    _refreshLimits = 100;
+}
 
 ReplicaSetMonitorManager::~ReplicaSetMonitorManager() {
     shutdown();
@@ -188,6 +190,16 @@ void ReplicaSetMonitorManager::removeAllMonitors() {
     {
         stdx::lock_guard<stdx::mutex> lk(_mutex);
         _isShutdown = false;
+    }
+}
+
+int64_t ReplicaSetMonitorManager::getRefreshLimit() {
+    return _refreshLimits;
+}
+
+void ReplicaSetMonitorManager::setRefreshLimit(int64_t limit) {
+    if (limit > 0) {
+        _refreshLimits = limit;
     }
 }
 

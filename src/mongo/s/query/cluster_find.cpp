@@ -56,6 +56,10 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
+#include "mongo/db/stats/apcounter.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
+#include "mongo/s/query/ap_strategy.h"
 
 namespace mongo {
 
@@ -230,8 +234,22 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* opCtx,
         params.remotes.emplace_back(shard->getId(), cmdBuilder.obj());
     }
 
-    auto ccc = ClusterClientCursorImpl::make(
-        Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(), std::move(params));
+    //根据请求的readPref进行区分
+    executor::TaskExecutor* executor = nullptr;
+    if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
+        auto tmp = Grid::get(opCtx)->getAPExecutorPool();
+        if (!tmp) {
+            executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(); 
+            globalApCounter.gotReadTp();
+        } else {
+            executor = tmp->getArbitraryExecutor();
+            globalApCounter.gotReadAp();
+        }
+    } else {
+        executor = Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor();
+        globalApCounter.gotReadTp();
+    }
+    auto ccc = ClusterClientCursorImpl::make(executor, std::move(params));
 
     auto cursorState = ClusterCursorManager::CursorState::NotExhausted;
     int bytesBuffered = 0;
@@ -307,6 +325,18 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                            BSONObj* viewDefinition) {
     invariant(results);
 
+    auto startTimer = std::make_shared<Timer>();
+    ON_BLOCK_EXIT([startTimer, readPref](){
+        auto opMS = startTimer->millis();
+        if (opMS >= serverGlobalParams.slowMS) {
+            if (ApStrategy::useApTaskExecutorPool(readPref.pref)) {
+                globalApCounter.gotReadApSlowLog();
+            } else {
+                globalApCounter.gotReadSlowLog();
+            }
+        }
+    });
+
     // Projection on the reserved sort key field is illegal in mongos.
     if (query.getQueryRequest().getProj().hasField(ClusterClientCursorParams::kSortKeyField)) {
         return {ErrorCodes::BadValue,
@@ -339,6 +369,7 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
                                                 routingInfo.primary(),
                                                 results,
                                                 viewDefinition);
+
         if (cursorId.isOK()) {
             return cursorId;
         }
@@ -367,6 +398,7 @@ StatusWith<CursorId> ClusterFind::runQuery(OperationContext* opCtx,
 
 StatusWith<CursorResponse> ClusterFind::runGetMore(OperationContext* opCtx,
                                                    const GetMoreRequest& request) {
+                                                       //TODO 后面再统计
     auto cursorManager = Grid::get(opCtx)->getCursorManager();
 
     auto pinnedCursor = cursorManager->checkOutCursor(request.nss, request.cursorid, opCtx);

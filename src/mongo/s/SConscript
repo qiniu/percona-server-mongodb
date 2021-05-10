@@ -218,6 +218,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/concurrency/thread_pool',
         'client/sharding_client',
         'common',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
     ],
 )
 
@@ -265,6 +266,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/auth/authmongos',
         '$BUILD_DIR/mongo/db/fts/ftsmongos',
         '$BUILD_DIR/mongo/db/stats/counters',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
         '$BUILD_DIR/mongo/s/query/cluster_query',
         'cluster_last_error_info',
     ],

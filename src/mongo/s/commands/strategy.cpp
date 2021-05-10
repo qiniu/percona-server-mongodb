@@ -88,6 +88,7 @@ void runAgainstRegistered(OperationContext* opCtx,
             "Illegal attempt to run a command against a namespace other than $cmd.",
             nsToCollectionSubstring(ns) == "$cmd");
 
+    //获得第一个字段,通常第一个字段就是命令的name
     BSONElement e = jsobj.firstElement();
     std::string commandName = e.fieldName();
     Command* c = e.type() ? Command::findCommand(commandName) : NULL;
@@ -270,6 +271,7 @@ void Strategy::clientCommandOp(OperationContext* opCtx,
     BSONObj cmdObj = q.query;
 
     {
+        //获得第一个字段
         BSONElement e = cmdObj.firstElement();
         if (e.type() == Object && (e.fieldName()[0] == '$' ? str::equals("query", e.fieldName() + 1)
                                                            : str::equals("query", e.fieldName()))) {
@@ -312,6 +314,7 @@ void Strategy::clientCommandOp(OperationContext* opCtx,
                 runAgainstRegistered(opCtx, q.ns, cmdObj, builder, q.queryOptions);
             }
             reply.sendCommandReply(client->session(), dbm->msg());
+
             return;
         } catch (const StaleConfigException& e) {
             if (loops <= 0)
@@ -341,6 +344,7 @@ void Strategy::clientCommandOp(OperationContext* opCtx,
             return;
         }
     }
+
 }
 
 void Strategy::commandOp(OperationContext* opCtx,
@@ -362,6 +366,7 @@ void Strategy::commandOp(OperationContext* opCtx,
     set<ShardId> shardIds;
     cursor.getQueryShardIds(shardIds);
 
+    //把从各个shard获得信息然后进行拼接返回到client
     for (const ShardId& shardId : shardIds) {
         CommandResult result;
         result.shardTargetId = shardId;

@@ -95,6 +95,10 @@ public:
             if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
                 grid->catalogManager()->appendConnectionStats(&stats);
             }
+
+            if (auto pool = grid->getAPExecutorPool()) {
+                pool->appendConnectionStats(&stats);
+            }
         }
 
         // Output to a BSON object.

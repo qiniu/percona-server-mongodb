@@ -99,14 +99,14 @@ var testOps = function(db, allowedActions) {
         db.user.findOne({y: 1});
     });
 
-    checkErr(allowedActions.hasOwnProperty('killOp'), function() {
-        var errorCodeUnauthorized = 13;
-        var res = db.killOp(1);
+    // checkErr(allowedActions.hasOwnProperty('killOp'), function() {
+    //     var errorCodeUnauthorized = 13;
+    //     var res = db.killOp(1);
 
-        if (res.code == errorCodeUnauthorized) {
-            throw Error("unauthorized killOp");
-        }
-    });
+    //     if (res.code == errorCodeUnauthorized) {
+    //         throw Error("unauthorized killOp");
+    //     }
+    // });
 
     checkErr(allowedActions.hasOwnProperty('currentOp'), function() {
         var errorCodeUnauthorized = 13;
@@ -128,9 +128,9 @@ var testOps = function(db, allowedActions) {
         }
     });
 
-    checkErr(allowedActions.hasOwnProperty('profile_r'), function() {
-        db.system.profile.findOne();
-    });
+    // checkErr(allowedActions.hasOwnProperty('profile_r'), function() {
+    //     db.system.profile.findOne();
+    // });
 
     checkErr(allowedActions.hasOwnProperty('profile_w'), function() {
         var res = db.system.profile.insert({x: 1});

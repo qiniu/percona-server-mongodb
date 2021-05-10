@@ -44,6 +44,7 @@ assert(!st.shard1.getDB("admin")
 
 jsTest.log("Moving some chunks back to shard0 after empty...");
 
+//shard0会被迁移空，这个时候会有问题;
 admin.runCommand(
     {moveChunk: coll + "", find: {_id: -1}, to: st.shard1.shardName, _waitForDelete: true});
 

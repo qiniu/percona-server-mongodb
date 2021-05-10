@@ -1149,7 +1149,7 @@ _awaitRSHostViaRSMonitor = function(hostAddr, desiredState, rsName, timeout) {
             if (tests++ % 10 == 0) {
                 printjson(stats);
             }
-
+            
             for (var i = 0; i < stats.length; i++) {
                 var node = stats[i];
                 printjson(node);

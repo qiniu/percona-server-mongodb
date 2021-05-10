@@ -41,6 +41,7 @@
 #include "mongo/stdx/functional.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/limit.h"
 
 namespace mongo {
 
@@ -274,6 +275,14 @@ private:
     const SetStatePtr _state;
     executor::TaskExecutor* _executor;
     AtomicBool _isRemovedFromManager{false};
+
+    /**
+     * 添加一个并发度控制，因为当shard出现一定问题的时候，gethost会发现找不到primary，这个时候会block当前的connection线程;
+     * 如果get获得不到host就直接返回就好，不要大家都hold在这边等待返回，这样会导致客户端那边不知道要怎么办?
+     * 再者既然找不到primary那就返回错误吧，让上游自己去想办法cover这个情况，现在的问题是你在这边把我的请求hold住，上游就只能等超时，
+     * 一超时一堆问题，正常的请求也被影响，mongo的这个设计真心是有点让人烦的不行;
+     */ 
+    shared_ptr<Limiter> _limiter;
 };
 
 

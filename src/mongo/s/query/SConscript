@@ -14,6 +14,7 @@ env.Library(
         "cluster_client_cursor",
         "cluster_cursor_cleanup_job",
         "store_possible_cursor",
+        '$BUILD_DIR/mongo/db/stats/apcounter',
     ],
 )
 

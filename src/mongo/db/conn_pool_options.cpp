@@ -35,11 +35,15 @@
 #include "mongo/client/global_conn_pool.h"
 #include "mongo/db/server_parameters.h"
 #include "mongo/s/client/shard_connection.h"
+#include <algorithm>
 
 namespace mongo {
 
 int ConnPoolOptions::maxConnsPerHost(200);
 int ConnPoolOptions::maxShardedConnsPerHost(200);
+
+int ConnPoolOptions::maxOpenConnsPerHost(200);
+int ConnPoolOptions::maxShardedOpenConnsPerHost(200);
 
 namespace {
 
@@ -53,6 +57,16 @@ ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
                                     "connPoolMaxShardedConnsPerHost",
                                     &ConnPoolOptions::maxShardedConnsPerHost);
 
+ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
+    maxInUseConnsPerHostParameter(ServerParameterSet::getGlobal(),
+                             "connPoolMaxOpenConnsPerHost",
+                             &ConnPoolOptions::maxOpenConnsPerHost);
+
+ExportedServerParameter<int, ServerParameterType::kStartupOnly>  //
+    maxInUseShardedConnsPerHostParameter(ServerParameterSet::getGlobal(),
+                                    "connPoolMaxShardedOpenConnsPerHost",
+                                    &ConnPoolOptions::maxShardedOpenConnsPerHost);
+
 MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     // Initialize the sharded and unsharded outgoing connection pools
     // NOTES:
@@ -61,10 +75,14 @@ MONGO_INITIALIZER(InitializeConnectionPools)(InitializerContext* context) {
     //   operation (mongod)
 
     globalConnPool.setName("connection pool");
-    globalConnPool.setMaxPoolSize(ConnPoolOptions::maxConnsPerHost);
+    globalConnPool.setMaxPoolSize(std::min(ConnPoolOptions::maxConnsPerHost, ConnPoolOptions::maxOpenConnsPerHost));
+    globalConnPool.setMaxOpenConnectionSize(ConnPoolOptions::maxOpenConnsPerHost);
 
     shardConnectionPool.setName("sharded connection pool");
-    shardConnectionPool.setMaxPoolSize(ConnPoolOptions::maxShardedConnsPerHost);
+    shardConnectionPool.setMaxPoolSize(std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
+    shardConnectionPool.setMaxOpenConnectionSize(ConnPoolOptions::maxShardedOpenConnsPerHost);
+
+    globalRSMonitorManager.setRefreshLimit(1.5 * std::min(ConnPoolOptions::maxShardedConnsPerHost, ConnPoolOptions::maxShardedOpenConnsPerHost));
 
     return Status::OK();
 }

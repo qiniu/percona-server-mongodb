@@ -55,6 +55,7 @@
 #include "mongo/util/static_observer.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
@@ -177,10 +178,16 @@ bool ReplicaSetMonitor::useDeterministicHostSelection = false;
 
 ReplicaSetMonitor::ReplicaSetMonitor(StringData name, const std::set<HostAndPort>& seeds)
     : _state(std::make_shared<SetState>(name, seeds)),
-      _executor(globalRSMonitorManager.getExecutor()) {}
+      _executor(globalRSMonitorManager.getExecutor()) {
+           this->_limiter = NewCountLimiter(globalRSMonitorManager.getRefreshLimit());
+           log() << "[MongoStat] [ReplicaSetMonitor] name:" << name.toString() << ", getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
+      }
 
 ReplicaSetMonitor::ReplicaSetMonitor(const MongoURI& uri)
-    : _state(std::make_shared<SetState>(uri)), _executor(globalRSMonitorManager.getExecutor()) {}
+    : _state(std::make_shared<SetState>(uri)), _executor(globalRSMonitorManager.getExecutor()) {
+           this->_limiter = NewCountLimiter(globalRSMonitorManager.getRefreshLimit());
+           log() << "[MongoStat] [ReplicaSetMonitor] name:" << uri.getSetName() <<", getHostOrRefresh Limit:" << globalRSMonitorManager.getRefreshLimit();
+    }
 
 void ReplicaSetMonitor::init() {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
@@ -279,13 +286,22 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
             return out;
     }
 
-    const auto startTimeMs = Date_t::now();
+    if (!_limiter->Acquire()) {
+        globalApCounter.gotShardHostLimit();
+        return Status(ErrorCodes::MaxWaitRORequestPerHostTooMuch,
+                      str::stream()
+                          << "could'n find host matching read preference and trigge limiter"
+                          << criteria.toString() << " for set " << getName()
+                          << " , limiter's value:" << _limiter->Running());
+    }
 
+    const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
+    const auto startTimeMs = Date_t::now();
     while (true) {
-        // We might not have found any matching hosts due to the scan, which just completed may have
-        // seen stale data from before we joined. Therefore we should participate in a new scan to
-        // make sure all hosts are contacted at least once (possibly by other threads) before this
-        // function gives up.
+        // We might not have found any matching hosts due to the scan, which just completed may
+        // have seen stale data from before we joined. Therefore we should participate in a new
+        // scan to make sure all hosts are contacted at least once (possibly by other threads)
+        // before this function gives up.
         Refresher refresher(startOrContinueRefresh());
 
         HostAndPort out = refresher.refreshUntilMatches(criteria);
@@ -303,10 +319,8 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
     }
 
     return Status(ErrorCodes::FailedToSatisfyReadPreference,
-                  str::stream() << "could not find host matching read preference "
-                                << criteria.toString()
-                                << " for set "
-                                << getName());
+                  str::stream() << "could n find host matching read preference "
+                                << criteria.toString() << " for set " << getName());
 }
 
 HostAndPort ReplicaSetMonitor::getMasterOrUassert() {
@@ -444,6 +458,8 @@ void ReplicaSetMonitor::appendInfo(BSONObjBuilder& bsonObjBuilder) const {
         hosts.append(builder.obj());
     }
     hosts.done();
+    //添加监控信息;
+    bsonObjBuilder.append("refreshLimiter", this->_limiter->Running());
 }
 
 void ReplicaSetMonitor::shutdown() {
@@ -519,6 +535,7 @@ Refresher::NextStep Refresher::getNextStep() {
             for (UnconfirmedReplies::iterator it = _scan->unconfirmedReplies.begin();
                  it != _scan->unconfirmedReplies.end();
                  ++it) {
+                     // 更新节点的ismasterreply
                 _set->findOrCreateNode(it->host)->update(*it);
             }
 
@@ -987,6 +1004,7 @@ void Node::update(const IsMasterReply& reply) {
     lastWriteDateUpdateTime = Date_t::now();
 }
 
+//副本的状态管理
 SetState::SetState(StringData name, const std::set<HostAndPort>& seedNodes)
     : name(name.toString()),
       consecutiveFailedScans(0),
@@ -1069,6 +1087,7 @@ HostAndPort SetState::getMatchingHost(const ReadPreferenceSetting& criteria) con
                             upNodes.push_back(&(*nodeIt));
                         }
                     }
+                    // 选择一个最大的;
                     auto latestSecNode =
                         std::max_element(upNodes.begin(), upNodes.end(), writeDateCmp);
                     if (latestSecNode == upNodes.end()) {
@@ -1286,6 +1305,7 @@ void ScanState::enqueAllUntriedHosts(const Container& container, PseudoRandom& r
             hostsToScan.push_back(*it);
         }
     }
+    //将host进行混淆
     std::random_shuffle(hostsToScan.begin(), hostsToScan.end(), rand);
 }
 }

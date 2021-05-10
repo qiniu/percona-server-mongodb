@@ -150,6 +150,10 @@ static void cleanupTask() {
         if (auto pool = Grid::get(txn)->getExecutorPool()) {
             pool->shutdownAndJoin();
         }
+
+        if (auto pool = Grid::get(txn)->getAPExecutorPool()) {
+            pool->shutdownAndJoin();
+        }
         if (auto catalog = Grid::get(txn)->catalogClient(txn)) {
             catalog->shutDown(txn);
         }

@@ -80,6 +80,7 @@ void ServiceEntryPointMongos::_sessionLoop(const transport::SessionHandle& sessi
 
     while (true) {
         // Release any cached egress connections for client back to pool before destroying
+        //当退出循环的时候会销毁这个连接中所有保持的连接;
         auto guard = MakeGuard(ShardConnection::releaseMyConnections);
 
         Message message;

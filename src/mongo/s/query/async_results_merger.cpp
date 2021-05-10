@@ -286,6 +286,7 @@ Status AsyncResultsMerger::askForNextBatch_inlock(size_t remoteIndex) {
     } else {
         // Do the first time shard host resolution.
         invariant(_params.readPreference);
+        //get host may be blocking
         Status resolveStatus = remote.resolveShardIdToHostAndPort(*_params.readPreference);
         if (!resolveStatus.isOK()) {
             return resolveStatus;
