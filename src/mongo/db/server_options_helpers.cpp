@@ -1009,6 +1009,10 @@ Status storeServerOptions(const moe::Environment& params) {
         !serverGlobalParams.logWithSyslog) {
         return Status(ErrorCodes::BadValue, "--fork has to be used with --logpath or --syslog");
     }
+    
+    if (params.count("failure.detector")) {
+        serverGlobalParams.failure_detector = params["failure.detector"].as<bool>();
+    }
 
     if (params.count("security.keyFile")) {
         serverGlobalParams.keyFile =

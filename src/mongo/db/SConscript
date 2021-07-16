@@ -636,6 +636,7 @@ env.Library(
     target='watchdog',
     source=[
         'watchdog.cpp',
+        'failure_detector.cpp'
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

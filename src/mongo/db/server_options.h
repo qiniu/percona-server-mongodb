@@ -49,6 +49,8 @@ struct ServerGlobalParams {
         return port == DefaultDBPort;
     }
 
+    bool failure_detector = true;
+
     std::string bind_ip;  // --bind_ip
     bool rest = false;    // --rest
     bool jsonp = false;   // --jsonp

@@ -47,6 +47,7 @@
 #include "mongo/util/clock_source_mock.h"
 #include "mongo/util/tick_source_mock.h"
 #include "watchdog.h"
+#include "failure_detector.h"
 //#include "mongo/watchdog/watchdog_mongod_gen.h"
 #include "watchdog_register.h"
 
@@ -127,7 +128,7 @@ void startWatchdog(ServiceContext* service) {
     std::vector<std::unique_ptr<WatchdogCheck>> checks;
 
     auto dataCheck =
-        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath));
+        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath), 2 * 1000, 60 * 1000);
 
     checks.push_back(std::move(dataCheck));
 
@@ -139,7 +140,7 @@ void startWatchdog(ServiceContext* service) {
         boost::filesystem::path logFile(serverGlobalParams.logpath);
         auto logPath = logFile.parent_path();
 
-        auto logCheck = std::make_unique<DirectoryCheck>(logPath);
+        auto logCheck = std::make_unique<DirectoryCheck>(logPath, 2 * 1000, 60 * 1000);
         checks.push_back(std::move(logCheck));
     }
 
@@ -147,12 +148,20 @@ void startWatchdog(ServiceContext* service) {
     // This may be redudant with the dbpath check but there is not easy way to confirm they are
     // duplicate.
     for (auto&& path : getWatchdogPaths()) { 
-        auto auditCheck = std::make_unique<DirectoryCheck>(path);
+        auto auditCheck = std::make_unique<DirectoryCheck>(path, 2 * 1000, 60 * 1000);
         checks.push_back(std::move(auditCheck));
     }
 
+    if (serverGlobalParams.failure_detector) {
+        // read/write check
+        auto readChecker = std::make_unique<FailureDetectorReadCheck>(5 * 1000, 60 * 1000);
+        auto writeChecker = std::make_unique<FailureDetectorWriteCheck>(5 * 1000, 60 * 1000);
+        checks.push_back(std::move(readChecker));
+        checks.push_back(std::move(writeChecker));
+    }
+
     auto monitor = std::make_unique<WatchdogMonitor>(
-        std::move(checks), watchdogCheckPeriod, period, watchdogTerminate);
+        std::move(checks), watchdogCheckPeriod, period);
 
     // Install the new WatchdogMonitor
     auto& staticMonitor = getWatchdogMonitor(service);

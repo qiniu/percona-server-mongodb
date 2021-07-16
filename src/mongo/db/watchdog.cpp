@@ -32,8 +32,10 @@
 #include "mongo/platform/basic.h"
 
 #include "watchdog.h"
+#include "failure_detector.h"
 
 #include <boost/filesystem.hpp>
+#include <algorithm>
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -53,7 +55,7 @@
 #include "mongo/util/exit_code.h"
 #include "mongo/util/hex.h"
 #include "mongo/util/timer.h"
-
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 int CHECK_FILE_COUNT = 0;
@@ -103,7 +105,6 @@ void WatchdogPeriodicThread::shutdown() {
 }
 
 void WatchdogPeriodicThread::setPeriod(Milliseconds period) {
-    //stdx::lock_guard<Latch> lock(_mutex);
     stdx::lock_guard<stdx::mutex> lock(_mutex);
     bool wasEnabled = _enabled;
 
@@ -195,69 +196,83 @@ void WatchdogPeriodicThread::doLoop() {
 
 WatchdogCheckThread::WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks,
                                          Milliseconds period)
-    : WatchdogPeriodicThread(period, "watchdogCheck"), _checks(std::move(checks)) {}
+    : WatchdogPeriodicThread(period, "watchdogCheck"), _checks(std::move(checks)) {
 
-std::int64_t WatchdogCheckThread::getGeneration() {
-    return _checkGeneration.load();
+    // 所有的需要被检测的任务的周期必须能被最小周期整除
+    long minPeriod = std::numeric_limits<long>::max();
+    std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item){
+        if(item->getPeriod() < minPeriod) {
+            minPeriod = item->getPeriod();
+        }
+    });
+
+    log() << "min period:" << minPeriod;
+    std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item) {
+        invariant((item->getPeriod() % minPeriod) == 0);
+    });
+
+    if (minPeriod != period.count()) {
+        this->setPeriod(Milliseconds(minPeriod));
+    }
+    log() << "checks count:" << _checks.size() << ", period:" << minPeriod << ";";
 }
 
-void WatchdogCheckThread::resetState() {}
+void WatchdogCheckThread::checkHealths() {
+    for(const auto& item : _checks) {
+        if (item == nullptr) {
+            continue;
+        }
+        auto now = FailureDetectorCheck::getSteadyMs();
+        if (!item->isHealth(now)) {
+            log() << "name:" << item->getName()
+                  << ", period:" << item->getPeriod() 
+                  << ", timePreRun:" << item->getTimePreRun()
+                  << ", allowDelayTime:" << item->getAllowDelayTime()
+                  << ", now:" << now;
+            log() << "name:" << item->getName() << " i will callback function";
+            item->getCallback()();
+            break;
+        }
+    }
+}
+
+void WatchdogCheckThread::resetState() {
+    _count.store(0);
+}
 
 void WatchdogCheckThread::run(OperationContext* opCtx) {
+    ON_BLOCK_EXIT([this](){
+        this->_count.addAndFetch(this->_period.count());
+    });
+
     for (auto& check : _checks) {
-        Timer timer(opCtx->getServiceContext()->getTickSource());
-
-        check->run(opCtx);
-        Microseconds micros = timer.elapsed();
-
-        // LOGV2_DEBUG(23407,
-        //             1,
-        //             "Watchdog test '{check_getDescriptionForLogging}' took "
-        //             "{duration_cast_Milliseconds_micros}",
-        //             "check_getDescriptionForLogging"_attr = check->getDescriptionForLogging(),
-        //             "duration_cast_Milliseconds_micros"_attr = duration_cast<Milliseconds>(micros));
-
-        // We completed a check, bump the generation counter.
-        _checkGeneration.fetchAndAdd(1);
+        if (check->isRunCurrentPeriod(_count.load())) {
+            //maybe blocks
+            check->run(opCtx);
+        }
     }
 }
 
 
 WatchdogMonitorThread::WatchdogMonitorThread(WatchdogCheckThread* checkThread,
-                                             WatchdogDeathCallback callback,
                                              Milliseconds interval)
-    : WatchdogPeriodicThread(interval, "watchdogMonitor"),
-      _callback(callback),
+    : WatchdogPeriodicThread(interval, "WatchdogMonitor"),
       _checkThread(checkThread) {}
 
-std::int64_t WatchdogMonitorThread::getGeneration() {
-    return _monitorGeneration.load();
-}
-
 void WatchdogMonitorThread::resetState() {
-    // Reset the generation so that if the monitor thread is run before the check thread
-    // after being enabled, it does not.
-    _lastSeenGeneration = -1;
 }
 
 void WatchdogMonitorThread::run(OperationContext* opCtx) {
-    auto currentGeneration = _checkThread->getGeneration();
-
-    if (currentGeneration != _lastSeenGeneration) {
-        _lastSeenGeneration = currentGeneration;
-    } else {
-        _callback();
-    }
+    this->_checkThread->checkHealths();
 }
 
 
 WatchdogMonitor::WatchdogMonitor(std::vector<std::unique_ptr<WatchdogCheck>> checks,
                                  Milliseconds checkPeriod,
-                                 Milliseconds monitorPeriod,
-                                 WatchdogDeathCallback callback)
+                                 Milliseconds monitorPeriod)
     : _checkPeriod(checkPeriod),
       _watchdogCheckThread(std::move(checks), checkPeriod),
-      _watchdogMonitorThread(&_watchdogCheckThread, callback, monitorPeriod) {
+      _watchdogMonitorThread(&_watchdogCheckThread, monitorPeriod) {
     invariant(checkPeriod < monitorPeriod);
 }
 
@@ -272,7 +287,6 @@ void WatchdogMonitor::start() {
 
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
-        
 
         invariant(_state == State::kNotStarted);
         _state = State::kStarted;
@@ -280,31 +294,33 @@ void WatchdogMonitor::start() {
 }
 
 void WatchdogMonitor::setPeriod(Milliseconds duration) {
-    {
-       // stdx::lock_guard<Latch> lock(_mutex);
-        stdx::lock_guard<stdx::mutex> lock(_mutex);
-        if (duration > Milliseconds(0)) {
-            dassert(duration >= Milliseconds(1));
+    //不能动态修改调度的时间；原因是目前调度的周期是按照check来决定，目前也不准备动态调整
+    return;
+    // {
+    //    // stdx::lock_guard<Latch> lock(_mutex);
+    //     stdx::lock_guard<stdx::mutex> lock(_mutex);
+    //     if (duration > Milliseconds(0)) {
+    //         dassert(duration >= Milliseconds(1));
 
-            // Make sure that we monitor runs more frequently then checks
-            // 2 feels like an arbitrary good minimum.
-            invariant(duration >= 2 * _checkPeriod);
+    //         // Make sure that we monitor runs more frequently then checks
+    //         // 2 feels like an arbitrary good minimum.
+    //         invariant(duration >= 2 * _checkPeriod);
 
-            _watchdogCheckThread.setPeriod(_checkPeriod);
-            _watchdogMonitorThread.setPeriod(duration);
+    //         _watchdogCheckThread.setPeriod(_checkPeriod);
+    //         _watchdogMonitorThread.setPeriod(duration);
 
-            log()<<"WatchdogMonitor period changed to {"<<duration_cast<Seconds>(duration)<<"}";
-            // LOGV2(23409,
-            //       "WatchdogMonitor period changed to {duration_cast_Seconds_duration}",
-            //       "duration_cast_Seconds_duration"_attr = duration_cast<Seconds>(duration));
-        } else {
-            _watchdogMonitorThread.setPeriod(duration);
-            _watchdogCheckThread.setPeriod(duration);
+    //         log()<<"WatchdogMonitor period changed to {"<<duration_cast<Seconds>(duration)<<"}";
+    //         // LOGV2(23409,
+    //         //       "WatchdogMonitor period changed to {duration_cast_Seconds_duration}",
+    //         //       "duration_cast_Seconds_duration"_attr = duration_cast<Seconds>(duration));
+    //     } else {
+    //         _watchdogMonitorThread.setPeriod(duration);
+    //         _watchdogCheckThread.setPeriod(duration);
 
-            //LOGV2(23410, "WatchdogMonitor disabled");
-            log()<<"WatchdogMonitor disabled";
-        }
-    }
+    //         //LOGV2(23410, "WatchdogMonitor disabled");
+    //         log()<<"WatchdogMonitor disabled";
+    //     }
+    // }
 }
 
 void WatchdogMonitor::shutdown() {
@@ -328,14 +344,6 @@ void WatchdogMonitor::shutdown() {
     _watchdogCheckThread.shutdown();
 
     _state = State::kDone;
-}
-
-std::int64_t WatchdogMonitor::getCheckGeneration() {
-    return _watchdogCheckThread.getGeneration();
-}
-
-std::int64_t WatchdogMonitor::getMonitorGeneration() {
-    return _watchdogMonitorThread.getGeneration();
 }
 
 /**
@@ -418,7 +426,6 @@ void checkFileOnlyWrite(OperationContext* opCtx, const boost::filesystem::path& 
     }
 }
 
-
 void watchdogTerminate() {
     // This calls the exit_group syscall on Linux
     invariant(false);
@@ -430,7 +437,22 @@ void watchdogTerminate() {
 constexpr StringData DirectoryCheck::kProbeFileName;
 constexpr StringData DirectoryCheck::kProbeFileNameExt;
 
+bool DirectoryCheck::isRunCurrentPeriod(long count) const {
+    if(count % this->getPeriod() == 0) {
+        return true;
+    }
+    return false;
+}
+
 void DirectoryCheck::run(OperationContext* opCtx) {
+    bool result = false;
+    ON_BLOCK_EXIT([this, &result]() {
+        if (result) {
+            this->setRunSuccessTime(FailureDetectorCheck::getSteadyMs());
+        }
+    });
+
+
     // Ensure we have unique file names if multiple processes share the same logging directory
     boost::filesystem::path file = _directory;
     file /= kProbeFileName.toString();
@@ -458,10 +480,8 @@ void DirectoryCheck::run(OperationContext* opCtx) {
         checkFileOnlyWrite(opCtx, file, _fd);
         _only_write_check_cnt ++ ;
     }
-    
 
-    // Try to delete the file so it is not leaked on restart, but ignore errors
-    
+    result = true;
 }
 
 std::string DirectoryCheck::getDescriptionForLogging() {

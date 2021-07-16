@@ -174,6 +174,10 @@ Status addMongodOptions(moe::OptionSection* options) {
             "sysinfo", "sysinfo", moe::Switch, "print some diagnostic system information")
         .setSources(moe::SourceAllLegacy);
 
+    general_options
+        .addOptionChaining(
+            "failure.detector", "failure_detector", moe::Bool, "open/close failure detector, default:true")
+        .setSources(moe::SourceAllLegacy);
     // Storage Options
 
     storage_options.addOptionChaining(
@@ -1118,6 +1122,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     if (params.count("net.http.JSONPEnabled")) {
         serverGlobalParams.jsonp = params["net.http.JSONPEnabled"].as<bool>();
     }
+
     if (params.count("security.javascriptEnabled")) {
         mongodGlobalParams.scriptingEnabled = params["security.javascriptEnabled"].as<bool>();
     }
