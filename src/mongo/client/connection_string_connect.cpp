@@ -40,6 +40,8 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
