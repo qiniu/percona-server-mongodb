@@ -107,8 +107,7 @@ public:
             long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::system_clock::now().time_since_epoch())
                              .count();
-            this->_timePreRun.store(nowMs);
-
+            this->setRunSuccessTime(nowMs);
             return true;
         }
 
@@ -186,7 +185,7 @@ private:
     boost::filesystem::path _directory;
     int _fd;
     int _only_write_check_cnt;
-    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
+    std::unordered_map<string, std::unique_ptr<AtomicInt64> > _monitor;
 };
 
 /**

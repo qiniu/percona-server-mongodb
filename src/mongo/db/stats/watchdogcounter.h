@@ -19,7 +19,7 @@ namespace mongo {
             BSONObj getObj();
         private:
             std::mutex _lock;
-            std::unordered_map<string, WatchdogElement*> _monitor;
+            std::unordered_map<std::string, WatchdogElement* > _monitor;
     };
     extern WatchdogCounter globalWatchdogCounter;
 }
