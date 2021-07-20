@@ -40,6 +40,8 @@
 #include "mongo/stdx/thread.h"
 #include "mongo/util/duration.h"
 #include "mongo/stdx/mutex.h"
+#include <unordered_map>
+#include "mongo/db/stats/watchdogcounter.h"
 
 namespace mongo {
 
@@ -65,24 +67,15 @@ void watchdogTerminate();
  *
  * It is pluggable for testing purposes.
  */
-class WatchdogCheck {
+class WatchdogCheck : public WatchdogElement {
 public:
     WatchdogCheck(const std::string& name,
-                  int period,
-                  long allowDelayTime,
+                  Milliseconds period,
+                  Milliseconds allowDelayTime,
                   WatchdogDeathCallback callback)
         : _period(period), _allowDelayTime(allowDelayTime), _callback(callback), _name(name) {
         invariant(!name.empty());
-
-        if (_period < 0) {
-            //默认 10 seconds
-            _period = 10 * 1000;
-        }
-
-        if (_allowDelayTime < 0) {
-            // 默认 1 分钟
-            _allowDelayTime = 60 * 1000;
-        }
+        globalWatchdogCounter.registerElement(name, this);
     }
 
     virtual ~WatchdogCheck() = default;
@@ -109,6 +102,16 @@ public:
 
     //判断当前时刻，这个任务是否正常
     virtual bool isHealth(long nowTime) const {
+        if (this->_timePreRun.load() == 0) {
+            // 第一次运行先过滤掉检查
+            long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+            this->_timePreRun.store(nowMs);
+
+            return true;
+        }
+
         if ((nowTime - this->_timePreRun.load()) >= _allowDelayTime) {
             return false;
         } 
@@ -119,7 +122,7 @@ public:
         return this->_name;
     }
 
-    int getPeriod() const {
+    Milliseconds getPeriod() const {
         return this->_period;
     }
 
@@ -131,7 +134,7 @@ public:
         this->_timePreRun.store(now);
     }
 
-    long getAllowDelayTime() const {
+    Milliseconds getAllowDelayTime() const {
         return this->_allowDelayTime;
     }
 
@@ -143,11 +146,11 @@ private:
     // 上一次运行正常的时间戳
     AtomicInt64 _timePreRun{0};
     //每一个 check 都有自己的调度频率
-    int _period{10 * 1000};
+    Milliseconds _period;
+    // 允许错误的时间长度，默认是 1 分钟
+    Milliseconds _allowDelayTime;
     // 每一个 check 都有自己的对应的回调函数
     WatchdogDeathCallback _callback;
-    // 允许错误的时间长度，默认是 1 分钟
-    long _allowDelayTime{60000};
     // name
     std::string _name;
 };
@@ -162,11 +165,15 @@ public:
     static constexpr StringData kProbeFileNameExt = ".txt"_sd;
 
 public:
-    DirectoryCheck(const boost::filesystem::path& directory, int peroid, long allowDelayTime)
+    DirectoryCheck(const boost::filesystem::path& directory, Milliseconds peroid, Milliseconds allowDelayTime)
     : WatchdogCheck("DirectoryChecker", peroid, allowDelayTime, watchdogTerminate),
           _directory(directory) {
         _fd = -1;
         _only_write_check_cnt = 0;
+
+        _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
+        _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
+        _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
     }
 
     void run(OperationContext* opCtx) final;
@@ -179,7 +186,7 @@ private:
     boost::filesystem::path _directory;
     int _fd;
     int _only_write_check_cnt;
-
+    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
 };
 
 /**

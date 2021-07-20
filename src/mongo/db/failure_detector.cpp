@@ -106,15 +106,23 @@ void FailureDetectorCheck::triggerElection(WatchdogReason reason) {
     }
 }
 
-FailureDetectorWriteCheck::FailureDetectorWriteCheck(int frequency,
-                                                     long allowDelayTime,
+FailureDetectorWriteCheck::FailureDetectorWriteCheck(Milliseconds frequency,
+                                                     Milliseconds allowDelayTime,
                                                      WatchdogDeathCallback callback)
     : WatchdogCheck("WriteChecker", frequency, allowDelayTime, callback) {
-    invariant(frequency > 0 && allowDelayTime > 0);
+    invariant(frequency.count() > 0 && allowDelayTime.count() > 0);
 
-    log() << "FailureDectorWriteCheck: db:" << FailureDetectorCheck::FDDBName.toString() << ", Coll:" << FailureDetectorCheck::FDCollName.toString()
+    log() << "FailureDectorWriteCheck: db:" << FailureDetectorCheck::FDDBName.toString()
+          << ", Coll:" << FailureDetectorCheck::FDCollName.toString()
           << ", called frequency:" << this->getPeriod()
           << " allowDelayTime:" << this->getAllowDelayTime();
+
+    _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["vailidRun"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["noPrimary"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["notSecond"] = std::make_unique<AtomicInt32>(0); 
 }
 
 std::string FailureDetectorWriteCheck::getDescriptionForLogging() {
@@ -126,10 +134,22 @@ bool FailureDetectorWriteCheck::isRunCurrentPeriod(long count) const {
         return true;
     }
 
-    if (count % this->getPeriod() == 0) {
+    if (count % this->getPeriod().count() == 0) {
+        _monitor["runCount"]->fetchAndAdd(1);
         return true;
     }
     return false;
+}
+
+BSONObj FailureDetectorWriteCheck::getObj() override {
+    BSONObjBuilder b;
+    b.append("runCount", _monitor["runCount"]->loadRelaxed());
+    b.append("runSuc", _monitor["runSuc"]->loadRelaxed());
+    b.append("runFail", _monitor["runFail"]->loadRelaxed());
+    b.append("validRun", _monitor["validRun"]->loadRelaxed());
+    b.append("noPrimary", _monitor["noPrimary"]->loadRelaxed());
+    b.append("notSecond", _monitor["notSecond"]->loadRelaxed());
+    return b.obj();
 }
 
 /**
@@ -154,6 +174,7 @@ void FailureDetectorWriteCheck::run(OperationContext* opCtx) {
 
     auto result = FailureDetectorCheck::getPrimary();
     if (!std::get<0>(result)) {
+            _monitor["noPrimary"]->fetchAndAdd(1);
             log() << "get primary is failure, maybe no primary, this check classify to success";
             runResult = true;
             return;
@@ -163,6 +184,7 @@ void FailureDetectorWriteCheck::run(OperationContext* opCtx) {
     log() << "WriterCheck primary:" << primary.toString();
 
     if (!FailureDetectorCheck::isSecondary()) {
+        _monitor["notSecond"]->fetchAndAdd(1);
         log() << "this node is not a secondary, this is "
               << FailureDetectorCheck::getMemberStateStr()
               << ", so this check classify to success";
@@ -170,11 +192,16 @@ void FailureDetectorWriteCheck::run(OperationContext* opCtx) {
         return;
     }
 
+    _monitor["validRun"]->fetchAndAdd(1);
+
     auto key = FailureDetectorCheck::generateKey();
     auto primaryStr = primary.toString();
 
     if (writeHealthCheck(primaryStr, 1)) {
+        _monitor["runSuc"]->fetchAndAdd(1);
         runResult = true;
+    } else {
+        _monitor["runFail"]->fetchAndAdd(1);
     }
 }
 
@@ -185,12 +212,12 @@ bool FailureDetectorWriteCheck::writeHealthCheck(const std::string& primary, int
 
     ON_BLOCK_EXIT([&timer, &conn, &result]() {
         conn.done();  // return to pool on success.
-        auto pingMicros = timer.micros();
+        auto elapsedMicros = timer.micros();
         log() << (result ? "result:success," : "result: failure,")
-              << "write health check consume:" << pingMicros << "us";
+              << "write health check consume:" << elapsedMicros << "us";
     });
 
-    long nowSecs = std::chrono::duration_cast<std::chrono::milliseconds>(
+    long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::system_clock::now().time_since_epoch())
                        .count();
 
@@ -199,7 +226,7 @@ bool FailureDetectorWriteCheck::writeHealthCheck(const std::string& primary, int
     requestBuilder.append("findAndModify", FailureDetectorCheck::FDCollName.toString());
     requestBuilder.append("query", BSON("_id" << FailureDetectorCheck::generateKey()));
     requestBuilder.append("upsert", true);
-    requestBuilder.append("update", BSON("_id" << FailureDetectorCheck::generateKey() << "value" << FailureDetectorCheck::generateValue() << "time" << nowSecs));
+    requestBuilder.append("update", BSON("_id" << FailureDetectorCheck::generateKey() << "value" << FailureDetectorCheck::generateValue() << "time" << nowMs));
 
     BSONObj request = requestBuilder.done();
     log() << "write health check request:" << request.toString();
@@ -211,15 +238,23 @@ bool FailureDetectorWriteCheck::writeHealthCheck(const std::string& primary, int
     return result;
 }
 
-FailureDetectorReadCheck::FailureDetectorReadCheck(int frequency,
-                                                   long allowDelayTime,
+FailureDetectorReadCheck::FailureDetectorReadCheck(Milliseconds frequency,
+                                                   Milliseconds allowDelayTime,
                                                    WatchdogDeathCallback callback)
     : WatchdogCheck("ReaderChecker", frequency, allowDelayTime, callback) {
-    invariant(frequency > 0 && allowDelayTime > 0);
+    invariant(frequency.count() > 0 && allowDelayTime.count() > 0);
 
-    log() << "FailureDectorReadCheck: db:" << FailureDetectorCheck::FDDBName.toString() << ", Coll:" << FailureDetectorCheck::FDCollName.toString()
+    log() << "FailureDectorReadCheck: db:" << FailureDetectorCheck::FDDBName.toString()
+          << ", Coll:" << FailureDetectorCheck::FDCollName.toString()
           << ", called frequency:" << this->getPeriod()
           << " allowDelayTime:" << this->getAllowDelayTime();
+
+    _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["vailidRun"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["noPrimary"] = std::make_unique<AtomicInt32>(0); 
+    _monitor["notSecond"] = std::make_unique<AtomicInt32>(0); 
 }
 
 std::string FailureDetectorReadCheck::getDescriptionForLogging() {
@@ -231,7 +266,8 @@ bool FailureDetectorReadCheck::isRunCurrentPeriod(long count) const {
         return true;
     }
 
-    if (count % this->getPeriod() == 0) {
+    if (count % this->getPeriod().count() == 0) {
+        _monitor["runCount"]->fetchAndAdd(1);
         return true;
     }
     return false;
@@ -259,6 +295,7 @@ void FailureDetectorReadCheck::run(OperationContext* opCtx) {
     auto result = FailureDetectorCheck::getPrimary();
 
     if (!std::get<0>(result)) {
+            _monitor["noPrimary"]->fetchAndAdd(1);
             log() << "get primary is failure, maybe no primary, this check classify to success";
             runResult = true;
             return;
@@ -268,6 +305,7 @@ void FailureDetectorReadCheck::run(OperationContext* opCtx) {
     log() << "primary:" << primary.toString();
 
     if (!FailureDetectorCheck::isSecondary()) {
+        _monitor["notSecond"]->fetchAndAdd(1);
         log() << "this node is not a secondary, this is "
               << FailureDetectorCheck::getMemberStateStr() 
               << ", this check classify to success";
@@ -275,11 +313,15 @@ void FailureDetectorReadCheck::run(OperationContext* opCtx) {
         return;
     }
 
+    _monitor["validRun"]->fetchAndAdd(1);
     auto key = FailureDetectorCheck::generateKey();
     auto primaryStr = primary.toString();
 
     if (readHealthCheck(primaryStr, 1)) {
+        _monitor["runSuc"]->fetchAndAdd(1);
         runResult = true;
+    } else {
+        _monitor["runFail"]->fetchAndAdd(1);
     }
 }
 
@@ -290,9 +332,9 @@ bool FailureDetectorReadCheck::readHealthCheck(const std::string& primary, int t
 
     ON_BLOCK_EXIT([&timer, &conn, &result]() {
         conn.done();  // return to pool on success.
-        auto pingMicros = timer.micros();
+        auto elapsedMicros = timer.micros();
         log() << (result ? "result:success," : "result: failure,")
-              << "read health check consume:" << pingMicros << "us";
+              << "read health check consume:" << elapsedMicros << "us";
     });
 
     Query query = QUERY("_id" << FailureDetectorCheck::generateKey());
@@ -312,5 +354,15 @@ bool FailureDetectorReadCheck::readHealthCheck(const std::string& primary, int t
     return true;
 }
 
+BSONObj FailureDetectorReadCheck::getObj() override {
+    BSONObjBuilder b;
+    b.append("runCount", _monitor["runCount"]->loadRelaxed());
+    b.append("runSuc", _monitor["runSuc"]->loadRelaxed());
+    b.append("runFail", _monitor["runFail"]->loadRelaxed());
+    b.append("validRun", _monitor["validRun"]->loadRelaxed());
+    b.append("noPrimary", _monitor["noPrimary"]->loadRelaxed());
+    b.append("notSecond", _monitor["notSecond"]->loadRelaxed());
+    return b.obj();
+}
 
 }  // namespace mongo

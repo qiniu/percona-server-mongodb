@@ -55,7 +55,7 @@ namespace mongo {
 namespace {
 
 // Run the watchdog checks at a fixed interval regardless of user choice for monitoring period.
-constexpr Seconds watchdogCheckPeriod = Seconds{2};
+constexpr Milliseconds watchdogCheckPeriod = Milliseconds{2 * 1000};
 
 const int gWatchdogPeriodSeconds = 10;
 const auto getWatchdogMonitor =
@@ -128,7 +128,7 @@ void startWatchdog(ServiceContext* service) {
     std::vector<std::unique_ptr<WatchdogCheck>> checks;
 
     auto dataCheck =
-        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath), 2 * 1000, 60 * 1000);
+        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath), watchdogCheckPeriod, Milliseconds{10 * 1000});
 
     checks.push_back(std::move(dataCheck));
 
@@ -140,7 +140,12 @@ void startWatchdog(ServiceContext* service) {
         boost::filesystem::path logFile(serverGlobalParams.logpath);
         auto logPath = logFile.parent_path();
 
-        auto logCheck = std::make_unique<DirectoryCheck>(logPath, 2 * 1000, 60 * 1000);
+        auto logCheck = std::make_unique<DirectoryCheck>(logPath, Milliseconds{2 * 1000}, Milliseconds{60 * 1000});
+        checks.push_back(std::move(logCheck));
+    } else {
+        boost::filesystem::path logFile = std::filesystem::current_path();
+        log() << "default log path:" << logFile;
+        auto logCheck = std::make_unique<DirectoryCheck>(logPath, Milliseconds{2 * 1000}, Milliseconds{60 * 1000});
         checks.push_back(std::move(logCheck));
     }
 
@@ -148,14 +153,14 @@ void startWatchdog(ServiceContext* service) {
     // This may be redudant with the dbpath check but there is not easy way to confirm they are
     // duplicate.
     for (auto&& path : getWatchdogPaths()) { 
-        auto auditCheck = std::make_unique<DirectoryCheck>(path, 2 * 1000, 60 * 1000);
+        auto auditCheck = std::make_unique<DirectoryCheck>(path, watchdogCheckPeriod, Milliseconds{60 * 1000});
         checks.push_back(std::move(auditCheck));
     }
 
     if (serverGlobalParams.failure_detector) {
         // read/write check
-        auto readChecker = std::make_unique<FailureDetectorReadCheck>(5 * 1000, 60 * 1000);
-        auto writeChecker = std::make_unique<FailureDetectorWriteCheck>(5 * 1000, 60 * 1000);
+        auto readChecker = std::make_unique<FailureDetectorReadCheck>(Milliseconds{5 * 1000}, Milliseconds{60 * 1000});
+        auto writeChecker = std::make_unique<FailureDetectorWriteCheck>(Milliseconds{5 * 1000}, Milliseconds{60 * 1000});
         checks.push_back(std::move(readChecker));
         checks.push_back(std::move(writeChecker));
     }

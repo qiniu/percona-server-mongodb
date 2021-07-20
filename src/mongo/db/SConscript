@@ -641,10 +641,11 @@ env.Library(
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/db/stats/watchdogcounter',
         '$BUILD_DIR/mongo/db/storage/storage_options',
     ]
 )
-
+ 
 env.Library(
     target='watchdog_register',
     source=[

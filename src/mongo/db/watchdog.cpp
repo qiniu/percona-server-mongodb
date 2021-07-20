@@ -199,16 +199,16 @@ WatchdogCheckThread::WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogChe
     : WatchdogPeriodicThread(period, "watchdogCheck"), _checks(std::move(checks)) {
 
     // 所有的需要被检测的任务的周期必须能被最小周期整除
-    long minPeriod = std::numeric_limits<long>::max();
+    long minPeriod = Milliseconds(std::numeric_limits<long>::max());
     std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item){
         if(item->getPeriod() < minPeriod) {
             minPeriod = item->getPeriod();
         }
     });
 
-    log() << "min period:" << minPeriod;
+    log() << "min period:" << minPeriod.count() << "ms";
     std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item) {
-        invariant((item->getPeriod() % minPeriod) == 0);
+        invariant((item->getPeriod().count() % minPeriod.count()) == 0);
     });
 
     if (minPeriod != period.count()) {
@@ -438,17 +438,32 @@ constexpr StringData DirectoryCheck::kProbeFileName;
 constexpr StringData DirectoryCheck::kProbeFileNameExt;
 
 bool DirectoryCheck::isRunCurrentPeriod(long count) const {
+    if (count < 0) {
+        return true;
+    }
     if(count % this->getPeriod() == 0) {
+        _monitor["runCount"]->fetchAndAdd(1);
         return true;
     }
     return false;
+}
+
+BSONObj DirectoryCheck::getObj() override {
+    BSONObjBuilder b;
+    b.append("runCount", _monitor["runCount"]->loadRelaxed());
+    b.append("runSuc", _monitor["runSuc"]->loadRelaxed());
+    b.append("runFail", _monitor["runFail"]->loadRelaxed());
+    return b.obj();
 }
 
 void DirectoryCheck::run(OperationContext* opCtx) {
     bool result = false;
     ON_BLOCK_EXIT([this, &result]() {
         if (result) {
+            _monitor["runSuc"]->fetchAndAdd(1);
             this->setRunSuccessTime(FailureDetectorCheck::getSteadyMs());
+        } else {
+            _monitor["runFail"]->fetchAndAdd(1);
         }
     });
 

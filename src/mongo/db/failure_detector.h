@@ -53,36 +53,40 @@ public:
 class FailureDetectorWriteCheck : public WatchdogCheck {
 public:
     FailureDetectorWriteCheck(
-        int frequency, long allowDelayTime, WatchdogDeathCallback callback = []() {
+        Milliseconds frequency, Milliseconds allowDelayTime, WatchdogDeathCallback callback = []() {
             FailureDetectorCheck::triggerElection(WatchdogReason::WriteCheckError);
         });
 
     virtual void run(OperationContext* opCtx) final;
     virtual std::string getDescriptionForLogging() final;
     virtual bool isRunCurrentPeriod(long count) const;
+    virtual BSONObj getObj();
 
 private:
     bool writeHealthCheck(const std::string& primary, int timeoutSecs);
 
 private:
     int _write_check_count;
+    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
 };
 
 class FailureDetectorReadCheck : public WatchdogCheck {
 public:
     FailureDetectorReadCheck(
-        int frequency, long allowDelayTime, WatchdogDeathCallback callback = []() {
+        Milliseconds frequency, Milliseconds allowDelayTime, WatchdogDeathCallback callback = []() {
             FailureDetectorCheck::triggerElection(WatchdogReason::ReadCheckError);
         });
 
     virtual void run(OperationContext* opCtx) final;
     virtual std::string getDescriptionForLogging() final;
     virtual bool isRunCurrentPeriod(long count) const;
+    virtual BSONObj getObj();
 
 private:
     bool readHealthCheck(const std::string& primary, int timeoutSecs);
 
 private:
     int _read_check_count;
+    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
 };
 }  // namespace mongo
