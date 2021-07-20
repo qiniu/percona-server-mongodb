@@ -72,11 +72,7 @@ public:
     WatchdogCheck(const std::string& name,
                   Milliseconds period,
                   Milliseconds allowDelayTime,
-                  WatchdogDeathCallback callback)
-        : _period(period), _allowDelayTime(allowDelayTime), _callback(callback), _name(name) {
-        invariant(!name.empty());
-        globalWatchdogCounter.registerElement(name, this);
-    }
+                  WatchdogDeathCallback callback);
 
     virtual ~WatchdogCheck() = default;
 
@@ -101,7 +97,7 @@ public:
     }
 
     //判断当前时刻，这个任务是否正常
-    virtual bool isHealth(long nowTime) const {
+    virtual bool isHealth(long nowTime) {
         if (this->_timePreRun.load() == 0) {
             // 第一次运行先过滤掉检查
             long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -111,7 +107,7 @@ public:
             return true;
         }
 
-        if ((nowTime - this->_timePreRun.load()) >= _allowDelayTime) {
+        if ((nowTime - this->_timePreRun.load()) >= _allowDelayTime.count()) {
             return false;
         } 
         return true;
@@ -164,8 +160,8 @@ public:
     static constexpr StringData kProbeFileNameExt = ".txt"_sd;
 
 public:
-    DirectoryCheck(const boost::filesystem::path& directory, Milliseconds peroid, Milliseconds allowDelayTime)
-    : WatchdogCheck("DirectoryChecker", peroid, allowDelayTime, watchdogTerminate),
+    DirectoryCheck(std::string name, const boost::filesystem::path& directory, Milliseconds peroid, Milliseconds allowDelayTime)
+    : WatchdogCheck(name, peroid, allowDelayTime, watchdogTerminate),
           _directory(directory) {
         _fd = -1;
         _only_write_check_cnt = 0;
@@ -173,6 +169,8 @@ public:
         _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
         _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
         _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
+
+        globalWatchdogCounter.registerElement(this->getName(), this);
     }
 
     void run(OperationContext* opCtx) final;
@@ -181,11 +179,12 @@ public:
 
     bool isRunCurrentPeriod(long count) const;
 
+    BSONObj getObj() const override;
 private:
     boost::filesystem::path _directory;
     int _fd;
     int _only_write_check_cnt;
-    std::unordered_map<string, std::unique_ptr<AtomicInt64> > _monitor;
+    mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
 };
 
 /**
@@ -300,12 +299,13 @@ private:
 /**
  * Periodic background thread to run watchdog checks.
  */
-class WatchdogCheckThread : public WatchdogPeriodicThread {
+class WatchdogCheckThread : public WatchdogPeriodicThread, public WatchdogElement {
 public:
     WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks, Milliseconds period);
 
     //被 monitor 线程调用，用来检查当前这些检查是否 ok
     void checkHealths();
+    BSONObj getObj() const override;
 private:
     void run(OperationContext* opCtx) final;
     void resetState() final;
@@ -314,6 +314,8 @@ private:
     // Vector of checks to run
     std::vector<std::unique_ptr<WatchdogCheck>> _checks;
     AtomicWord<long long> _count{0};
+
+    mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
 };
 
 /**

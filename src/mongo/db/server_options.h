@@ -50,6 +50,14 @@ struct ServerGlobalParams {
     }
 
     bool failure_detector = true;
+    int  failure_detector_peroid_ms = 4000;
+    int  failure_detector_allow_delay_ms = 30000;
+
+    bool disk_detector = true;
+    int  disk_detector_peroid_ms = 2000;
+    int  disk_detector_allow_delay_ms = 60000;
+
+    int monitor_peroid_ms = 30000;
 
     std::string bind_ip;  // --bind_ip
     bool rest = false;    // --rest

@@ -10,15 +10,15 @@
 namespace mongo {
     class WatchdogElement {
         public: 
-        virtual BSONObj getObj() = 0;
+        virtual BSONObj getObj() const = 0;
     };
 
     class WatchdogCounter {
         public:
             void registerElement(const std::string& name, WatchdogElement* element);
-            BSONObj getObj();
+            BSONObj getObj() const;
         private:
-            std::mutex _lock;
+            mutable std::mutex _lock;
             std::unordered_map<std::string, WatchdogElement* > _monitor;
     };
     extern WatchdogCounter globalWatchdogCounter;

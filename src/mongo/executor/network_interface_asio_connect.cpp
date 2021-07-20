@@ -42,6 +42,7 @@
 #include "mongo/executor/async_stream_interface.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
+#include "mongo/util/timer.h"
 
 namespace mongo {
 namespace executor {
@@ -100,10 +101,12 @@ void NetworkInterfaceASIO::_setupSocket(AsyncOp* op, tcp::resolver::iterator end
     }
 
     auto& stream = op->connection().stream();
-
-    stream.connect(std::move(endpoints), [this, op](std::error_code ec) {
-        _validateAndRun(op, ec, [this, op]() { _runIsMaster(op); });
-    });
+    stream.connect(std::move(endpoints),
+                   [this, op](std::error_code ec) {
+                       _validateAndRun(op, ec, [this, op]() {
+                           _runIsMaster(op);
+                       });
+                   });
 }
 
 }  // namespace executor

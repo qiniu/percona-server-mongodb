@@ -116,7 +116,7 @@ void startWatchdog(ServiceContext* service) {
     // 2. log path - optional
     // 3. audit path - optional
 
-    Seconds period{gWatchdogPeriodSeconds};
+    Seconds period{serverGlobalParams.monitor_peroid_ms / 1000};
     if (period < Seconds::zero()) {
         // Skip starting the watchdog if the user has not asked for it.
         watchdogEnabled = false;
@@ -127,42 +127,48 @@ void startWatchdog(ServiceContext* service) {
 
     std::vector<std::unique_ptr<WatchdogCheck>> checks;
 
-    auto dataCheck =
-        std::make_unique<DirectoryCheck>(boost::filesystem::path(storageGlobalParams.dbpath), watchdogCheckPeriod, Milliseconds{10 * 1000});
+    if (serverGlobalParams.disk_detector) {
+        auto dataCheck =
+            std::make_unique<DirectoryCheck>("dbpath_checker",boost::filesystem::path(storageGlobalParams.dbpath), Milliseconds{serverGlobalParams.disk_detector_peroid_ms}, Milliseconds{serverGlobalParams.disk_detector_allow_delay_ms});
+        checks.push_back(std::move(dataCheck));
 
-    checks.push_back(std::move(dataCheck));
+        // If the user specified a log path, also monitor that directory.
+        // This may be redudant with the dbpath check but there is not easy way to confirm they are
+        // duplicate.
+        if (!serverGlobalParams.logpath.empty()) {
+            boost::filesystem::path logFile(serverGlobalParams.logpath);
+            auto logPath = logFile.parent_path();
 
+            log() << "log checker path is " << logFile.string();
+            auto logCheck = std::make_unique<DirectoryCheck>(
+                "logpath_checker", logPath, Milliseconds{serverGlobalParams.disk_detector_peroid_ms}, Milliseconds{serverGlobalParams.disk_detector_allow_delay_ms});
+            checks.push_back(std::move(logCheck));
+        } else {
+            boost::filesystem::path logFile = boost::filesystem::current_path();
+            if (logFile.string() == "/") {
+                logFile = boost::filesystem::path("/tmp");
+            }
 
-    // If the user specified a log path, also monitor that directory.
-    // This may be redudant with the dbpath check but there is not easy way to confirm they are
-    // duplicate.
-    if (!serverGlobalParams.logpath.empty()) {
-        boost::filesystem::path logFile(serverGlobalParams.logpath);
-        auto logPath = logFile.parent_path();
+            log() << "default log path:" << logFile.string();
+            auto logCheck = std::make_unique<DirectoryCheck>(
+                "logpath_checker", logFile, Milliseconds{serverGlobalParams.disk_detector_peroid_ms}, Milliseconds{serverGlobalParams.disk_detector_allow_delay_ms});
+            checks.push_back(std::move(logCheck));
+        }
 
-        auto logCheck = std::make_unique<DirectoryCheck>(logPath, Milliseconds{2 * 1000}, Milliseconds{60 * 1000});
-        checks.push_back(std::move(logCheck));
-    } else {
-        boost::filesystem::path logFile = std::filesystem::current_path();
-        log() << "default log path:" << logFile;
-        auto logCheck = std::make_unique<DirectoryCheck>(logPath, Milliseconds{2 * 1000}, Milliseconds{60 * 1000});
-        checks.push_back(std::move(logCheck));
-    }
-
-    // If the user specified an audit path, also monitor that directory.
-    // This may be redudant with the dbpath check but there is not easy way to confirm they are
-    // duplicate.
-    for (auto&& path : getWatchdogPaths()) { 
-        auto auditCheck = std::make_unique<DirectoryCheck>(path, watchdogCheckPeriod, Milliseconds{60 * 1000});
-        checks.push_back(std::move(auditCheck));
+        // If the user specified an audit path, also monitor that directory.
+        // This may be redudant with the dbpath check but there is not easy way to confirm they are
+        // duplicate.
+        for (auto&& path : getWatchdogPaths()) {
+            auto auditCheck = std::make_unique<DirectoryCheck>(
+                path, path, Milliseconds{serverGlobalParams.disk_detector_peroid_ms}, Milliseconds{serverGlobalParams.disk_detector_allow_delay_ms});
+            checks.push_back(std::move(auditCheck));
+        }
     }
 
     if (serverGlobalParams.failure_detector) {
-        // read/write check
-        auto readChecker = std::make_unique<FailureDetectorReadCheck>(Milliseconds{5 * 1000}, Milliseconds{60 * 1000});
-        auto writeChecker = std::make_unique<FailureDetectorWriteCheck>(Milliseconds{5 * 1000}, Milliseconds{60 * 1000});
-        checks.push_back(std::move(readChecker));
-        checks.push_back(std::move(writeChecker));
+        // health check
+        auto healthChecker = std::make_unique<FailureDetectorHealthCheck>(Milliseconds{serverGlobalParams.failure_detector_peroid_ms}, Milliseconds{serverGlobalParams.failure_detector_allow_delay_ms});
+        checks.push_back(std::move(healthChecker));
     }
 
     auto monitor = std::make_unique<WatchdogMonitor>(

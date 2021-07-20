@@ -5,7 +5,7 @@
 
 namespace mongo {
     void WatchdogCounter::registerElement(const std::string& name, WatchdogElement* element) {
-        invariant(!name.isEmpty());
+        invariant(!name.empty());
         invariant(element);
 
         std::lock_guard<std::mutex> guard(_lock);
@@ -16,12 +16,12 @@ namespace mongo {
         }
     }
 
-    BSONObj WatchdogCounter::getObj() {
+    BSONObj WatchdogCounter::getObj() const  {
         BSONObjBuilder b;
 
         std::lock_guard<std::mutex> guard(_lock);
         for (const auto& element : this->_monitor) {
-            b.append(element.first(), element.second()->getObj());
+            b.append(StringData(element.first), element.second->getObj());
         }
         return b.obj();
     }

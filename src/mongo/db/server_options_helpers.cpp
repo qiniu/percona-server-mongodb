@@ -1012,6 +1012,28 @@ Status storeServerOptions(const moe::Environment& params) {
     
     if (params.count("failure.detector")) {
         serverGlobalParams.failure_detector = params["failure.detector"].as<bool>();
+
+        if (params.count("failure.peroid.ms")) {
+            serverGlobalParams.failure_detector_peroid_ms = params["failure.peroid.ms"].as<int>();
+        }
+        if (params.count("failure.allow.delay.ms")) {
+            serverGlobalParams.failure_detector_allow_delay_ms = params["failure.allow.delay.ms"].as<int>();
+        }
+    }
+    
+    if (params.count("disk.detector")) {
+        serverGlobalParams.disk_detector = params["disk.detector"].as<bool>();
+
+        if (params.count("disk.peroid.ms")) {
+            serverGlobalParams.disk_detector_peroid_ms = params["disk.peroid.ms"].as<int>();
+        }
+        if (params.count("disk.allow.delay.ms")) {
+            serverGlobalParams.disk_detector_allow_delay_ms = params["disk.allow.delay.ms"].as<int>();
+        }
+    }
+
+    if (params.count("monitor.peroid.ms")) {
+        serverGlobalParams.monitor_peroid_ms = params["monitor.peroid.ms"].as<int>();
     }
 
     if (params.count("security.keyFile")) {

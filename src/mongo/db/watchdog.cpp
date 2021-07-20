@@ -60,6 +60,15 @@
 namespace mongo {
 int CHECK_FILE_COUNT = 0;
 
+WatchdogCheck::WatchdogCheck(const std::string& name,
+                             Milliseconds period,
+                             Milliseconds allowDelayTime,
+                             WatchdogDeathCallback callback)
+    : _period(period), _allowDelayTime(allowDelayTime), _callback(callback), _name(name) {
+    invariant(!name.empty());
+    log() << "WatchDogCheck name:" << name << ",period:" << _period.count() << " allowDelayTime:" << _allowDelayTime.count();
+}
+
 WatchdogPeriodicThread::WatchdogPeriodicThread(Milliseconds period, StringData threadName)
     : _period(period), _enabled(true), _threadName(threadName.toString()) {}
 
@@ -199,22 +208,29 @@ WatchdogCheckThread::WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogChe
     : WatchdogPeriodicThread(period, "watchdogCheck"), _checks(std::move(checks)) {
 
     // 所有的需要被检测的任务的周期必须能被最小周期整除
-    long minPeriod = Milliseconds(std::numeric_limits<long>::max());
+    long minPeriod = std::numeric_limits<long>::max();
     std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item){
-        if(item->getPeriod() < minPeriod) {
-            minPeriod = item->getPeriod();
+        if(item->getPeriod().count() < minPeriod) {
+            minPeriod = item->getPeriod().count();
         }
     });
 
-    log() << "min period:" << minPeriod.count() << "ms";
+    log() << "min period:" << minPeriod << "ms";
     std::for_each(_checks.begin(), _checks.end(), [&minPeriod](const std::unique_ptr<WatchdogCheck>& item) {
-        invariant((item->getPeriod().count() % minPeriod.count()) == 0);
+        invariant((item->getPeriod().count() % minPeriod) == 0);
+    });
+
+    //设置监控数据
+    std::for_each(_checks.begin(), _checks.end(), [&minPeriod, this](const std::unique_ptr<WatchdogCheck>& item) {
+        _monitor[item->getName() + "_unHealth_cnt"] = std::make_unique<AtomicInt32>(0);
     });
 
     if (minPeriod != period.count()) {
         this->setPeriod(Milliseconds(minPeriod));
     }
-    log() << "checks count:" << _checks.size() << ", period:" << minPeriod << ";";
+    globalWatchdogCounter.registerElement(getThreadName().toString(), this);
+
+    log() << "check job count:" << _checks.size() << ", period:" << minPeriod << "ms;";
 }
 
 void WatchdogCheckThread::checkHealths() {
@@ -228,12 +244,31 @@ void WatchdogCheckThread::checkHealths() {
                   << ", period:" << item->getPeriod() 
                   << ", timePreRun:" << item->getTimePreRun()
                   << ", allowDelayTime:" << item->getAllowDelayTime()
-                  << ", now:" << now;
+                  << ", now:" << now 
+                  << ",delayTime:" << (now - item->getTimePreRun());
+
             log() << "name:" << item->getName() << " i will callback function";
+            _monitor[item->getName() + "_unHealth_cnt"]->fetchAndAdd(1);
             item->getCallback()();
             break;
+        } else {
+            LOG(5) << "name:" << item->getName() << " check is success";
         }
     }
+}
+
+BSONObj WatchdogCheckThread::getObj() const {
+    BSONObjBuilder b;
+
+    try {
+        for (auto& item : _monitor) {
+            b.append(item.first, (item.second)->loadRelaxed());
+        } 
+    } catch (...) {
+        log() << "WatchdogCheckThread get obj is error";
+        return BSONObjBuilder().obj();
+    }
+    return b.obj();
 }
 
 void WatchdogCheckThread::resetState() {
@@ -253,11 +288,12 @@ void WatchdogCheckThread::run(OperationContext* opCtx) {
     }
 }
 
-
 WatchdogMonitorThread::WatchdogMonitorThread(WatchdogCheckThread* checkThread,
                                              Milliseconds interval)
     : WatchdogPeriodicThread(interval, "WatchdogMonitor"),
-      _checkThread(checkThread) {}
+      _checkThread(checkThread) {
+          log() << "monitor period:" << interval.count() << "ms";
+      }
 
 void WatchdogMonitorThread::resetState() {
 }
@@ -441,18 +477,24 @@ bool DirectoryCheck::isRunCurrentPeriod(long count) const {
     if (count < 0) {
         return true;
     }
-    if(count % this->getPeriod() == 0) {
+    if(count % this->getPeriod().count() == 0) {
         _monitor["runCount"]->fetchAndAdd(1);
         return true;
     }
     return false;
 }
 
-BSONObj DirectoryCheck::getObj() override {
+BSONObj DirectoryCheck::getObj() const {
     BSONObjBuilder b;
-    b.append("runCount", _monitor["runCount"]->loadRelaxed());
-    b.append("runSuc", _monitor["runSuc"]->loadRelaxed());
-    b.append("runFail", _monitor["runFail"]->loadRelaxed());
+
+    try {
+        b.append("runCount", _monitor.at("runCount")->loadRelaxed());
+        b.append("runSuc", _monitor.at("runSuc")->loadRelaxed());
+        b.append("runFail", _monitor.at("runFail")->loadRelaxed());
+    } catch (...) {
+        log() << "name:" << this->getName() << " get obj is error";
+        return BSONObjBuilder().obj();
+    }
     return b.obj();
 }
 
@@ -466,7 +508,6 @@ void DirectoryCheck::run(OperationContext* opCtx) {
             _monitor["runFail"]->fetchAndAdd(1);
         }
     });
-
 
     // Ensure we have unique file names if multiple processes share the same logging directory
     boost::filesystem::path file = _directory;

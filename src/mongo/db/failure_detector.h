@@ -21,8 +21,7 @@
 namespace mongo {
 
 enum class WatchdogReason { 
-    ReadCheckError = 1, 
-    WriteCheckError = 2
+    HealthCheckError = 1, 
 };
 
 class FailureDetectorCheck {
@@ -37,6 +36,8 @@ public:
     //获得 primary 的信息
     static std::tuple<bool, HostAndPort> getPrimary();
 
+    static bool enableBecomeCandidateWithCurrentState();
+
     //每次 read/write 的 key
     static std::string generateKey();
     //每次 read/write 的 value
@@ -45,48 +46,36 @@ public:
     static long getSteadyMs();
     //触发一次选举
     static void triggerElection(WatchdogReason reason);
+    // 判断健康度的表和 db 是否存在
+    // 返回值：第一个 bool:表示是否有错误，true 表示没有，false 表示有，第二个 bool 表示是否存在对应的表，true:有，false：表示没有
+    static std::tuple<bool, bool> existedHealthDBAndColl(const std::string& primary, int timeout_secs = 1);
 
     private:
         static AtomicInt64 s_prevElectionTime;
 };
 
-class FailureDetectorWriteCheck : public WatchdogCheck {
+class FailureDetectorHealthCheck : public WatchdogCheck {
 public:
-    FailureDetectorWriteCheck(
+    FailureDetectorHealthCheck(
         Milliseconds frequency, Milliseconds allowDelayTime, WatchdogDeathCallback callback = []() {
-            FailureDetectorCheck::triggerElection(WatchdogReason::WriteCheckError);
+            FailureDetectorCheck::triggerElection(WatchdogReason::HealthCheckError);
         });
 
     virtual void run(OperationContext* opCtx) final;
     virtual std::string getDescriptionForLogging() final;
     virtual bool isRunCurrentPeriod(long count) const;
-    virtual BSONObj getObj();
+    virtual bool isHealth(long nowTime) override;
+    BSONObj getObj() const override;
 
 private:
-    bool writeHealthCheck(const std::string& primary, int timeoutSecs);
+    // first: run listcollection is ok, second: collection existed
+    std::tuple<bool, bool> _listCollectionsCheck(const std::string& primary, int timeoutSecs = 1);
+    bool _writeHealthCheck(const std::string& primary, int timeoutSecs = 1);
 
 private:
-    int _write_check_count;
-    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
-};
-
-class FailureDetectorReadCheck : public WatchdogCheck {
-public:
-    FailureDetectorReadCheck(
-        Milliseconds frequency, Milliseconds allowDelayTime, WatchdogDeathCallback callback = []() {
-            FailureDetectorCheck::triggerElection(WatchdogReason::ReadCheckError);
-        });
-
-    virtual void run(OperationContext* opCtx) final;
-    virtual std::string getDescriptionForLogging() final;
-    virtual bool isRunCurrentPeriod(long count) const;
-    virtual BSONObj getObj();
-
-private:
-    bool readHealthCheck(const std::string& primary, int timeoutSecs);
-
-private:
-    int _read_check_count;
-    std::unordered_map<string, std::unique_ptr<AtomicInt64>> _monitor;
+    int _check_count{0};
+    std::string _currentPrimary;
+    AtomicInt64 _prevElectionTime{0};
+    mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
 };
 }  // namespace mongo
