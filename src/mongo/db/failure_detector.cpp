@@ -224,7 +224,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
 
     ON_BLOCK_EXIT([this, &runResult, &timer]() {
         if (runResult) {
-            log() << this->_check_count << ":HealthCheck result:[success], previous success time:"
+            LOG(5) << this->_check_count << ":HealthCheck result:[success], previous success time:"
                   << this->getTimePreRun() << " => " << FailureDetectorCheck::getSteadyMs()
                   << ", consume:" << timer.micros() << "us";
 

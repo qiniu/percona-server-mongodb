@@ -415,7 +415,6 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
 
     updateStateInLock();
 
-    Timer t;
     spawnConnections(lk);
     fulfillRequests(lk);
 }

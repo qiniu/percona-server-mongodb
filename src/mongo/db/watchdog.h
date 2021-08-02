@@ -101,7 +101,7 @@ public:
         if (this->_timePreRun.load() == 0) {
             // 第一次运行先过滤掉检查
             long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                             std::chrono::system_clock::now().time_since_epoch())
+                             std::chrono::steady_clock::now().time_since_epoch())
                              .count();
             this->setRunSuccessTime(nowMs);
             return true;

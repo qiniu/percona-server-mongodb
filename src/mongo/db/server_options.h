@@ -57,7 +57,7 @@ struct ServerGlobalParams {
     int  disk_detector_peroid_ms = 2000;
     int  disk_detector_allow_delay_ms = 60000;
 
-    int monitor_peroid_ms = 30000;
+    int monitor_peroid_ms = 10000;
 
     std::string bind_ip;  // --bind_ip
     bool rest = false;    // --rest

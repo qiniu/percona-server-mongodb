@@ -201,7 +201,7 @@ Status addMongodOptions(moe::OptionSection* options) {
         .setSources(moe::SourceAllLegacy);
     general_options
         .addOptionChaining(
-            "monitor.peroid.ms", "monitor_peroid_ms", moe::Int, "monitor detector allow delay time, default: 60000ms")
+            "monitor.peroid.ms", "monitor_peroid_ms", moe::Int, "monitor detector allow delay time, default: 10000ms")
         .setSources(moe::SourceAllLegacy);
     // Storage Options
 

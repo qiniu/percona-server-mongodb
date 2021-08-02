@@ -500,11 +500,20 @@ BSONObj DirectoryCheck::getObj() const {
 
 void DirectoryCheck::run(OperationContext* opCtx) {
     bool result = false;
-    ON_BLOCK_EXIT([this, &result]() {
+    Timer timer;
+    ON_BLOCK_EXIT([this, &result, &timer]() {
         if (result) {
+            LOG(5) << "DirectoryCheck result:[success], previous success time:"
+                  << this->getTimePreRun() << " => " << FailureDetectorCheck::getSteadyMs()
+                  << ", consume:" << timer.micros() << "us";
+
             _monitor["runSuc"]->fetchAndAdd(1);
             this->setRunSuccessTime(FailureDetectorCheck::getSteadyMs());
         } else {
+            log() << "DirectoryCheck result:[failure], previous success time:"
+                  << this->getTimePreRun()
+                  << ", delay time:" << FailureDetectorCheck::getSteadyMs() - this->getTimePreRun()
+                  << "ms, allowDelayTime:" << this->getAllowDelayTime() << "ms";
             _monitor["runFail"]->fetchAndAdd(1);
         }
     });

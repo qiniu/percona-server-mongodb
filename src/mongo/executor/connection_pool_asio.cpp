@@ -207,7 +207,7 @@ void ASIOConnection::cancelTimeout() {
 }
 
 void ASIOConnection::setup(Milliseconds timeout, SetupCallback cb) {
-    _impl->strand().dispatch([this, timeout, cb]() {
+    _impl->strand().dispatch([this, timeout, cb] {
         _setupCallback = [this, cb](ConnectionInterface* ptr, Status status) {
             {
                 stdx::lock_guard<stdx::mutex> lk(_impl->_access->mutex);
