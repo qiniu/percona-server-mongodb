@@ -66,7 +66,7 @@ bool FailureDetectorCheck::enableBecomeCandidateWithCurrentState() {
         log() << "id:" << myId << " don't find config";
         return false;
     } else {
-        log() << "id:" << myId;
+        LOG(5) << "id:" << myId;
     }
     return tmpMember->isElectable();
 }
