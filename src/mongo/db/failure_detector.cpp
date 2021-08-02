@@ -4,6 +4,7 @@
 #include "mongo/base/status.h"
 #include "mongo/client/connpool.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/repl/repl_set_config.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/util/log.h"
@@ -53,7 +54,7 @@ bool FailureDetectorCheck::enableBecomeCandidateWithCurrentState() {
     auto replicaCoord = repl::getGlobalReplicationCoordinator();
     invariant(replicaCoord);
 
-    ReplSetConfig config = replicaCoord->getConfig();
+    repl::ReplSetConfig config = replicaCoord->getConfig();
     if (!config.validate().isOK()) {
         log() << "replset config is invalid";
         return false;
@@ -392,10 +393,10 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const s
             auto elapsedMicros = timer.micros();
 
             if (!result) {
-                log() << "ListCollectionCheck result:[failure], consume:" << elapsedMicro << "us";
+                log() << "ListCollectionCheck result:[failure], consume:" << elapsedMicros << "us";
                 _monitor["runCollFail"]->fetchAndAdd(1);
             } else {
-                LOG(5) << "ListCollectionCheck result:[success], consume:" << elapsedMicro << "us";
+                LOG(5) << "ListCollectionCheck result:[success], consume:" << elapsedMicros << "us";
                 _monitor["runCollSuc"]->fetchAndAdd(1);
             }
         });
