@@ -4,6 +4,7 @@
 #include "mongo/base/status.h"
 #include "mongo/client/connpool.h"
 #include "mongo/db/server_options.h"
+#include "mongo/util/net/socket_exception.h"
 #include "mongo/db/repl/repl_set_config.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_engine.h"
@@ -414,7 +415,10 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const s
             log() << "don't find health database and coll";
             return std::make_tuple(result, false);
         }
-    } catch (...) {
+    } catch (SocketException e) {
+        log() << "SocketException:" << e.toString();
+    }
+    catch (...) {
         log() << "get collectioninfo is exception";
         return std::make_tuple(false, false);
     }

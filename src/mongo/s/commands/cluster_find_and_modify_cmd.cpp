@@ -242,7 +242,18 @@ private:
         auto getConnectionMs = connectionTimer.millis();
 
         Timer time;
-        bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
+        bool ok = false;
+
+        try {
+            ok = conn->runCommand(nss.db().toString(), cmdObj, res);
+        } catch(const SocketException& e) {
+            log() << "socketException:" << e.toString();
+            throw;
+        } catch(...) {
+            log() << "otherException";
+            throw;
+        }
+
         conn.done();
         auto optime = time.millis();
         bool slow_log = false;
