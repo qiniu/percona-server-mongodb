@@ -251,6 +251,10 @@ private:
             globalApCounter.gotFamSlowLog();
         }
 
+        if (!ok) {
+            log() << "[fenglin]:res " << res.toString();
+        }
+
         // ErrorCodes::RecvStaleConfig is the code for RecvStaleConfigException.
         if (!ok && res.getIntField("code") == ErrorCodes::RecvStaleConfig) {
             // Command code traps this exception and re-runs

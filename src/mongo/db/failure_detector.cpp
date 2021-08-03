@@ -110,7 +110,7 @@ void FailureDetectorCheck::triggerElection(WatchdogReason reason) {
                 if (result) {
                     //变成Primary success;
                     log() << "reason:" << reasonStr << ", result:[success], previous election time:"
-                          << s_prevElectionTime.load() << " => " << getSteadyMs() << "us"
+                          << s_prevElectionTime.load() << " => " << getSteadyMs() << "ms"
                           << ", consume:" << timer.micros() << "us";
                     s_prevElectionTime.store(getSteadyMs());
                 } else {
