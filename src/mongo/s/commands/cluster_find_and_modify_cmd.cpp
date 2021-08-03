@@ -34,6 +34,7 @@
 #include "mongo/base/status_with.h"
 #include "mongo/bson/util/bson_extract.h"
 #include "mongo/db/auth/authorization_session.h"
+#include "mongo/util/net/socket_exception.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/find_and_modify.h"
 #include "mongo/db/operation_context.h"
