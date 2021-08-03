@@ -417,6 +417,7 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const s
         }
     } catch (SocketException e) {
         log() << "SocketException:" << e.toString();
+        return std::make_tuple(false, false);
     }
     catch (...) {
         log() << "get collectioninfo is exception";
