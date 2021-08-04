@@ -304,7 +304,7 @@ WatchdogMonitorThread::WatchdogMonitorThread(
         log() << "blocking check thread is not null";
     }
 
-    log() << "monitor period:" << interval.count() << "ms";
+    log() << "monitor period:" << period.count() << "ms";
 }
 
 void WatchdogMonitorThread::resetState() {

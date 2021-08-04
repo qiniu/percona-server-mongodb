@@ -140,6 +140,10 @@ public:
     bool getIsBlocking() const {
         return this->_isBlocking;
     }
+    
+    void setIsBlocking(bool value) {
+        this->_isBlocking = value;
+    }
 
 private:
     // 上一次运行正常的时间戳
@@ -175,7 +179,7 @@ public:
         _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
         _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
         _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
-
+        this->setIsBlocking(true);
         globalWatchdogCounter.registerElement(this->getName(), this);
     }
 

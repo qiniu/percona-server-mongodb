@@ -440,7 +440,7 @@ std::tuple<bool, std::shared_ptr<DBClientConnection>> FailureDetectorHealthCheck
     std::string errMsg;
     if (!tmp->connect(addr, StringData(), errMsg)) {
         this->_monitor["getConnectErr"]->fetchAndAdd(1);
-        log() << "healthCheck get connection is failure, err:" << errMsg << endl;
+        log() << "healthCheck get connection is failure, err:" << errMsg;
         return std::make_tuple(false, nullptr);
     }
 
