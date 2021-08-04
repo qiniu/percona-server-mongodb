@@ -942,14 +942,12 @@ DBClientReplicaSet::runCommandWithMetadataAndTarget(StringData database,
         : ReadPreferenceSetting(ReadPreference::PrimaryOnly, TagSet::primaryOnly());
 
     auto readPref = ssm.getReadPreference().get_value_or(defaultReadPref);
-    log() << "[fenglin]:ReadPref: " << readPref.toString();
 
     if (readPref.pref == ReadPreference::PrimaryOnly ||
         // If the command is not runnable on a secondary, we run it on the primary
         // regardless of the read preference.
         !_isSecondaryCommand(command, commandArgs)) {
         auto conn = checkMaster();
-        log() << "[fenglin]: Primary connect primary:" << conn->getServerAddress() << ",timeout:" << conn->getSoTimeout();
         return std::make_tuple(
             conn->runCommandWithMetadata(database, command, metadata, commandArgs), conn);
     }

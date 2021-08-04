@@ -247,8 +247,8 @@ private:
 
         try {
             ok = conn->runCommand(nss.db().toString(), cmdObj, res);
-        } catch(const SocketException& e) {
-            log() << "socketException:" << e.toString();
+        } catch(const DBException& e) {
+            log() << "fenglin::DBException" << e.toString();
             throw;
         } catch(...) {
             log() << "otherException";
