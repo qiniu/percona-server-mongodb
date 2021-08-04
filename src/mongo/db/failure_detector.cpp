@@ -435,11 +435,11 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const H
 
 std::tuple<bool, std::shared_ptr<DBClientConnection>> FailureDetectorHealthCheck::_getNewConnection(
     const HostAndPort& addr, int timeoutSecs) {
-    auto tmp = shared_ptr<DBClientConnection>(
-        new DBClientConnection(false, durationCount<Seconds>(timeoutSecs)));
+    auto tmp = std::shared_ptr<DBClientConnection>(
+        new DBClientConnection(false, timeoutSecs));
     std::string errMsg;
     if (!tmp->connect(addr, StringData(), errMsg)) {
-        this->_monitor["getConnectErr"].fetchAndAdd(1);
+        this->_monitor["getConnectErr"]->fetchAndAdd(1);
         log() << "healthCheck get connection is failure, err:" << errMsg << endl;
         return std::make_tuple(false, nullptr);
     }

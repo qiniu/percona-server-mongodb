@@ -292,7 +292,7 @@ WatchdogMonitorThread::WatchdogMonitorThread(
     const std::shared_ptr<WatchdogCheckThread>& blocking,
     const std::shared_ptr<WatchdogCheckThread>& nonBlocking,
     Milliseconds period)
-    : WatchdogPeriodicThread(interval, "WatchdogMonitor"),
+    : WatchdogPeriodicThread(peroid, "WatchdogMonitor"),
       _checkBlockingThread(blocking),
       _checkNonBlockingThread(nonBlocking) {
 
@@ -351,7 +351,8 @@ WatchdogMonitor::WatchdogMonitor(std::vector<std::unique_ptr<WatchdogCheck>> che
     }
     
     _watchdogMonitorThread = std::make_shared<WatchdogMonitorThread>(_watchdogBlockCheckThread, _watchdogNonBlockCheckThread, monitorPeriod);
-    invaiant(_watchdogMonitorThread);
+
+    invariant(_watchdogMonitorThread);
     invariant(checkPeriod < monitorPeriod);
 }
 
