@@ -292,7 +292,7 @@ WatchdogMonitorThread::WatchdogMonitorThread(
     const std::shared_ptr<WatchdogCheckThread>& blocking,
     const std::shared_ptr<WatchdogCheckThread>& nonBlocking,
     Milliseconds period)
-    : WatchdogPeriodicThread(peroid, "WatchdogMonitor"),
+    : WatchdogPeriodicThread(period, "WatchdogMonitor"),
       _checkBlockingThread(blocking),
       _checkNonBlockingThread(nonBlocking) {
 
