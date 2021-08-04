@@ -137,6 +137,10 @@ public:
         return this->_callback;
     }
 
+    bool getIsBlocking() const {
+        return this->_isBlocking;
+    }
+
 private:
     // 上一次运行正常的时间戳
     AtomicInt64 _timePreRun{0};
@@ -148,6 +152,8 @@ private:
     WatchdogDeathCallback _callback;
     // name
     std::string _name;
+    // block or non_blocking
+    bool _isBlocking{false};
 };
 
 /**
@@ -185,6 +191,7 @@ private:
     int _fd;
     int _only_write_check_cnt;
     mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
+    AtomicBool _run{false};
 };
 
 /**
@@ -323,7 +330,9 @@ private:
  */
 class WatchdogMonitorThread : public WatchdogPeriodicThread {
 public:
-    WatchdogMonitorThread(WatchdogCheckThread* checkThread, Milliseconds period);
+    WatchdogMonitorThread(const std::shared_ptr<WatchdogCheckThread>& blocking,
+                          const std::shared_ptr<WatchdogCheckThread>& nonBlocking,
+                          Milliseconds period);
 
 private:
     void run(OperationContext* opCtx) final;
@@ -331,7 +340,8 @@ private:
 
 private:
     // Watchdog check thread to query
-    WatchdogCheckThread* _checkThread;
+    std::shared_ptr<WatchdogCheckThread>  _checkBlockingThread;
+    std::shared_ptr<WatchdogCheckThread>  _checkNonBlockingThread;
 };
 
 
@@ -436,14 +446,14 @@ private:
     // State of watchdog
     State _state{State::kNotStarted};
 
-    // Fixed period for running the checks.
-    Milliseconds _checkPeriod;
+    // WatchdogCheck Thread - runs checks (non-blocking)
+    std::shared_ptr<WatchdogCheckThread> _watchdogNonBlockCheckThread{nullptr};
 
-    // WatchdogCheck Thread - runs checks
-    WatchdogCheckThread _watchdogCheckThread;
+    // WatchdogCheck Thread - runs checks (blocking)
+    std::shared_ptr<WatchdogCheckThread> _watchdogBlockCheckThread{nullptr};
 
     // WatchdogMonitor Thread - watches _watchdogCheckThread
-    WatchdogMonitorThread _watchdogMonitorThread;
+    std::shared_ptr<WatchdogMonitorThread> _watchdogMonitorThread{nullptr};
 };
 
 }  // namespace mongo

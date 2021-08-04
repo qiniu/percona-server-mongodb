@@ -164,6 +164,7 @@ FailureDetectorHealthCheck::FailureDetectorHealthCheck(Milliseconds frequency,
     _monitor["noPrimary"] = std::make_unique<AtomicInt32>(0);
     _monitor["notSecond"] = std::make_unique<AtomicInt32>(0);
     _monitor["notBecomeCand"] = std::make_unique<AtomicInt32>(0);
+    _monitor["getConnectErr"] = std::make_unique<AtomicInt32>(0);
 
     globalWatchdogCounter.registerElement(this->getName(), this);
 }
@@ -205,6 +206,8 @@ BSONObj FailureDetectorHealthCheck::getObj() const {
         b.append("noPrimary", _monitor.at("noPrimary")->loadRelaxed());
         b.append("notSecond", _monitor.at("notSecond")->loadRelaxed());
         b.append("notBecomeCand", _monitor.at("notBecomeCand")->loadRelaxed());
+        b.append("getConnectErr", _monitor.at("getConnectErr")->loadRelaxed());
+
     } catch (...) {
         log() << "healthChecker get obj is error";
         return BSONObjBuilder().obj();
@@ -270,10 +273,9 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
     _monitor["validRun"]->fetchAndAdd(1);
 
     auto key = FailureDetectorCheck::generateKey();
-    auto primaryStr = primary.toString();
 
     do {
-        auto collResult = _listCollectionsCheck(primaryStr);
+        auto collResult = _listCollectionsCheck(primary);
         if (!std::get<0>(collResult)) {
             break;
         }
@@ -281,7 +283,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
         if (!std::get<1>(collResult)) {
             _monitor["skipHealthCheck"]->fetchAndAdd(1);
         } else {
-            if (!_writeHealthCheck(primaryStr)) {
+            if (!_writeHealthCheck(primary)) {
                 break;
             }
         }
@@ -289,16 +291,14 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
     } while (false);
 }
 
-bool FailureDetectorHealthCheck::_writeHealthCheck(const std::string& primary, int timeoutSecs) {
+bool FailureDetectorHealthCheck::_writeHealthCheck(const HostAndPort& primary, int timeoutSecs) {
     invariant(timeoutSecs > 0);
 
     try {
-        ScopedDbConnection conn(primary, timeoutSecs);
         Timer timer;
         bool result = false;
 
-        ON_BLOCK_EXIT([this, &timer, &conn, &result]() {
-            conn.done();  // return to pool on success.
+        ON_BLOCK_EXIT([this, &timer, &result]() {
             auto elapsedMicros = timer.micros();
 
             if (result) {
@@ -309,6 +309,11 @@ bool FailureDetectorHealthCheck::_writeHealthCheck(const std::string& primary, i
                 log() << "WriteHealthCheck result:[failure]" << elapsedMicros << "us";
             }
         });
+
+        auto connectionResult = _getNewConnection(primary, timeoutSecs);
+        if (!std::get<0>(connectionResult)) {
+            return false;
+        }
 
         long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
@@ -327,7 +332,7 @@ bool FailureDetectorHealthCheck::_writeHealthCheck(const std::string& primary, i
         BSONObj request = requestBuilder.done();
         LOG(5) << "write health check request:" << request.toString();
 
-        auto runResult = conn->runCommandWithTarget(
+        auto runResult = std::get<1>(connectionResult)->runCommandWithTarget(
             FailureDetectorCheck::FDDBName.toString(), request, response);
         if (std::get<0>(runResult)) {
             result = true;
@@ -380,17 +385,14 @@ bool FailureDetectorHealthCheck::isHealth(long time) {
     return true;
 }
 
-std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const std::string& primary,
+std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const HostAndPort& primary,
                                                                          int timeoutSecs) {
     invariant(timeoutSecs > 0);
+    bool result = false;
+    Timer timer;
 
     try {
-        ScopedDbConnection conn(primary, timeoutSecs);
-        Timer timer;
-        bool result = false;
-
-        ON_BLOCK_EXIT([this, &timer, &conn, &result]() {
-            conn.done();  // return to pool on success.
+        ON_BLOCK_EXIT([this, &timer, &result]() {
             auto elapsedMicros = timer.micros();
 
             if (!result) {
@@ -402,26 +404,46 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const s
             }
         });
 
+        auto connectionResult = _getNewConnection(primary, timeoutSecs);
+        if(!std::get<0>(connectionResult)) {
+            return std::make_tuple(false, false);
+        }
+
         BSONObjBuilder filter;
         filter.append("name", FailureDetectorCheck::FDCollName.toString());
         BSONObj filterObj = filter.done();
 
         auto runResult =
-            conn->getCollectionInfos(FailureDetectorCheck::FDDBName.toString(), filterObj);
+            std::get<1>(connectionResult)->getCollectionInfos(FailureDetectorCheck::FDDBName.toString(), filterObj);
         result = true;
+
         if (!runResult.empty()) {
             return std::make_tuple(result, true);
         } else {
             log() << "don't find health database and coll";
             return std::make_tuple(result, false);
         }
-    } catch (SocketException e) {
-        log() << "SocketException:" << e.toString();
+    } catch (const DBException& e) {
+        log() << "DBException:" << e.toString();
         return std::make_tuple(false, false);
     }
     catch (...) {
         log() << "get collectioninfo is exception";
         return std::make_tuple(false, false);
     }
+}
+
+std::tuple<bool, std::shared_ptr<DBClientConnection>> FailureDetectorHealthCheck::_getNewConnection(
+    const HostAndPort& addr, int timeoutSecs) {
+    auto tmp = shared_ptr<DBClientConnection>(
+        new DBClientConnection(false, durationCount<Seconds>(timeoutSecs)));
+    std::string errMsg;
+    if (!tmp->connect(addr, StringData(), errMsg)) {
+        this->_monitor["getConnectErr"].fetchAndAdd(1);
+        log() << "healthCheck get connection is failure, err:" << errMsg << endl;
+        return std::make_tuple(false, nullptr);
+    }
+
+    return std::make_tuple(true, tmp);
 }
 }  // namespace mongo

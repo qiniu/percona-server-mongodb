@@ -13,6 +13,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_coordinator_global.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/client/dbclientinterface.h"
 #include "mongo/db/watchdog.h"
 #include "mongo/base/string_data.h"
 #include <string>
@@ -69,8 +70,9 @@ public:
 
 private:
     // first: run listcollection is ok, second: collection existed
-    std::tuple<bool, bool> _listCollectionsCheck(const std::string& primary, int timeoutSecs = 1);
-    bool _writeHealthCheck(const std::string& primary, int timeoutSecs = 1);
+    std::tuple<bool, bool> _listCollectionsCheck(const HostAndPort& primary, int timeoutSecs = 1);
+    bool _writeHealthCheck(const HostAndPort& primary, int timeoutSecs = 1);
+    std::tuple<bool, std::shared_ptr<DBClientConnection>> _getNewConnection(const HostAndPort& addr, int timeoutSecs = 1);
 
 private:
     int _check_count{0};

@@ -288,27 +288,70 @@ void WatchdogCheckThread::run(OperationContext* opCtx) {
     }
 }
 
-WatchdogMonitorThread::WatchdogMonitorThread(WatchdogCheckThread* checkThread,
-                                             Milliseconds interval)
+WatchdogMonitorThread::WatchdogMonitorThread(
+    const std::shared_ptr<WatchdogCheckThread>& blocking,
+    const std::shared_ptr<WatchdogCheckThread>& nonBlocking,
+    Milliseconds period)
     : WatchdogPeriodicThread(interval, "WatchdogMonitor"),
-      _checkThread(checkThread) {
-          log() << "monitor period:" << interval.count() << "ms";
-      }
+      _checkBlockingThread(blocking),
+      _checkNonBlockingThread(nonBlocking) {
+
+    if (_checkNonBlockingThread) {
+        log() << "Non blocking check thread is not null";
+    }
+
+    if (_checkBlockingThread) {
+        log() << "blocking check thread is not null";
+    }
+
+    log() << "monitor period:" << interval.count() << "ms";
+}
 
 void WatchdogMonitorThread::resetState() {
 }
 
 void WatchdogMonitorThread::run(OperationContext* opCtx) {
-    this->_checkThread->checkHealths();
+    if (this->_checkNonBlockingThread) {
+        this->_checkNonBlockingThread->checkHealths();
+    }
+
+    if (this->_checkBlockingThread) {
+        this->_checkBlockingThread->checkHealths();
+    }
 }
 
 
 WatchdogMonitor::WatchdogMonitor(std::vector<std::unique_ptr<WatchdogCheck>> checks,
                                  Milliseconds checkPeriod,
-                                 Milliseconds monitorPeriod)
-    : _checkPeriod(checkPeriod),
-      _watchdogCheckThread(std::move(checks), checkPeriod),
-      _watchdogMonitorThread(&_watchdogCheckThread, monitorPeriod) {
+                                 Milliseconds monitorPeriod) {
+
+    std::vector<std::unique_ptr<WatchdogCheck>> nonBlockCheck;
+    std::vector<std::unique_ptr<WatchdogCheck>> blockCheck;
+    for(auto& check : checks) {
+        if (!check) {
+            continue;
+        }
+
+        if (check->getIsBlocking()) {
+            blockCheck.push_back(std::move(check));
+        } else {
+            nonBlockCheck.push_back(std::move(check));
+        }
+    }
+
+    log() << "nonBlockCheck count:" << nonBlockCheck.size() << ", blockCheck count:" << blockCheck.size();
+    if (!nonBlockCheck.empty()) {
+        log() <<  "nonblocking";
+        _watchdogNonBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(nonBlockCheck), checkPeriod);
+    }
+
+    if (!blockCheck.empty()) {
+        log() <<  "blocking";
+        _watchdogBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(blockCheck), checkPeriod);
+    }
+    
+    _watchdogMonitorThread = std::make_shared<WatchdogMonitorThread>(_watchdogBlockCheckThread, _watchdogNonBlockCheckThread, monitorPeriod);
+    invaiant(_watchdogMonitorThread);
     invariant(checkPeriod < monitorPeriod);
 }
 
@@ -317,10 +360,15 @@ void WatchdogMonitor::start() {
    // LOGV2(23408, "Starting Watchdog Monitor");
 
     // Start the threads.
-    _watchdogCheckThread.start();
+    if (_watchdogBlockCheckThread) {
+        _watchdogBlockCheckThread->start();
+    }
 
-    _watchdogMonitorThread.start();
+    if (_watchdogNonBlockCheckThread) {
+        _watchdogNonBlockCheckThread->start();
+    }
 
+    _watchdogMonitorThread->start();
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
 
@@ -375,9 +423,15 @@ void WatchdogMonitor::shutdown() {
         _state = State::kShutdownRequested;
     }
 
-    _watchdogMonitorThread.shutdown();
+    _watchdogMonitorThread->shutdown();
 
-    _watchdogCheckThread.shutdown();
+    if (_watchdogNonBlockCheckThread) {
+        _watchdogNonBlockCheckThread->shutdown();
+    }
+
+    if (_watchdogBlockCheckThread) {
+        _watchdogBlockCheckThread->shutdown();
+    }
 
     _state = State::kDone;
 }
