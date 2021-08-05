@@ -2,6 +2,7 @@
 
 #include "mongo/db/failure_detector.h"
 #include "mongo/base/status.h"
+#include "mongo/db/auth/internal_user_auth.h"
 #include "mongo/client/connpool.h"
 #include "mongo/db/server_options.h"
 #include "mongo/util/net/socket_exception.h"
@@ -437,11 +438,17 @@ std::tuple<bool, std::shared_ptr<DBClientConnection>> FailureDetectorHealthCheck
     const HostAndPort& addr, int timeoutSecs) {
     auto tmp = std::shared_ptr<DBClientConnection>(
         new DBClientConnection(false, timeoutSecs));
+
     std::string errMsg;
     if (!tmp->connect(addr, StringData(), errMsg)) {
         this->_monitor["getConnectErr"]->fetchAndAdd(1);
         log() << "healthCheck get connection is failure, err:" << errMsg;
         return std::make_tuple(false, nullptr);
+    }
+
+    if (isInternalAuthSet()) {
+        log() << "[fenglin] internal, code:" << getInternalUserAuthParams().toString();
+        tmp->auth(getInternalUserAuthParams());
     }
 
     return std::make_tuple(true, tmp);
