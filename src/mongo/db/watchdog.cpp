@@ -252,7 +252,7 @@ void WatchdogCheckThread::checkHealths() {
             item->getCallback()();
             break;
         } else {
-            LOG(5) << "name:" << item->getName() << " check is success";
+            log() << "name:" << item->getName() << " check is success";
         }
     }
 }
@@ -558,7 +558,7 @@ void DirectoryCheck::run(OperationContext* opCtx) {
     Timer timer;
     ON_BLOCK_EXIT([this, &result, &timer]() {
         if (result) {
-            LOG(5) << "DirectoryCheck result:[success], previous success time:"
+            log() << "DirectoryCheck result:[success], previous success time:"
                   << this->getTimePreRun() << " => " << FailureDetectorCheck::getSteadyMs()
                   << ", consume:" << timer.micros() << "us";
 
