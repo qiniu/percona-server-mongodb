@@ -244,7 +244,6 @@ private:
 
         Timer time;
         bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
-
         conn.done();
         auto optime = time.millis();
         bool slow_log = false;
