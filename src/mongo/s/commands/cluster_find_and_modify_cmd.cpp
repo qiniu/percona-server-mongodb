@@ -243,17 +243,7 @@ private:
         auto getConnectionMs = connectionTimer.millis();
 
         Timer time;
-        bool ok = false;
-
-        try {
-            ok = conn->runCommand(nss.db().toString(), cmdObj, res);
-        } catch(const DBException& e) {
-            log() << "fenglin::DBException" << e.toString();
-            throw;
-        } catch(...) {
-            log() << "otherException";
-            throw;
-        }
+        bool ok = conn->runCommand(nss.db().toString(), cmdObj, res);
 
         conn.done();
         auto optime = time.millis();
@@ -261,10 +251,6 @@ private:
         if(optime > serverGlobalParams.slowMS){
             slow_log = true;
             globalApCounter.gotFamSlowLog();
-        }
-
-        if (!ok) {
-            log() << "[fenglin]:res " << res.toString();
         }
 
         // ErrorCodes::RecvStaleConfig is the code for RecvStaleConfigException.
