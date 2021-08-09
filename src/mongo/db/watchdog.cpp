@@ -204,7 +204,9 @@ void WatchdogPeriodicThread::doLoop() {
 
 
 WatchdogCheckThread::WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks,
-                                         Milliseconds period)
+                                         Milliseconds period,
+                                         const std::string& name
+                                         )
     : WatchdogPeriodicThread(period, "watchdogCheck"), _checks(std::move(checks)) {
 
     // 所有的需要被检测的任务的周期必须能被最小周期整除
@@ -228,7 +230,7 @@ WatchdogCheckThread::WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogChe
     if (minPeriod != period.count()) {
         this->setPeriod(Milliseconds(minPeriod));
     }
-    globalWatchdogCounter.registerElement(getThreadName().toString(), this);
+    globalWatchdogCounter.registerElement(name, this);
 
     log() << "check job count:" << _checks.size() << ", period:" << minPeriod << "ms;";
 }
@@ -252,7 +254,7 @@ void WatchdogCheckThread::checkHealths() {
             item->getCallback()();
             break;
         } else {
-            log() << "name:" << item->getName() << " check is success";
+            LOG(5) << "name:" << item->getName() << " check is success";
         }
     }
 }
@@ -342,12 +344,12 @@ WatchdogMonitor::WatchdogMonitor(std::vector<std::unique_ptr<WatchdogCheck>> che
     log() << "nonBlockCheck count:" << nonBlockCheck.size() << ", blockCheck count:" << blockCheck.size();
     if (!nonBlockCheck.empty()) {
         log() <<  "nonblocking";
-        _watchdogNonBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(nonBlockCheck), checkPeriod);
+        _watchdogNonBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(nonBlockCheck), checkPeriod, "nonblocking_checker");
     }
 
     if (!blockCheck.empty()) {
         log() <<  "blocking";
-        _watchdogBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(blockCheck), checkPeriod);
+        _watchdogBlockCheckThread = std::make_shared<WatchdogCheckThread>(std::move(blockCheck), checkPeriod, "blocking_checker");
     }
     
     _watchdogMonitorThread = std::make_shared<WatchdogMonitorThread>(_watchdogBlockCheckThread, _watchdogNonBlockCheckThread, monitorPeriod);
@@ -558,7 +560,7 @@ void DirectoryCheck::run(OperationContext* opCtx) {
     Timer timer;
     ON_BLOCK_EXIT([this, &result, &timer]() {
         if (result) {
-            log() << "DirectoryCheck result:[success], previous success time:"
+            LOG(5) << "DirectoryCheck result:[success], previous success time:"
                   << this->getTimePreRun() << " => " << FailureDetectorCheck::getSteadyMs()
                   << ", consume:" << timer.micros() << "us";
 

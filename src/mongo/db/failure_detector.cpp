@@ -68,7 +68,7 @@ bool FailureDetectorCheck::enableBecomeCandidateWithCurrentState() {
         log() << "id:" << myId << " don't find config";
         return false;
     } else {
-        log() << "id:" << myId;
+        LOG(5) << "id:" << myId;
     }
     return tmpMember->isElectable();
 }
@@ -229,7 +229,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
 
     ON_BLOCK_EXIT([this, &runResult, &timer]() {
         if (runResult) {
-            log() << this->_check_count << ":HealthCheck result:[success], previous success time:"
+            LOG(5) << this->_check_count << ":HealthCheck result:[success], previous success time:"
                   << this->getTimePreRun() << " => " << FailureDetectorCheck::getSteadyMs()
                   << ", consume:" << timer.micros() << "us";
 
@@ -253,7 +253,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
     }
 
     HostAndPort primary = std::get<1>(result);
-    log() << "HealthCheck primary:" << primary.toString();
+    LOG(5) << "HealthCheck primary:" << primary.toString();
 
     if (!FailureDetectorCheck::isSecondary()) {
         _monitor["notSecond"]->fetchAndAdd(1);
@@ -304,7 +304,7 @@ bool FailureDetectorHealthCheck::_writeHealthCheck(const HostAndPort& primary, i
 
             if (result) {
                 _monitor["runWriteSuc"]->fetchAndAdd(1);
-                log() << "WriteHealthCheck result:[success]" << elapsedMicros << "us";
+                LOG(5) << "WriteHealthCheck result:[success]" << elapsedMicros << "us";
             } else {
                 _monitor["runWriteFail"]->fetchAndAdd(1);
                 log() << "WriteHealthCheck result:[failure]" << elapsedMicros << "us";
@@ -331,7 +331,7 @@ bool FailureDetectorHealthCheck::_writeHealthCheck(const HostAndPort& primary, i
                                          << Date_t::fromMillisSinceEpoch(nowMs)));
 
         BSONObj request = requestBuilder.done();
-        log() << "write health check request:" << request.toString();
+        LOG(5) << "write health check request:" << request.toString();
 
         auto runResult = std::get<1>(connectionResult)->runCommandWithTarget(
             FailureDetectorCheck::FDDBName.toString(), request, response);
@@ -400,7 +400,7 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const H
                 log() << "ListCollectionCheck result:[failure], consume:" << elapsedMicros << "us";
                 _monitor["runCollFail"]->fetchAndAdd(1);
             } else {
-                log() << "ListCollectionCheck result:[success], consume:" << elapsedMicros << "us";
+                LOG(5) << "ListCollectionCheck result:[success], consume:" << elapsedMicros << "us";
                 _monitor["runCollSuc"]->fetchAndAdd(1);
             }
         });
