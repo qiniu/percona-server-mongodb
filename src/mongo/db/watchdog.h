@@ -312,7 +312,7 @@ private:
  */
 class WatchdogCheckThread : public WatchdogPeriodicThread, public WatchdogElement {
 public:
-    WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks, Milliseconds period, std::string& name);
+    WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks, Milliseconds period, const std::string& name);
 
     //被 monitor 线程调用，用来检查当前这些检查是否 ok
     void checkHealths();
