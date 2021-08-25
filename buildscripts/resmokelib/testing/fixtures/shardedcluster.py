@@ -294,7 +294,7 @@ class _MongoSFixture(interface.Fixture):
             existed = True
 
         for i in range(0, 20):
-            if not self.check_port(self.mongod_options["port"]):
+            if not self.check_port(self.mongos_options["port"]):
                 if existed:
                     self.logger.error("port is sure, so break")
                     raise Exception("port is used, so exception")
