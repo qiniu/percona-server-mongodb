@@ -287,8 +287,19 @@ class _MongoSFixture(interface.Fixture):
         self.mongos = None
 
     def setup(self):
+        existed = False
         if "port" not in self.mongos_options:
             self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+        else:
+            existed = True
+
+        for i in range(0, 20):
+            if not self.check_port(self.mongod_options["port"]):
+                if existed:
+                    self.logger.error("port is sure, so break")
+                    raise Exception("port is used, so exception")
+                else:
+                    self.mongos_options.pop("port")
         self.port = self.mongos_options["port"]
 
         mongos = core.programs.mongos_program(self.logger,
@@ -303,6 +314,17 @@ class _MongoSFixture(interface.Fixture):
             raise
 
         self.mongos = mongos
+
+    def check_port(self, port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("127.0.0.1", port))
+            s.close()
+            return True
+        except socket.error as msg:
+            self.logger.error("[mongos] bind 127.0.0.1:%d is error, reason:%s", port, msg[1])
+            return False
+
 
     def await_ready(self):
         deadline = time.time() + standalone.MongoDFixture.AWAIT_READY_TIMEOUT_SECS

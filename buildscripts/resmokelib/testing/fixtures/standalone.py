@@ -7,6 +7,7 @@ from __future__ import absolute_import
 import os
 import os.path
 import time
+import socket
 
 import pymongo
 
@@ -63,9 +64,19 @@ class MongoDFixture(interface.Fixture):
         except os.error:
             # Directory already exists.
             pass
-
+        existed = False
         if "port" not in self.mongod_options:
             self.mongod_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+        else:
+            existed = True
+        
+        for i in range(0, 20):
+            if not self.check_port(self.mongod_options["port"]):
+                if existed:
+                    self.logger.error("port is sure, so break")
+                    raise Exception("port is used, so exception")
+                else:
+                    self.mongod_options.pop("port")
         self.port = self.mongod_options["port"]
 
         mongod = core.programs.mongod_program(self.logger,
@@ -80,6 +91,17 @@ class MongoDFixture(interface.Fixture):
             raise
 
         self.mongod = mongod
+
+    def check_port(self, port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("127.0.0.1", port))
+            s.close()
+            return True
+        except socket.error as msg:
+            self.logger.error("[standalone] bind 127.0.0.1:%d is error, reason:%s", port, msg[1])
+            return False
+
 
     def await_ready(self):
         deadline = time.time() + MongoDFixture.AWAIT_READY_TIMEOUT_SECS
