@@ -293,13 +293,15 @@ class _MongoSFixture(interface.Fixture):
         for i in range(0, 20):
             if "port" not in self.mongos_options:
                 self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+            else:
+                existed = True
 
             if not self.check_port(self.mongos_options["port"]):
-                self.mongos_options.pop("port")
-                if i == 19:
-                    raise Exception("i don't found suitable port")
-                continue
-
+                if existed:
+                    self.logger.error("[mongos] port is sure, so sleep 10s, i will waiting")
+                    time.sleep(10) 
+                else:
+                    self.mongos_options.pop("port")
         self.port = self.mongos_options["port"]
 
         mongos = core.programs.mongos_program(self.logger,
