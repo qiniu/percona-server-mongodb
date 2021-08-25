@@ -2,18 +2,18 @@ logging:
   executor:
     format: '[%(name)s] %(asctime)s %(message)s'
     handlers:
-      - class: logging.FileHandler
+      - class: integrationTest/logging.FileHandler
         filename: executor.log
         mode: w
   fixture:
     format: '[%(name)s] %(message)s'
     handlers:
       - class: logging.FileHandler
-        filename: fixture.log
+        filename: integrationTest/fixture.log
         mode: w
   tests:
     format: '[%(name)s] %(asctime)s %(message)s'
     handlers:
       - class: logging.FileHandler
-        filename: tests.log
+        filename: integrationTest/tests.log
         mode: w
