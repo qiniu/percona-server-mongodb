@@ -65,19 +65,14 @@ class MongoDFixture(interface.Fixture):
             # Directory already exists.
             pass
 
-        existed = False
         for i in range(0, 20):
             if "port" not in self.mongod_options:
                 self.mongod_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
-            else:
-                existed = True
-        
             if not self.check_port(self.mongod_options["port"]):
-                if existed:
-                    self.logger.error("port is sure, so break")
-                    raise Exception("port is used, so exception")
-                else:
-                    self.mongod_options.pop("port")
+                self.mongod_options.pop("port")
+                if i == 19:
+                    raise Exception("i don't found suitable port")
+                continue
         self.port = self.mongod_options["port"]
 
         mongod = core.programs.mongod_program(self.logger,

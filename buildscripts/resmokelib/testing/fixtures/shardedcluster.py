@@ -73,6 +73,7 @@ class ShardedClusterFixture(interface.Fixture):
             if self.configsvr is None:
                 self.configsvr = self._new_configsvr()
             self.configsvr.setup()
+        self.logger.info("config svr start is success")
 
         if not self.shards:
             for i in xrange(self.num_shards):
@@ -82,6 +83,7 @@ class ShardedClusterFixture(interface.Fixture):
         # Start up each of the shards
         for shard in self.shards:
             shard.setup()
+            self.logger.info("shard start is success")
 
     def await_ready(self):
         # Wait for the config server
@@ -291,15 +293,13 @@ class _MongoSFixture(interface.Fixture):
         for i in range(0, 20):
             if "port" not in self.mongos_options:
                 self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
-            else:
-                existed = True
 
             if not self.check_port(self.mongos_options["port"]):
-                if existed:
-                    self.logger.error("port is sure, so break")
-                    raise Exception("port is used, so exception")
-                else:
-                    self.mongos_options.pop("port")
+                self.mongos_options.pop("port")
+                if i == 19:
+                    raise Exception("i don't found suitable port")
+                continue
+
         self.port = self.mongos_options["port"]
 
         mongos = core.programs.mongos_program(self.logger,
