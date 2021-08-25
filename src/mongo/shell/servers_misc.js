@@ -190,6 +190,8 @@ allocatePort = (function() {
         nextPort = nextPort || jsTestOptions().minPort || 20000;
         maxPort = maxPort || jsTestOptions().maxPort || Math.pow(2, 16) - 1;
 
+        // random next port
+        nextPort =  jsTestOptions().minPort + (maxPort - jsTestOptions.minPort) * Math.random() / 2;
         while(true){
             if (nextPort === maxPort) {
                 throw new Error("Exceeded maximum port range in allocatePort()");
