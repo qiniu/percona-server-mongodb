@@ -53,11 +53,11 @@ class PortAllocator(object):
 
     # Each job gets a contiguous range of _PORTS_PER_JOB ports, with job 0 getting the first block
     # of ports, job 1 getting the second block, and so on.
-    _PORTS_PER_JOB = 250
+    _PORTS_PER_JOB = 750
 
     # The first _PORTS_PER_FIXTURE ports of each range are reserved for the fixtures, the remainder
     # of the port range is used by tests.
-    _PORTS_PER_FIXTURE = 10
+    _PORTS_PER_FIXTURE = 50 
 
     _NUM_USED_PORTS_LOCK = threading.Lock()
 
