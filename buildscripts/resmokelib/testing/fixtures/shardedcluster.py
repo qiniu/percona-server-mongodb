@@ -288,12 +288,12 @@ class _MongoSFixture(interface.Fixture):
 
     def setup(self):
         existed = False
-        if "port" not in self.mongos_options:
-            self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
-        else:
-            existed = True
-
         for i in range(0, 20):
+            if "port" not in self.mongos_options:
+                self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+            else:
+                existed = True
+
             if not self.check_port(self.mongos_options["port"]):
                 if existed:
                     self.logger.error("port is sure, so break")
