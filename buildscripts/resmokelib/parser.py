@@ -1,3 +1,5 @@
+#-*- coding:utf-8 -*-
+
 """
 Parser for command line arguments.
 """
