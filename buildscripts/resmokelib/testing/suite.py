@@ -1,3 +1,5 @@
+#-*- coding:utf-8 -*-
+
 """
 Holder for a set of TestGroup instances.
 """
