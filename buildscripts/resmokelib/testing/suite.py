@@ -31,7 +31,9 @@ class Suite(object):
         for test_kind in Suite.TESTS_ORDER:
             if test_kind not in suite_config["selector"]:
                 continue
+            # 获得本次 suite 的 type 的测试用例，比如过滤出 j_test 类型的
             tests = self._get_tests_for_group(test_kind)
+            # TestGroup 是会测试 suite 下面的某一种特定 typ 的所有测试用例
             test_group = testgroup.TestGroup(test_kind, tests)
             self.test_groups.append(test_group)
 

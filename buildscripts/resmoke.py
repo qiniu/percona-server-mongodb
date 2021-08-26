@@ -152,12 +152,20 @@ def main():
     exec_logger = resmokelib.logging.loggers.EXECUTOR
     resmoke_logger = resmokelib.logging.loggers.new_logger("resmoke", parent=exec_logger)
 
+    """
+    返回支持的 suite
+    """
     if values.list_suites:
         suite_names = resmokelib.parser.get_named_suites()
         resmoke_logger.info("Suites available to execute:\n%s", "\n".join(suite_names))
         sys.exit(0)
 
     interrupted = False
+    resmoke_logger.info("params:%s", str(values))
+
+    '''
+    获得对应 suite 中的需要测试的具体的文件列表
+    '''
     suites = resmokelib.parser.get_suites(values, args)
 
     # Register a signal handler or Windows event object so we can write the report file if the task
