@@ -189,7 +189,7 @@ Status addMongodOptions(moe::OptionSection* options) {
         .setSources(moe::SourceAllLegacy);
     general_options
         .addOptionChaining(
-            "failure.allow.delay.ms", "failure_allow_delay_ms", moe::Int, "failure detector allow delay time, default: 60000ms")
+            "failure.allow.delay.ms", "failure_allow_delay_ms", moe::Int, "failure detector allow delay time, default: 30000ms")
         .setSources(moe::SourceAllLegacy);
     general_options
         .addOptionChaining(

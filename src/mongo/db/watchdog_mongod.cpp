@@ -146,6 +146,7 @@ void startWatchdog(ServiceContext* service) {
         } else {
             boost::filesystem::path logFile = boost::filesystem::current_path();
             if (logFile.string() == "/") {
+                log() << "log path is root, so logpath is changed to /tmp";
                 logFile = boost::filesystem::path("/tmp");
             }
 

@@ -360,7 +360,6 @@ bool FailureDetectorHealthCheck::isHealth(long time) {
         return true;
     }
 
-    auto health = WatchdogCheck::isHealth(time);
     //说明最近最近有一次切换，那么就触发新选举了
     if (_currentPrimary != primary.toString()) {
         log() << "last switch, Old:" << _currentPrimary << " => New:" << primary
@@ -370,6 +369,7 @@ bool FailureDetectorHealthCheck::isHealth(long time) {
         return true;
     }
 
+    auto health = WatchdogCheck::isHealth(time);
     if (!health) {
         // 在3分钟内的切换就不触发
         if ((time - _prevElectionTime.load()) <= 180 * 1000) {
@@ -434,6 +434,11 @@ std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const H
     }
 }
 
+/**
+ * 每次做健康度检测的连接都必须是新建的，原因在于使用连接池的connection容易延迟检测的时效性；
+ * 因为在一些故障场景中，创建新的连接是有问题的，但是使用老的连接是正常的，所以健康度检测的方式是
+ * 通过每次创建新连接来避免这种情况
+ */
 std::tuple<bool, std::shared_ptr<DBClientConnection>> FailureDetectorHealthCheck::_getNewConnection(
     const HostAndPort& addr, int timeoutSecs) {
     auto tmp = std::shared_ptr<DBClientConnection>(
