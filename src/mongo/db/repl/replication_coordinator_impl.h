@@ -327,6 +327,8 @@ public:
 
     virtual Status abortCatchupIfNeeded() override;
 
+    virtual std::tuple<bool, HostAndPort> getPrimary() override;
+
     // ================== Test support API ===================
 
     /**

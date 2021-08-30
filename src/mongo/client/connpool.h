@@ -365,7 +365,7 @@ private:
     // 0 effectively disables the pool
     int _maxPoolSize;
 
-    // 对于每一个host，最大可以被打开的连接数;
+    // 对于每一个 host，最大可以被打开的连接数;
     int _maxOpenConnectionSize;
 
     PoolMap _pools;

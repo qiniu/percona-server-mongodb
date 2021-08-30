@@ -3814,6 +3814,11 @@ void ReplicationCoordinatorImpl::setIndexPrefetchConfig(
     _indexPrefetchConfig = cfg;
 }
 
+std::tuple<bool, HostAndPort> ReplicationCoordinatorImpl::getPrimary() {
+    LockGuard topoLock(_topoMutex);
+    return this->_topCoord->getPrimary();
+}
+
 
 }  // namespace repl
 }  // namespace mongo

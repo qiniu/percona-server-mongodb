@@ -876,7 +876,7 @@ BSONObj CheckPort(const BSONObj& args, void* data){
     struct sockaddr_in servaddr;
     bzero(&servaddr,sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servaddr.sin_addr.s_addr = inet_addr("0.0.0.0");
     servaddr.sin_port = htons(port);
     bool can_use = true;
 

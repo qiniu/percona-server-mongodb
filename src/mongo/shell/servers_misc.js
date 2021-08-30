@@ -189,6 +189,12 @@ allocatePort = (function() {
         // are also outside the ephemeral port range.
         nextPort = nextPort || jsTestOptions().minPort || 20000;
         maxPort = maxPort || jsTestOptions().maxPort || Math.pow(2, 16) - 1;
+        
+        // random next port.
+        tmp = nextPort;
+        while (tmp == nextPort) {
+            tmp =  Math.floor(jsTestOptions().minPort + (maxPort - jsTestOptions().minPort) * Math.random() / 2);
+        }
 
         while(true){
             if (nextPort === maxPort) {

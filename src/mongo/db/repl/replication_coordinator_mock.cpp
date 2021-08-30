@@ -237,6 +237,10 @@ ReplSetConfig ReplicationCoordinatorMock::getConfig() const {
     return _getConfigReturnValue;
 }
 
+std::tuple<bool, HostAndPort> ReplicationCoordinatorMock::getPrimary() {
+    return std::make_tuple(false, HostAndPort());
+}
+
 void ReplicationCoordinatorMock::setGetConfigReturnValue(ReplSetConfig returnValue) {
     _getConfigReturnValue = std::move(returnValue);
 }

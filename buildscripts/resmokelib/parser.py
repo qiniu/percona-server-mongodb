@@ -1,3 +1,5 @@
+#-*- coding:utf-8 -*-
+
 """
 Parser for command line arguments.
 """
@@ -8,6 +10,7 @@ import collections
 import os
 import os.path
 import optparse
+import json
 
 from . import config as _config
 from . import testing
@@ -398,6 +401,7 @@ def get_suites(values, args):
 
     suites = []
     for suite_filename in suite_files:
+        # 根据 suite name 来获得对应的 test 的 js 列表
         suite_config = _get_suite_config(suite_filename)
         _ensure_executor(suite_config, values.executor_file)
         suite = testing.suite.Suite(suite_filename, suite_config)

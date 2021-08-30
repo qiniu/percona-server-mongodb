@@ -121,6 +121,7 @@ public:
                                           const ReadConcernArgs& settings) override;
 
     virtual OID getElectionId();
+    virtual std::tuple<bool, HostAndPort> getPrimary();
 
     virtual OID getMyRID() const;
 
