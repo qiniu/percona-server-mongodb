@@ -30,7 +30,6 @@ long FailureDetectorCheck::getSteadyMs() {
         .count();
 }
 
-//每一周key会轮训回来
 std::string FailureDetectorCheck::generateKey() {
     static string prefix = str::stream()
         << HostAndPort(getHostNameCached(), serverGlobalParams.port).toString() << ':';
