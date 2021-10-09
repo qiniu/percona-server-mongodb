@@ -415,12 +415,7 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
 
     updateStateInLock();
 
-    Timer t;
     spawnConnections(lk);
-    long long millisElapsed = t.millis();
-    if(millisElapsed > 50){
-        log()<< "[MongoStat] [ConnectionPool::SpecificPool] "<< hostAndPort.toString()<<":spawnConnections connection optime = "<<millisElapsed<<"ms";
-    }
     fulfillRequests(lk);
 }
 

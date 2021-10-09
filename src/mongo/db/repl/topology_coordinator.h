@@ -38,6 +38,8 @@
 #include "mongo/stdx/functional.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
+#include <string>
+#include <tuple>
 
 namespace mongo {
 
@@ -83,6 +85,12 @@ public:
      * Gets the MemberState of this member in the replica set.
      */
     virtual MemberState getMemberState() const = 0;
+
+    /**
+     * get primary when Mode = ReplicaSet
+     * if mode is not ReplicaSet, return tuple<false,empty HostAndPort>
+     */ 
+    virtual std::tuple<bool,HostAndPort> getPrimary() const = 0;
 
     /**
      * Returns the address of the current sync source, or an empty HostAndPort if there is no

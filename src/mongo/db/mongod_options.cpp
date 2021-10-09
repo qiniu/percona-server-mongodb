@@ -174,6 +174,35 @@ Status addMongodOptions(moe::OptionSection* options) {
             "sysinfo", "sysinfo", moe::Switch, "print some diagnostic system information")
         .setSources(moe::SourceAllLegacy);
 
+    general_options
+        .addOptionChaining(
+            "failure.detector", "failure_detector", moe::Bool, "open/close failure detector, default:true")
+        .setSources(moe::SourceAllLegacy);
+    general_options
+        .addOptionChaining(
+            "disk.detector", "disk_detector", moe::Bool, "open/close  detector, default:true")
+        .setSources(moe::SourceAllLegacy);
+
+    general_options
+        .addOptionChaining(
+            "failure.peroid.ms", "failure_peroid_ms", moe::Int, "peroid of failure detector, default:4000ms")
+        .setSources(moe::SourceAllLegacy);
+    general_options
+        .addOptionChaining(
+            "failure.allow.delay.ms", "failure_allow_delay_ms", moe::Int, "failure detector allow delay time, default: 30000ms")
+        .setSources(moe::SourceAllLegacy);
+    general_options
+        .addOptionChaining(
+            "disk.peroid.ms", "disk_peroid_ms", moe::Int, "peroid of disk detector, default:2000ms")
+        .setSources(moe::SourceAllLegacy);
+    general_options
+        .addOptionChaining(
+            "disk.allow.delay.ms", "disk_allow_delay_ms", moe::Int, "disk detector allow delay time, default: 60000ms")
+        .setSources(moe::SourceAllLegacy);
+    general_options
+        .addOptionChaining(
+            "monitor.peroid.ms", "monitor_peroid_ms", moe::Int, "monitor detector allow delay time, default: 10000ms")
+        .setSources(moe::SourceAllLegacy);
     // Storage Options
 
     storage_options.addOptionChaining(
@@ -1118,6 +1147,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     if (params.count("net.http.JSONPEnabled")) {
         serverGlobalParams.jsonp = params["net.http.JSONPEnabled"].as<bool>();
     }
+
     if (params.count("security.javascriptEnabled")) {
         mongodGlobalParams.scriptingEnabled = params["security.javascriptEnabled"].as<bool>();
     }

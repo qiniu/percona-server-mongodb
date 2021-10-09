@@ -53,11 +53,17 @@ class PortAllocator(object):
 
     # Each job gets a contiguous range of _PORTS_PER_JOB ports, with job 0 getting the first block
     # of ports, job 1 getting the second block, and so on.
-    _PORTS_PER_JOB = 250
+    _PORTS_PER_JOB = 2000
+
+    _PORTS_PER_TESTCASE = 50
+
+    _PORT_OFFSET = 0
+
+    _PORT_TESTCASE_MAX = 0
 
     # The first _PORTS_PER_FIXTURE ports of each range are reserved for the fixtures, the remainder
     # of the port range is used by tests.
-    _PORTS_PER_FIXTURE = 10
+    _PORTS_PER_FIXTURE = 50 
 
     _NUM_USED_PORTS_LOCK = threading.Lock()
 
@@ -98,7 +104,12 @@ class PortAllocator(object):
         Raises a PortAllocationError if that port is higher than the
         maximum port.
         """
-        return config.BASE_PORT + (job_num * cls._PORTS_PER_JOB) + cls._PORTS_PER_FIXTURE
+        segments = (cls._PORTS_PER_JOB - cls._PORTS_PER_FIXTURE) / cls._PORTS_PER_TESTCASE
+        with cls._NUM_USED_PORTS_LOCK:
+            tmp = config.BASE_PORT + (job_num * cls._PORTS_PER_JOB) + cls._PORTS_PER_FIXTURE + cls._PORT_OFFSET * cls._PORTS_PER_TESTCASE
+            cls._PORT_TESTCASE_MAX = tmp + cls._PORTS_PER_TESTCASE - 1
+            cls._PORT_OFFSET = (cls._PORT_OFFSET + 1) % segments
+            return tmp
 
     @classmethod
     @_check_port
@@ -110,5 +121,8 @@ class PortAllocator(object):
         Raises a PortAllocationError if that port is higher than the
         maximum port.
         """
-        next_range_start = config.BASE_PORT + ((job_num + 1) * cls._PORTS_PER_JOB)
-        return next_range_start - 1
+        with cls._NUM_USED_PORTS_LOCK:
+            if cls._PORT_TESTCASE_MAX == 0: 
+                return config.BASE_PORT + ((job_num + 1) * cls._PORTS_PER_JOB)
+            else:
+                return cls._PORT_TESTCASE_MAX

@@ -246,6 +246,8 @@ public:
 
     virtual boost::optional<OpTime> latestKnownOpTimeSinceHeartbeatRestart() const;
 
+    virtual std::tuple<bool, HostAndPort> getPrimary() const;
+
     ////////////////////////////////////////////////////////////
     //
     // Test support methods

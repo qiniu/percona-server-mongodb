@@ -2719,5 +2719,14 @@ boost::optional<OpTime> TopologyCoordinatorImpl::latestKnownOpTimeSinceHeartbeat
     return latest;
 }
 
+std::tuple<bool, HostAndPort> TopologyCoordinatorImpl::getPrimary() const {
+    static HostAndPort S_EMPTY;
+    const MemberConfig* curPrimary = _currentPrimaryMember();
+    if (curPrimary) {
+        return std::make_tuple(true, curPrimary->getHostAndPort());
+    }
+    return std::make_tuple(false, S_EMPTY);
+}
+
 }  // namespace repl
 }  // namespace mongo

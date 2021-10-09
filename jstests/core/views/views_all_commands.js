@@ -497,6 +497,7 @@
         // Percona commands
         auditGetOptions: {skip: isUnrelated},
         createBackup: {skip: isUnrelated},
+        dumpchunks: {skip: isUnrelated},
     };
 
     /**

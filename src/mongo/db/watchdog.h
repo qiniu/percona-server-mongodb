@@ -40,6 +40,8 @@
 #include "mongo/stdx/thread.h"
 #include "mongo/util/duration.h"
 #include "mongo/stdx/mutex.h"
+#include <unordered_map>
+#include "mongo/db/stats/watchdogcounter.h"
 
 namespace mongo {
 
@@ -65,8 +67,13 @@ void watchdogTerminate();
  *
  * It is pluggable for testing purposes.
  */
-class WatchdogCheck {
+class WatchdogCheck : public WatchdogElement {
 public:
+    WatchdogCheck(const std::string& name,
+                  Milliseconds period,
+                  Milliseconds allowDelayTime,
+                  WatchdogDeathCallback callback);
+
     virtual ~WatchdogCheck() = default;
 
     /**
@@ -81,6 +88,76 @@ public:
      * Returns a description for the watchdog check to log to the log file.
      */
     virtual std::string getDescriptionForLogging() = 0;
+
+    /**
+     * 判断当前周期是否可以运行
+     */ 
+    virtual bool isRunCurrentPeriod(long count) const {
+        return true;
+    }
+
+    //判断当前时刻，这个任务是否正常
+    virtual bool isHealth(long nowTime) {
+        if (this->_timePreRun.load() == 0) {
+            // 第一次运行先过滤掉检查
+            long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now().time_since_epoch())
+                             .count();
+            this->setRunSuccessTime(nowMs);
+            return true;
+        }
+
+        if ((nowTime - this->_timePreRun.load()) >= _allowDelayTime.count()) {
+            return false;
+        } 
+        return true;
+    }
+
+    const std::string& getName() const { 
+        return this->_name;
+    }
+
+    Milliseconds getPeriod() const {
+        return this->_period;
+    }
+
+    long getTimePreRun() const {
+        return this->_timePreRun.load();
+    }
+
+    void setRunSuccessTime(long now) {
+        this->_timePreRun.store(now);
+    }
+
+    Milliseconds getAllowDelayTime() const {
+        return this->_allowDelayTime;
+    }
+
+    WatchdogDeathCallback getCallback() const {
+        return this->_callback;
+    }
+
+    bool getIsBlocking() const {
+        return this->_isBlocking;
+    }
+    
+    void setIsBlocking(bool value) {
+        this->_isBlocking = value;
+    }
+
+private:
+    // 上一次运行正常的时间戳
+    AtomicInt64 _timePreRun{0};
+    //每一个 check 都有自己的调度频率
+    Milliseconds _period;
+    // 允许错误的时间长度，默认是 1 分钟
+    Milliseconds _allowDelayTime;
+    // 每一个 check 都有自己的对应的回调函数
+    WatchdogDeathCallback _callback;
+    // name
+    std::string _name;
+    // block or non_blocking
+    bool _isBlocking{false};
 };
 
 /**
@@ -93,20 +170,32 @@ public:
     static constexpr StringData kProbeFileNameExt = ".txt"_sd;
 
 public:
-    DirectoryCheck(const boost::filesystem::path& directory) : _directory(directory) {
+    DirectoryCheck(std::string name, const boost::filesystem::path& directory, Milliseconds peroid, Milliseconds allowDelayTime)
+    : WatchdogCheck(name, peroid, allowDelayTime, watchdogTerminate),
+          _directory(directory) {
         _fd = -1;
         _only_write_check_cnt = 0;
+
+        _monitor["runCount"] = std::make_unique<AtomicInt32>(0); 
+        _monitor["runSuc"] = std::make_unique<AtomicInt32>(0); 
+        _monitor["runFail"] = std::make_unique<AtomicInt32>(0); 
+        this->setIsBlocking(true);
+        globalWatchdogCounter.registerElement(this->getName(), this);
     }
 
     void run(OperationContext* opCtx) final;
 
     std::string getDescriptionForLogging() final;
 
+    bool isRunCurrentPeriod(long count) const;
+
+    BSONObj getObj() const override;
 private:
     boost::filesystem::path _directory;
     int _fd;
     int _only_write_check_cnt;
-
+    mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
+    AtomicBool _run{false};
 };
 
 /**
@@ -157,6 +246,10 @@ protected:
      */
     virtual void resetState() = 0;
 
+protected:
+    // Thread period
+    Milliseconds _period;
+
 private:
     /**
      * Main thread loop
@@ -198,8 +291,6 @@ private:
     // State of PeriodicThread
     State _state{State::kNotStarted};
 
-    // Thread period
-    Milliseconds _period;
 
     // if true, then call run() otherwise just let the thread idle,
     bool _enabled;
@@ -219,17 +310,13 @@ private:
 /**
  * Periodic background thread to run watchdog checks.
  */
-class WatchdogCheckThread : public WatchdogPeriodicThread {
+class WatchdogCheckThread : public WatchdogPeriodicThread, public WatchdogElement {
 public:
-    WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks, Milliseconds period);
+    WatchdogCheckThread(std::vector<std::unique_ptr<WatchdogCheck>> checks, Milliseconds period, const std::string& name);
 
-    /**
-     * Returns the current generation number of the checks.
-     *
-     * Incremented after each check is run.
-     */
-    std::int64_t getGeneration();
-
+    //被 monitor 线程调用，用来检查当前这些检查是否 ok
+    void checkHealths();
+    BSONObj getObj() const override;
 private:
     void run(OperationContext* opCtx) final;
     void resetState() final;
@@ -237,10 +324,9 @@ private:
 private:
     // Vector of checks to run
     std::vector<std::unique_ptr<WatchdogCheck>> _checks;
+    AtomicWord<long long> _count{0};
 
-    // A counter that is incremented for each watchdog check completed, and monitored to ensure it
-    // does not remain at the same value for too long.
-    AtomicWord<long long> _checkGeneration{0};
+    mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
 };
 
 /**
@@ -248,33 +334,18 @@ private:
  */
 class WatchdogMonitorThread : public WatchdogPeriodicThread {
 public:
-    WatchdogMonitorThread(WatchdogCheckThread* checkThread,
-                          WatchdogDeathCallback callback,
+    WatchdogMonitorThread(const std::shared_ptr<WatchdogCheckThread>& blocking,
+                          const std::shared_ptr<WatchdogCheckThread>& nonBlocking,
                           Milliseconds period);
-
-    /**
-     * Returns the current generation number of the monitor.
-     *
-     * Incremented after each round of monitoring is run.
-     */
-    std::int64_t getGeneration();
 
 private:
     void run(OperationContext* opCtx) final;
     void resetState() final;
 
 private:
-    // Callback function to call when watchdog gets stuck
-    const WatchdogDeathCallback _callback;
-
     // Watchdog check thread to query
-    WatchdogCheckThread* _checkThread;
-
-    // A counter that is incremented for each watchdog monitor run is completed.
-    AtomicWord<long long> _monitorGeneration{0};
-
-    // The last seen _checkGeneration value
-    std::int64_t _lastSeenGeneration{-1};
+    std::shared_ptr<WatchdogCheckThread>  _checkBlockingThread;
+    std::shared_ptr<WatchdogCheckThread>  _checkNonBlockingThread;
 };
 
 
@@ -304,8 +375,7 @@ public:
      */
     WatchdogMonitor(std::vector<std::unique_ptr<WatchdogCheck>> checks,
                     Milliseconds checkPeriod,
-                    Milliseconds monitorPeriod,
-                    WatchdogDeathCallback callback);
+                    Milliseconds monitorPeriod);
 
     /**
      * Starts the watchdog threads.
@@ -333,14 +403,14 @@ public:
      *
      * Incremented after each round of checks is run.
      */
-    std::int64_t getCheckGeneration();
+    // std::int64_t getCheckGeneration();
 
     /**
      * Returns the current generation number of the checks.
      *
      * Incremented after each round of checks is run.
      */
-    std::int64_t getMonitorGeneration();
+    // std::int64_t getMonitorGeneration();
 
 private:
     /**
@@ -380,14 +450,14 @@ private:
     // State of watchdog
     State _state{State::kNotStarted};
 
-    // Fixed period for running the checks.
-    Milliseconds _checkPeriod;
+    // WatchdogCheck Thread - runs checks (non-blocking)
+    std::shared_ptr<WatchdogCheckThread> _watchdogNonBlockCheckThread{nullptr};
 
-    // WatchdogCheck Thread - runs checks
-    WatchdogCheckThread _watchdogCheckThread;
+    // WatchdogCheck Thread - runs checks (blocking)
+    std::shared_ptr<WatchdogCheckThread> _watchdogBlockCheckThread{nullptr};
 
     // WatchdogMonitor Thread - watches _watchdogCheckThread
-    WatchdogMonitorThread _watchdogMonitorThread;
+    std::shared_ptr<WatchdogMonitorThread> _watchdogMonitorThread{nullptr};
 };
 
 }  // namespace mongo

@@ -219,6 +219,17 @@ BSONObj ApCounterServerStatusSection::generateSection(OperationContext* txn,
 
 ApCounterServerStatusSection globalApCounterServerStatusSection("apcounters", &globalApCounter);
 
+WatchdogServerStatusSection::WatchdogServerStatusSection(const string& sectionName,
+                                                           WatchdogCounter* counters)
+    : ServerStatusSection(sectionName), _counters(counters) {}
+
+BSONObj WatchdogServerStatusSection::generateSection(OperationContext* txn,
+                                                      const BSONElement& configElement) const {
+    return _counters->getObj();
+}
+
+WatchdogServerStatusSection globalWatchdogCounterServerStatusSection("watchdog", &globalWatchdogCounter);
+
 
 namespace {
 

@@ -76,6 +76,16 @@ env.Library(
 )
 
 env.Library(
+    target='watchdogcounter',
+    source=[
+        'watchdogcounter.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+    ],
+)
+
+env.Library(
     target='fill_locker_info',
     source=[
         'fill_locker_info.cpp',

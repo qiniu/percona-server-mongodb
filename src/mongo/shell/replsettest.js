@@ -468,6 +468,7 @@ var ReplSetTest = function(opts) {
         for (var i = 0; i < this.ports.length; i++) {
             hosts.push(this.host + ":" + this.ports[i]);
         }
+        hosts.sort();
 
         return this.name + "/" + hosts.join(",");
     };

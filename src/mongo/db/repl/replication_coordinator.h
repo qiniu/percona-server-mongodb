@@ -861,6 +861,13 @@ public:
      */
     virtual Status abortCatchupIfNeeded() = 0;
 
+    /**
+     * get replica's primary
+     * 1. mode is not replica return ""
+     * 2. replica no primary return ""
+     */ 
+    virtual std::tuple<bool, HostAndPort> getPrimary() = 0;
+
 protected:
     ReplicationCoordinator();
 };

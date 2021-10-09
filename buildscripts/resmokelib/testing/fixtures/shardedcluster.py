@@ -73,6 +73,7 @@ class ShardedClusterFixture(interface.Fixture):
             if self.configsvr is None:
                 self.configsvr = self._new_configsvr()
             self.configsvr.setup()
+        self.logger.info("config svr start is success")
 
         if not self.shards:
             for i in xrange(self.num_shards):
@@ -82,6 +83,7 @@ class ShardedClusterFixture(interface.Fixture):
         # Start up each of the shards
         for shard in self.shards:
             shard.setup()
+            self.logger.info("shard start is success")
 
     def await_ready(self):
         # Wait for the config server
@@ -287,8 +289,19 @@ class _MongoSFixture(interface.Fixture):
         self.mongos = None
 
     def setup(self):
-        if "port" not in self.mongos_options:
-            self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+        existed = False
+        for i in range(0, 20):
+            if "port" not in self.mongos_options:
+                self.mongos_options["port"] = core.network.PortAllocator.next_fixture_port(self.job_num)
+            else:
+                existed = True
+
+            if not self.check_port(self.mongos_options["port"]):
+                if existed:
+                    self.logger.error("[mongos] port is sure, so sleep 10s, i will waiting")
+                    time.sleep(10) 
+                else:
+                    self.mongos_options.pop("port")
         self.port = self.mongos_options["port"]
 
         mongos = core.programs.mongos_program(self.logger,
@@ -303,6 +316,18 @@ class _MongoSFixture(interface.Fixture):
             raise
 
         self.mongos = mongos
+
+    def check_port(self, port):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("0.0.0.0", port))
+            s.close()
+            return True
+        except socket.error as msg:
+            self.logger.error("[mongos] bind 127.0.0.1:%d is error, reason:%s", port, msg[1])
+            return False
+
 
     def await_ready(self):
         deadline = time.time() + standalone.MongoDFixture.AWAIT_READY_TIMEOUT_SECS
