@@ -34,6 +34,7 @@
 
 #include "mongo/base/disallow_copying.h"
 #include "mongo/stdx/functional.h"
+#include "mongo/util/invariant.h"
 
 namespace mongo {
 namespace executor {
@@ -53,6 +54,15 @@ public:
 
     virtual void connect(asio::ip::tcp::resolver::iterator endpoints,
                          ConnectHandler&& connectHandler) = 0;
+
+    /**
+     * qiniu的特色改造，通过新的socket fd来替换底层的sokcet
+     * 
+     * 默认函数实现是会panic的
+     */ 
+    virtual bool switchSocket(int64_t newFd) {
+        invariant(false);
+    }
 
     virtual void write(asio::const_buffer buf, StreamHandler&& writeHandler) = 0;
 

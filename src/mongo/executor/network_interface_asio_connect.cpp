@@ -43,6 +43,7 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
 #include "mongo/util/timer.h"
+#include "mongo/s/mongos_options.h"
 
 namespace mongo {
 namespace executor {
@@ -100,13 +101,21 @@ void NetworkInterfaceASIO::_setupSocket(AsyncOp* op, tcp::resolver::iterator end
         op->setConnection({std::move(stream), rpc::supports::kOpQueryOnly});
     }
 
-    auto& stream = op->connection().stream();
-    stream.connect(std::move(endpoints),
-                   [this, op](std::error_code ec) {
+    const auto connectionSuccess = [this, op] (std::error_code ec, size_t bytes){
                        _validateAndRun(op, ec, [this, op]() {
-                           _runIsMaster(op);
+                            _runIsMaster(op);
                        });
-                   });
+
+    auto& stream = op->connection().stream();
+    stream.connect(std::move(endpoints),[this, op, connectionSuccess](std::error_code ec){
+                       _validateAndRun(op, ec, [this, op, ec, connectionSuccess]() {
+                           if (mongosGlobalParams.authproxyModel) {
+                                _getNewSocket(op, std::move(connectionSuccess));
+                           } else {
+                               connectionSuccess(ec, 0);
+                           }
+                       });
+    });
 }
 
 }  // namespace executor

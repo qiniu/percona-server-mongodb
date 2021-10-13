@@ -46,6 +46,7 @@ namespace moe = mongo::optionenvironment;
 struct MongosGlobalParams {
     // The config server connection string
     ConnectionString configdbs;
+    bool authproxyModel = false;
 };
 
 extern MongosGlobalParams mongosGlobalParams;

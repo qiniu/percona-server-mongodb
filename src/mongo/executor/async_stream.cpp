@@ -47,6 +47,32 @@ AsyncStream::~AsyncStream() {
     destroyStream(&_stream, _connected);
 }
 
+bool AsyncStream::switchSocket(int64_t newFd) {
+    if (newFd <= 0 ) {
+        log() << "switch new fd is invalid";
+        return;
+    }
+
+
+    if (isOpen()) {
+        int oldFd = _stream.native_handle();
+        log() << "switch fd, old fd:" << static_cast<int64_t>(oldFd) << "=>" << newFd;
+
+        asio::ip::tcp::socket newFd(_strand->get_io_service(), asio::ip::tcp::v4(), newFd);
+        this->_stream = newFd;
+        if (isOpen()) {
+            log() << "switch old fd:" << oldFd << "=>" << newFd << " is success"; 
+            return true;
+        } else {
+            log() << "switch old fd:" << oldFd << "=>" << newFd << " is failure"; 
+        }
+    } else {
+        log() << "this asyncstream is not open";
+    }
+
+    return false;
+}
+
 void AsyncStream::connect(tcp::resolver::iterator iter, ConnectHandler&& connectHandler) {
     asio::async_connect(
         _stream,

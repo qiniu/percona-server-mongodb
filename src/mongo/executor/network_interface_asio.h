@@ -440,6 +440,7 @@ private:
 
     // Connection
     void _connect(AsyncOp* op);
+    void _getNewSocket(AsyncOp* op);
 
     // setup plaintext TCP socket
     void _setupSocket(AsyncOp* op, asio::ip::tcp::resolver::iterator endpoints);

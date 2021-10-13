@@ -200,6 +200,12 @@ Status storeMongosOptions(const moe::Environment& params) {
         // This option currently has no effect for mongos
     }
 
+    if (params.count("authproxy.model")) {
+        mongosGlobalParams.authproxyModel = params["authproxy.model"].as<bool>();
+    } else {
+        mongosGlobalParams.authproxyModel = false;
+    }
+
     if (!params.count("sharding.configDB")) {
         return Status(ErrorCodes::BadValue, "error: no args for --configdb");
     }

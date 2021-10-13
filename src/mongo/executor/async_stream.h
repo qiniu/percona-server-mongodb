@@ -43,6 +43,8 @@ public:
 
     void connect(asio::ip::tcp::resolver::iterator iter, ConnectHandler&& connectHandler) override;
 
+    bool switchSocket(int64_t newFd) override;
+
     void write(asio::const_buffer buffer, StreamHandler&& streamHandler) override;
 
     void read(asio::mutable_buffer buffer, StreamHandler&& streamHandler) override;
