@@ -501,6 +501,11 @@ int BSONObj::getIntField(StringData name) const {
     return e.isNumber() ? (int)e.number() : std::numeric_limits<int>::min();
 }
 
+long BSONObj::getLongField(StringData name) const {
+    BSONElement e = getField(name);
+    return e.isNumber() ? (long)e.number() : std::numeric_limits<long>::min();
+}
+
 bool BSONObj::getBoolField(StringData name) const {
     BSONElement e = getField(name);
     return e.type() == Bool ? e.boolean() : false;

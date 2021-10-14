@@ -50,48 +50,13 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/ssl_manager.h"
 #include "mongo/util/version.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 namespace executor {
 
 using ResponseStatus = TaskExecutor::ResponseStatus;
 
-void NetworkInterfaceASIO::_getNewSocket(AsyncOp* op, NetworkOpHandler handler) {
-    std::shared_ptr<MSGHEADER::Value> header = std::make_shared<MSGHEADER::Value>();
-    std::shared_ptr<Message> recvMsg = std::make_shared<Message>();
-
-    /**
-     * 当接受到新的文件句柄的时候，需要做的事情:
-     * 1. 请求成功
-     *      1.1 将新的文件句柄进行替换，
-     *      1.2 关闭之前的socket
-     * 2. 请求失败
-     *      2.1 直接关闭当前的这个异步任务
-     */
-    auto recvMsgCallback  = [this, op, recvMsg](std::error_code ec, size_t bytes) {
-        _validateAndRun(op, ec, [this, op, recvMsg, ec, bytes]{
-            NewFdRespMsg msg(recvMsg->header().data());
-            if (!msg.check()) {
-                log() << "msg is invaild, msg:" << msg.toString();
-                handler(make_error_code(ErrorCodes::InvalidFdResp), bytes);
-            }
-
-            if (op->connection().stream().switchSocket(msg.getRemoteFd())) {
-                handler(ec, bytes);
-            } else {
-                handler(make_error_code(ErrorCodes::InvalidNewFd), bytes)
-            }
-        });
-    });
-    auto recvHeaderCallback = [this, op, header, recvMsg, recvMsgCallback](std::error_code ec, size_t bytes) {
-        _validateAndRun(op, ec, [this, op, header, bytes, recvMsg, recvMsgCallback]{
-            int32_t actualId = header->constView().getResponseToMsgId();
-            log() << "receive respId:" << actualId;
-            asyncRecvMessageBody(op->connection().stream(), header->get(), recvMsg->get(), std::move(recvMsgCallback))
-        });
-    };
-    asyncRecvMessageHeader(op->connection().stream(), header->get(), std::move(recvHeaderCallback)); 
-}
 
 void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
     // We use a legacy builder to create our ismaster request because we may
@@ -133,7 +98,6 @@ void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
 
     // Callback to parse protocol information out of received ismaster response
     auto parseIsMaster = [this, op]() {
-
         auto swCommandReply = op->command()->response(op, rpc::Protocol::kOpQuery, now());
         if (!swCommandReply.isOK()) {
             return _completeOperation(op, swCommandReply);
@@ -198,7 +162,6 @@ void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
         }
 
         return _authenticate(op);
-
     };
 
     _asyncRunCommand(op, [this, op, parseIsMaster](std::error_code ec, size_t bytes) {

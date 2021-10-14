@@ -34,7 +34,8 @@
 
 #include "mongo/base/disallow_copying.h"
 #include "mongo/stdx/functional.h"
-#include "mongo/util/invariant.h"
+#include "mongo/util/assert_util.h"
+#include "mongo/util/net/sockaddr.h"
 
 namespace mongo {
 namespace executor {
@@ -61,6 +62,14 @@ public:
      * 默认函数实现是会panic的
      */ 
     virtual bool switchSocket(int64_t newFd) {
+        invariant(false);
+    }
+
+    virtual const SockAddr& getRemoteAddr() {
+        invariant(false);
+    }
+
+    virtual int64_t getSocketFd() {
         invariant(false);
     }
 

@@ -94,6 +94,12 @@ Status addMongosOptions(moe::OptionSection* options) {
         "localThreshold",
         moe::Int,
         "ping time (in ms) for a node to be considered local (default 15ms)");
+        
+    sharding_options.addOptionChaining(
+        "authproxy.model",
+        "authproxy",
+        moe::Bool,
+        "use authproxy to multi dc");
 
     sharding_options.addOptionChaining("test", "test", moe::Switch, "just run unit tests")
         .setSources(moe::SourceAllLegacy);
@@ -198,12 +204,6 @@ Status storeMongosOptions(const moe::Environment& params) {
 
     if (params.count("noscripting")) {
         // This option currently has no effect for mongos
-    }
-
-    if (params.count("authproxy.model")) {
-        mongosGlobalParams.authproxyModel = params["authproxy.model"].as<bool>();
-    } else {
-        mongosGlobalParams.authproxyModel = false;
     }
 
     if (!params.count("sharding.configDB")) {

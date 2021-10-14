@@ -55,7 +55,7 @@ class PortAllocator(object):
     # of ports, job 1 getting the second block, and so on.
     _PORTS_PER_JOB = 2000
 
-    _PORTS_PER_TESTCASE = 50
+    _PORTS_PER_TESTCASE = 200 
 
     _PORT_OFFSET = 0
 

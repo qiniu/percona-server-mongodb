@@ -31,6 +31,7 @@
 #include <asio.hpp>
 
 #include "mongo/executor/async_stream_interface.h"
+#include "mongo/util/net/sockaddr.h"
 
 namespace mongo {
 namespace executor {
@@ -45,6 +46,10 @@ public:
 
     bool switchSocket(int64_t newFd) override;
 
+    const SockAddr& getRemoteAddr() override;
+
+    int64_t getSocketFd() override;
+
     void write(asio::const_buffer buffer, StreamHandler&& streamHandler) override;
 
     void read(asio::mutable_buffer buffer, StreamHandler&& streamHandler) override;
@@ -56,6 +61,7 @@ public:
 private:
     asio::io_service::strand* const _strand;
     asio::ip::tcp::socket _stream;
+    SockAddr _realRemoteAddr; 
     bool _connected = false;
 };
 

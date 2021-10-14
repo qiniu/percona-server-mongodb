@@ -34,7 +34,9 @@
 #include "mongo/executor/async_stream_common.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
-
+#include "mongo/base/system_error.h"
+#include "mongo/db/stats/sockscounter.h"
+#include "mongo/db/server_options.h"
 namespace mongo {
 namespace executor {
 
@@ -47,27 +49,44 @@ AsyncStream::~AsyncStream() {
     destroyStream(&_stream, _connected);
 }
 
+const SockAddr& AsyncStream::getRemoteAddr() {
+    return _realRemoteAddr;
+}
+
 bool AsyncStream::switchSocket(int64_t newFd) {
     if (newFd <= 0 ) {
-        log() << "switch new fd is invalid";
-        return;
+        LOG(0) << "[MongoStat][Asio][Switch] switch new fd is invalid";
+        return false;
     }
 
+    int oldFd = _stream.native_handle();
+    //需要先关闭之前的socket
+    destroyStream(&this->_stream, _connected);
+    
+    asio::ip::tcp::socket newSocketFd(_strand->get_io_service(), asio::ip::tcp::v4(), newFd);
+    this->_stream = std::move(newSocketFd);
+    auto errorCode = setStreamNonBlocking(&this->_stream);
+    if (errorCode) {
+        LOG(0) << "[MongoStat][Asio][Switch] set stream non blocking is error, code:" << errorCode.message();
+        return false;
+    }
+    errorCode = setStreamNoDelay(&_stream);
+    if (errorCode) {
+        LOG(0) << "[MongoStat][Asio][Switch] set stream NoDelay is error, code:" << errorCode.message();
+        return false;
+    }
+
+    errorCode = setStreamKeepAlive(&_stream);
+    if (errorCode) {
+        LOG(0) << "[MongoStat][Asio][Switch] set stream keepalive is error, code:" << errorCode.message();
+        return false;
+    }
 
     if (isOpen()) {
-        int oldFd = _stream.native_handle();
-        log() << "switch fd, old fd:" << static_cast<int64_t>(oldFd) << "=>" << newFd;
-
-        asio::ip::tcp::socket newFd(_strand->get_io_service(), asio::ip::tcp::v4(), newFd);
-        this->_stream = newFd;
-        if (isOpen()) {
-            log() << "switch old fd:" << oldFd << "=>" << newFd << " is success"; 
-            return true;
-        } else {
-            log() << "switch old fd:" << oldFd << "=>" << newFd << " is failure"; 
-        }
+        log() << "[MongoStat][Asio][Switch][fd1:" << static_cast<int>(oldFd) << " => fd2:" << newFd << "] is success";
+        return true;
     } else {
-        log() << "this asyncstream is not open";
+        LOG(0) << "[MongoStat][Asio][Switch][fd1:" << static_cast<int>(oldFd) << " => fd2:" << newFd << "] is failure";
     }
 
     return false;
@@ -102,6 +121,22 @@ void AsyncStream::connect(tcp::resolver::iterator iter, ConnectHandler&& connect
             }
 
             _connected = true;
+
+            //开关，如果不需要的话就不进行判断
+            if (serverGlobalParams.authproxyModel) {
+                tcp::endpoint tmp = iter->endpoint();
+                try {
+                    if (tmp.address().is_v4()) {
+                        _realRemoteAddr = SockAddr(tmp.address().to_v4().to_string(), tmp.port());
+                    } else {
+                        LOG(0) << "i just support ip v4 addr, so i will exit";
+                        invariant(false);
+                    }
+                } catch (...) {
+                    LOG(0) << "get real remote addr is error, addr:" << tmp.address().to_string();
+                    return connectHandler(make_error_code(ErrorCodes::InvalidRemoteAddr));
+                }
+            }
             return connectHandler(ec);
         }));
 }
@@ -122,5 +157,12 @@ bool AsyncStream::isOpen() {
     return checkIfStreamIsOpen(&_stream, _connected);
 }
 
+int64_t AsyncStream::getSocketFd() {
+    if (this->isOpen()) {
+        return _stream.native_handle();
+    } else {
+        return -1;
+    }
+}
 }  // namespace executor
 }  // namespace mongo
