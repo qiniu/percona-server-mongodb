@@ -87,7 +87,7 @@ ChunkManagerEX::ChunkManagerEX(NamespaceString nss,
       _defaultCollator(std::move(defaultCollator)),
       _unique(unique),
       _maxSizeSingleChunksMap(MaxSizeSingleChunksMap),
-      _shardVersionSize(_shardVersions.size()),
+      //_shardVersionSize(_shardVersions.size()),
       _collectionVersion(collectionVersion) {}
 
 
@@ -106,6 +106,7 @@ ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
     if (other) {
         _topIndexMap = other->getTopIndexMap();
         _shardVersions = other->getShardVersionMap();
+        //_shardVersionSize = _shardVersions.size();
         _collectionVersion = other->getVersion();
     }
 }
@@ -215,9 +216,8 @@ void ChunkManagerEX::getShardIdsForQuery(OperationContext* txn,
 
     for (BoundList::const_iterator it = ranges.begin(); it != ranges.end(); ++it) {
         getShardIdsForRange(it->first /*min*/, it->second /*max*/, shardIds);
-
         // once we know we need to visit all shards no need to keep looping
-        if (shardIds->size() == _shardVersionSize) {
+        if (shardIds->size() == _shardVersions.size()) {
             break;
         }
     }
@@ -241,7 +241,7 @@ void ChunkManagerEX::getShardIdsForRange(const BSONObj& min,
              ++itSecond) {
             shardIds->insert(itSecond->second->getShardId());
 
-            if (shardIds->size() == _shardVersionSize) {
+            if (shardIds->size() == _shardVersions.size()) {
                 // No need to iterate through the rest of the ranges, because we already know we
                 // need to use all shards.
                 return;
