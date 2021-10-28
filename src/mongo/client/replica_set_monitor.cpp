@@ -292,7 +292,8 @@ StatusWith<HostAndPort> ReplicaSetMonitor::getHostOrRefresh(const ReadPreference
                       str::stream()
                           << "could'n find host matching read preference and trigge limiter"
                           << criteria.toString() << " for set " << getName()
-                          << " , limiter's value:" << _limiter->Running());
+                          << " , limiter's value:" << _limiter->Running()
+                          << " infoxxx:" << getName());
     }
 
     const auto limiterGuard = MakeGuard([this] { this->_limiter->Release(); });
