@@ -274,7 +274,7 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
 
         uassert(17289,
                 "Too many in-use connections; waiting until there are fewer than " +
-                    std::to_string(this->_maxOpenConnectionSize) + " infoxxx:" + url,
+                    std::to_string(this->_maxOpenConnectionSize) + " @info@:" + url,
                 false);
     }
     p.incrCheckout();
