@@ -402,7 +402,7 @@ void ConnectionPool::SpecificPool::getConnection(const HostAndPort& hostAndPort,
         log() << "[MongoStat] [ConnectionPool::SpecificPool] hostAndPort:" << hostAndPort.toString() << ", queue size:" << _requests.size() << ", limit:" << this->_limits;
         uassert(17291,
                 "Too many wait get connection task in queue; waiting until there are fewer than " +
-                    std::to_string(this->_limits),
+                    std::to_string(this->_limits) + " @info@:" + hostAndPort.toString(),
                 false);
     }
 
