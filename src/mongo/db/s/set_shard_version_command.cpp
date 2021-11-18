@@ -117,6 +117,7 @@ public:
 
         ShardedConnectionInfo dummyInfo;
         ShardedConnectionInfo* info;
+        // noConnectionVersioning: 表示链接中不带有版本信息
         if (noConnectionVersioning) {
             info = &dummyInfo;
         } else {
@@ -138,7 +139,7 @@ public:
                 return false;
             }
         }
-
+        // 判断config是否正确
         if (!_checkConfigOrInit(txn, configDBStr, shardName, authoritative, errmsg, result)) {
             return false;
         }
@@ -169,6 +170,7 @@ public:
         }
 
         // we can run on a slave up to here
+        // 如果是slave，则直接返回; 本质上setShardVersion不应该出现在slave中，因为slave根本就没有版本信息
         if (!repl::getGlobalReplicationCoordinator()->canAcceptWritesForDatabase(nss.db())) {
             result.append("errmsg", "not master");
             result.append("note", "from post init in setShardVersion");
@@ -180,6 +182,7 @@ public:
             uassertStatusOK(ChunkVersion::parseFromBSONForSetShardVersion(cmdObj));
 
         // step 3 - Actual version checking
+        // mongo会维护当前connection的一个shard对应的版本信息;
         const ChunkVersion connectionVersion = info->getVersion(ns);
         connectionVersion.addToBSON(result, "oldVersion");
 
@@ -201,6 +204,14 @@ public:
                 (css->getMetadata() ? css->getMetadata()->getShardVersion()
                                     : ChunkVersion::UNSHARDED());
 
+
+            /**
+             * connectionVersion: connnect自己保存的版本
+             * requestedVersion: 请求本身带着的版本
+             * collecttionShardVersion: 集群本身真实的版本
+             */
+
+            // 如果requestVersion和真实的version是兼容的，那么就更新connection的version
             if (requestedVersion.isWriteCompatibleWith(collectionShardVersion)) {
                 // mongos and mongod agree!
                 if (!connectionVersion.isWriteCompatibleWith(requestedVersion)) {

@@ -329,6 +329,7 @@ bool checkShardVersion(OperationContext* opCtx,
             ns, msg, refManager->getVersion(shard->getId()), ChunkVersion::UNSHARDED());
     }
 
+    // 每一个连接会维护这id到版本之间的信息;
     // Has the ChunkManager been reloaded since the last time we updated the shard version over
     // this connection?  If we've never updated the shard version, do so now.
     unsigned long long sequenceNumber = 0;
@@ -350,6 +351,7 @@ bool checkShardVersion(OperationContext* opCtx,
            << ", current chunk manager iteration is " << officialSequenceNumber;
 
     BSONObj result;
+    //设置shard的对应的版本信息
     if (setShardVersion(opCtx,
                         conn,
                         ns,
@@ -375,6 +377,7 @@ bool checkShardVersion(OperationContext* opCtx,
     if (!authoritative) {
         // use the original connection and get a fresh versionable connection
         // since conn can be invalidated (or worse, freed) after the failure
+        // 强制更新
         checkShardVersion(opCtx, conn_in, ns, refManager, 1, tryNumber + 1);
         return true;
     }
