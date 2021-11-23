@@ -31,17 +31,20 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/client/connection_string.h"
+#include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/repl/replication_coordinator_global.h"
 
 #include "mongo/base/status_with.h"
 #include "mongo/util/mongoutils/str.h"
 
 namespace mongo {
 
+// type = master
 ConnectionString::ConnectionString(const HostAndPort& server) : _type(MASTER) {
     _servers.push_back(server);
     _finishInit();
 }
-
+// type = set
 ConnectionString::ConnectionString(StringData setName, std::vector<HostAndPort> servers)
     : _type(SET), _servers(std::move(servers)), _setName(setName.toString()) {
     _finishInit();
@@ -70,6 +73,7 @@ ConnectionString::ConnectionString(const std::string& s, ConnectionType connType
     _finishInit();
 }
 
+// type = local
 ConnectionString::ConnectionString(ConnectionType connType) : _type(connType), _string("<local>") {
     invariant(_type == LOCAL);
 }
@@ -160,9 +164,21 @@ void ConnectionString::_finishInit() {
 
         ss << _servers[i].toString();
     }
-
     _string = ss.str();
-}
+
+    if (_type == SET) {
+        std::string primary = _servers[0];
+        auto replicaCoord = repl::getGlobalReplicationCoordinator();
+        invariant(replicaCoord);
+
+        auto res = replicaCoord->getPrimary();
+        if (!std::get<0>(res)) {
+            log() << "replicaset:" << _setName << " has no primary";
+        } else {
+            primary = std::get<1>(res);
+        }
+        _primaryKey = primary.toString() + "@" + _string;
+    } 
 
 bool ConnectionString::operator==(const ConnectionString& other) const {
     if (_type != other._type) {
@@ -235,6 +251,13 @@ std::string ConnectionString::typeToString(ConnectionType type) {
     }
 
     MONGO_UNREACHABLE;
+}
+
+const std::string& ConnectionString::getKey() const {
+    if (_type == SET) {
+        return _primaryKey;
+    }
+    return toString();
 }
 
 }  // namespace mongo

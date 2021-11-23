@@ -128,6 +128,10 @@ public:
         return _connectString.toString();
     }
 
+    const std::string& getKey() const {
+        return _connectString.getKey();
+    }
+
     const std::string& getSetName() const {
         return _connectString.getSetName();
     }

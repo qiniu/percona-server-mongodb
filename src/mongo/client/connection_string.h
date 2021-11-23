@@ -100,6 +100,8 @@ public:
         return _string;
     }
 
+    const std::string& getKey() const;
+
     const std::string& getSetName() const {
         return _setName;
     }
@@ -181,6 +183,10 @@ private:
     std::vector<HostAndPort> _servers;
     std::string _string;
     std::string _setName;
+
+    // 对 ConnectionString 这个类来说其实没什么，加入这个参数主要是为了在同一个副本集下，如果 primary 切换之后能参数不一样的 key
+    // 并且这个参数只是针对 ReplicaSet 有用，其他的无效
+    std::string _primaryKey{""};
 
     static stdx::mutex _connectHookMutex;
     static ConnectionHook* _connectHook;

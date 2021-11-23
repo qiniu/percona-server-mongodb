@@ -298,7 +298,7 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
     c = url.connect(StringData(), errmsg, socketTimeout);
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(url.getKey(), socketTimeout)];
         p.descCheckout();
     }
     uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
@@ -349,12 +349,12 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
 
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(uri.getKey(), socketTimeout)];
         p.descCheckout();
     }
-    uassert(40356, _name + ": connect failed " + uri.toString() + " : " + errmsg, c);
+    uassert(40356, _name + ": connect failed " + uri.getKey() + " : " + errmsg, c);
 
-    return _finishCreate(uri.toString(), socketTimeout, c.release(), true);
+    return _finishCreate(uri.getKey(), socketTimeout, c.release(), true);
 }
 
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {
