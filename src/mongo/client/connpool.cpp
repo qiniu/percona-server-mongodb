@@ -47,8 +47,10 @@
 #include "mongo/util/net/socket_exception.h"
 #include "mongo/util/timer.h"
 #include "mongo/db/stats/apcounter.h"
+#include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/repl/replication_coordinator_global.h"
 
-namespace mongo {
+namespace mongo ;
 
 using std::endl;
 using std::list;
@@ -56,6 +58,7 @@ using std::map;
 using std::set;
 using std::string;
 using std::vector;
+
 
 // ------ PoolForHost ------
 
@@ -282,7 +285,9 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
 }
 
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
-    DBClientBase* c = _get(url.getKey(), socketTimeout);
+    std::string key = url.toString();
+
+    DBClientBase* c = _get(key, socketTimeout);
     if (c) {
         try {
             onHandedOut(c);
@@ -293,17 +298,17 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    this->_limitMaxOpenConnectionSize(url.getKey(), socketTimeout);
+    this->_limitMaxOpenConnectionSize(key, socketTimeout);
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(url.getKey(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(key, socketTimeout)];
         p.descCheckout();
     }
-    uassert(13328, _name + ": connect failed " + url.getKey() + " : " + errmsg, c);
+    uassert(13328, _name + ": connect failed " + key + " : " + errmsg, c);
 
-    return _finishCreate(url.getKey(), socketTimeout, c, true);
+    return _finishCreate(key, socketTimeout, c, true);
 }
 
 DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
@@ -312,35 +317,45 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
-    std::unique_ptr<DBClientBase> c(_get(uri.getKey(), socketTimeout));
+    std::string key = uri.toString();
+
+    std::unique_ptr<DBClientBase> c(_get(key, socketTimeout));
     if (c) {
         onHandedOut(c.get());
         return c.release();
     }
 
-    this->_limitMaxOpenConnectionSize(uri.getKey(), socketTimeout);
+    this->_limitMaxOpenConnectionSize(key, socketTimeout);
     string errmsg;
     c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
 
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(uri.getKey(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(key, socketTimeout)];
         p.descCheckout();
     }
-    uassert(40356, _name + ": connect failed " + uri.getKey() + " : " + errmsg, c);
+    uassert(40356, _name + ": connect failed " + key + " : " + errmsg, c);
 
-    return _finishCreate(uri.getKey(), socketTimeout, c.release(), true);
+    return _finishCreate(key, socketTimeout, c.release(), true);
 }
 
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    auto it = _pools.find(PoolKey(host, socketTimeout));
+
+    const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
+    invariant(cs.type() != ConnectionString::SET);
+
+    auto it = _pools.find(PoolKey(cs.getKey(), socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.numAvailable();
 }
 
 int DBConnectionPool::getNumBadConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    auto it = _pools.find(PoolKey(host, socketTimeout));
+
+    const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
+    invariant(cs.type() != ConnectionString::SET);
+
+    auto it = _pools.find(PoolKey(cs.getKey(), socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.getNumBadConns();
 }
 
@@ -407,7 +422,9 @@ void DBConnectionPool::removeHost(const string& host) {
     stdx::lock_guard<stdx::mutex> L(_mutex);
     LOG(2) << "Removing connections from all pools for host: " << host << endl;
     for (PoolMap::iterator i = _pools.begin(); i != _pools.end(); ++i) {
-        const string& poolHost = i->first.ident;
+        const string& key = i->first.ident;
+        string poolHost = ConnectionString::getRealString(key);
+
         if (!serverNameCompare()(host, poolHost) && !serverNameCompare()(poolHost, host)) {
             // hosts are the same
             i->second.clear();
@@ -457,7 +474,9 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             // the identifier here, so we always take the first server parsed out
             // as our label for connPoolStats. Note that these stats will collide
             // with any existing stats for the chosen host.
-            auto uri = ConnectionString::parse(i->first.ident);
+            string poolHost = ConnectionString::getRealString(i->first.ident);
+            auto uri = ConnectionString::parse(poolHost);
+
             invariant(uri.isOK());
             HostAndPort host = uri.getValue().getServers().front();
 
@@ -516,8 +535,13 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
     }
 
     {
+        std::string key = conn->getClientKey();
+        if (key.empty()) {
+            key = hostName;
+        }
+
         stdx::lock_guard<stdx::mutex> sl(_mutex);
-        PoolForHost& pool = _pools[PoolKey(hostName, conn->getSoTimeout())];
+        PoolForHost& pool = _pools[PoolKey(key, conn->getSoTimeout())];
         if (pool.isBadSocketCreationTime(conn->getSockCreationMicroSec())) {
             return false;
         }

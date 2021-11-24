@@ -73,6 +73,8 @@ public:
      */
     static ConnectionString forLocal();
 
+    static std::string getRealString(const std::string& url);
+
     /**
      * Creates a MASTER connection string with the specified server.
      */

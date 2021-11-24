@@ -38,7 +38,7 @@
 #include "mongo/util/mongoutils/str.h"
 
 namespace mongo {
-
+const std::string KeySeparator = "#@#";
 // type = master
 ConnectionString::ConnectionString(const HostAndPort& server) : _type(MASTER) {
     _servers.push_back(server);
@@ -76,6 +76,19 @@ ConnectionString::ConnectionString(const std::string& s, ConnectionType connType
 // type = local
 ConnectionString::ConnectionString(ConnectionType connType) : _type(connType), _string("<local>") {
     invariant(_type == LOCAL);
+}
+
+std::string ConnectionString::getRealString(const std::string& url) {
+    if (url.empty) {
+        return url;
+    }
+
+    auto idx = url.find(KeySeparator);
+    if (idx == -1) {
+        return url;
+    }
+    return url.substr(idx + KeySeparator.size(),   // start of the key
+                      url.size() - idx - KeySeparator.size());  // end of the key
 }
 
 ConnectionString ConnectionString::forReplicaSet(StringData setName,
@@ -177,7 +190,7 @@ void ConnectionString::_finishInit() {
         } else {
             primary = std::get<1>(res);
         }
-        _primaryKey = primary.toString() + "@" + _string;
+        _primaryKey = primary.toString() + KeySeparator + _string;
     } 
 
 bool ConnectionString::operator==(const ConnectionString& other) const {

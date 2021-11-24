@@ -462,7 +462,7 @@ void ShardConnection::_finishInit() {
 
 void ShardConnection::done() {
     if (_conn) {
-        ClientConnections::threadInstance()->done(_cs.getKey(), _conn);
+        ClientConnections::threadInstance()->done(_cs.toString(), _conn);
         _conn = 0;
         _finishedInit = true;
     }
