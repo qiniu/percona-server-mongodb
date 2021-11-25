@@ -345,6 +345,27 @@ private:
 
     bool _limitMaxOpenConnectionSize(string url, double socketTimeout);
 
+    static std::string _getRealPoolKey(const std::string& url);
+
+    template <typename T>
+    static std::string _getPoolKey(const T& url) {
+    if (url.type() == ConnectionString::ConnectionType::SET) {
+        std::string primary = url.getServers[0];
+        auto replicaCoord = repl::getGlobalReplicationCoordinator();
+        invariant(replicaCoord);
+
+        auto res = replicaCoord->getPrimary();
+        if (!std::get<0>(res)) {
+            log() << "replicaset:" << _setName << " has no primary";
+        } else {
+            primary = std::get<1>(res).toString();
+        }
+        return primary + KeySeparator + url.toString();
+    } else {
+        return url.toString();
+    } 
+}
+
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}
         std::string ident;

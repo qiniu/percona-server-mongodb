@@ -77,7 +77,6 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                 return 0;
             }
             LOG(1) << "connected connection!";
-            c->setClientKey(this->getKey());
 
             client = c.release();
             return client;
@@ -91,7 +90,6 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                 errmsg += toString();
                 return 0;
             }
-            c->setClientKey(this->getKey());
             client = set.release();
             return client;
         }
@@ -113,7 +111,6 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
             log() << "replacing connection to " << this->toString() << " with "
                   << (replacementConn ? replacementConn->getServerAddress() : "(empty)");
 
-            replacementConn->setClientKey(this->getKey());
             client = replacementConn;
             return client;
         }

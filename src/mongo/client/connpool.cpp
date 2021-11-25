@@ -59,6 +59,7 @@ using std::set;
 using std::string;
 using std::vector;
 
+const std::string KeySeparator = "#@#";
 
 // ------ PoolForHost ------
 
@@ -264,6 +265,19 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
+std::string DBConnectionPool::_getRealPoolKey(const std::string& url) {
+    if (url.empty) {
+        return url;
+    }
+
+    auto idx = url.find(KeySeparator);
+    if (idx == -1) {
+        return url;
+    }
+    return url.substr(idx + KeySeparator.size(),   // start of the key
+                      url.size() - idx - KeySeparator.size());  // end of the key
+}
+
 bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTimeout) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
@@ -285,7 +299,7 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
 }
 
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
-    std::string key = url.getKey();
+    std::string key = _getPoolKey(url);
 
     DBClientBase* c = _get(key, socketTimeout);
     if (c) {
@@ -307,6 +321,7 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         p.descCheckout();
     }
     uassert(13328, _name + ": connect failed " + key + " : " + errmsg, c);
+    c->setClientKey(key);
 
     return _finishCreate(key, socketTimeout, c, true);
 }
@@ -317,7 +332,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
-    std::string key = uri.getKey();
+    std::string key = _getPoolKey(uri);
 
     std::unique_ptr<DBClientBase> c(_get(key, socketTimeout));
     if (c) {
@@ -336,6 +351,7 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
     }
     uassert(40356, _name + ": connect failed " + key + " : " + errmsg, c);
 
+    c->setClientKey(key);
     return _finishCreate(key, socketTimeout, c.release(), true);
 }
 
@@ -345,7 +361,8 @@ int DBConnectionPool::getNumAvailableConns(const string& host, double socketTime
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     invariant(cs.type() != ConnectionString::SET);
 
-    auto it = _pools.find(PoolKey(cs.getKey(), socketTimeout));
+    auto key = _getPoolKey(cs);
+    auto it = _pools.find(PoolKey(key, socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.numAvailable();
 }
 
@@ -355,7 +372,8 @@ int DBConnectionPool::getNumBadConns(const string& host, double socketTimeout) c
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
     invariant(cs.type() != ConnectionString::SET);
 
-    auto it = _pools.find(PoolKey(cs.getKey(), socketTimeout));
+    auto key = _getPoolKey(cs);
+    auto it = _pools.find(PoolKey(key, socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.getNumBadConns();
 }
 
@@ -423,7 +441,7 @@ void DBConnectionPool::removeHost(const string& host) {
     LOG(2) << "Removing connections from all pools for host: " << host << endl;
     for (PoolMap::iterator i = _pools.begin(); i != _pools.end(); ++i) {
         const string& key = i->first.ident;
-        string poolHost = ConnectionString::getRealString(key);
+        string poolHost = _getRealPoolKey(key);
 
         if (!serverNameCompare()(host, poolHost) && !serverNameCompare()(poolHost, host)) {
             // hosts are the same
@@ -474,7 +492,7 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             // the identifier here, so we always take the first server parsed out
             // as our label for connPoolStats. Note that these stats will collide
             // with any existing stats for the chosen host.
-            string poolHost = ConnectionString::getRealString(i->first.ident);
+            string poolHost = _getRealPoolKey(i->first.ident);
             auto uri = ConnectionString::parse(poolHost);
 
             invariant(uri.isOK());
