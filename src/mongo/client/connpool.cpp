@@ -50,7 +50,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_coordinator_global.h"
 
-namespace mongo ;
+namespace mongo {
 
 using std::endl;
 using std::list;
@@ -285,7 +285,7 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
 }
 
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
-    std::string key = url.toString();
+    std::string key = url.getKey();
 
     DBClientBase* c = _get(key, socketTimeout);
     if (c) {
@@ -317,7 +317,7 @@ DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
-    std::string key = uri.toString();
+    std::string key = uri.getKey();
 
     std::unique_ptr<DBClientBase> c(_get(key, socketTimeout));
     if (c) {
