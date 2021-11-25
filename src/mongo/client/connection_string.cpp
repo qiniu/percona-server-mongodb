@@ -238,12 +238,4 @@ std::string ConnectionString::typeToString(ConnectionType type) {
 
     MONGO_UNREACHABLE;
 }
-
-const std::string& ConnectionString::getKey() const {
-    if (_type == SET) {
-        return _primaryKey;
-    }
-    return toString();
-}
-
 }  // namespace mongo
