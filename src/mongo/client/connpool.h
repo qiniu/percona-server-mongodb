@@ -354,7 +354,7 @@ private:
     template <typename T>
     static std::string _getPoolKey(const T& url) {
     if (url.type() == ConnectionString::ConnectionType::SET) {
-        std::string primary = url.getServers()[0];
+        std::string primary = url.getServers()[0].toString();
         auto replicaCoord = repl::getGlobalReplicationCoordinator();
         invariant(replicaCoord);
 

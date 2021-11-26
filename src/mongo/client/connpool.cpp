@@ -268,7 +268,7 @@ std::string DBConnectionPool::_getRealPoolKey(const std::string& url) {
     }
 
     auto idx = url.find(KeySeparator);
-    if (idx == std::string::end()) {
+    if (idx == std::string::npos) {
         return url;
     }
     return url.substr(idx + KeySeparator.size(),   // start of the key
