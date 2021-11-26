@@ -358,9 +358,7 @@ private:
         invariant(replicaCoord);
 
         auto res = replicaCoord->getPrimary();
-        if (!std::get<0>(res)) {
-            log() << "replicaset:" << _setName << " has no primary";
-        } else {
+        if (std::get<0>(res)) {
             primary = std::get<1>(res).toString();
         }
         return primary + KeySeparator + url.toString();
