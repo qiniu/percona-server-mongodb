@@ -51,11 +51,10 @@ class BSONObjBuilder;
 class DBConnectionPool;
 
 namespace executor {
-const std::string KeySeparator = "#@#";
-
 struct ConnectionPoolStats;
 }  // namespace executor
 
+const std::string KeySeparator = "#@#";
 /**
  * not thread safe
  * thread safety is handled by DBConnectionPool
