@@ -47,8 +47,6 @@
 #include "mongo/util/net/socket_exception.h"
 #include "mongo/util/timer.h"
 #include "mongo/db/stats/apcounter.h"
-#include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/replication_coordinator_global.h"
 
 namespace mongo {
 
