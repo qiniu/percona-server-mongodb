@@ -149,6 +149,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/auth/authcommon',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
         '$BUILD_DIR/mongo/db/dbmessage',
+        '$BUILD_DIR/mongo/db/repl/repl_coordinator_global',
         '$BUILD_DIR/mongo/db/wire_version',
         '$BUILD_DIR/mongo/db/write_concern_options',
         '$BUILD_DIR/mongo/executor/connection_pool_stats',
