@@ -31,9 +31,6 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/client/connection_string.h"
-#include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/replication_coordinator_global.h"
-
 #include "mongo/base/status_with.h"
 #include "mongo/util/mongoutils/str.h"
 
