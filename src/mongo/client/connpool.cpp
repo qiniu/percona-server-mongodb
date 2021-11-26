@@ -263,12 +263,12 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
 }
 
 std::string DBConnectionPool::_getRealPoolKey(const std::string& url) {
-    if (url.empty) {
+    if (url.empty()) {
         return url;
     }
 
     auto idx = url.find(KeySeparator);
-    if (idx == -1) {
+    if (idx == std::string::end()) {
         return url;
     }
     return url.substr(idx + KeySeparator.size(),   // start of the key
