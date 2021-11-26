@@ -57,7 +57,6 @@ using std::set;
 using std::string;
 using std::vector;
 
-const std::string KeySeparator = "#@#";
 
 // ------ PoolForHost ------
 

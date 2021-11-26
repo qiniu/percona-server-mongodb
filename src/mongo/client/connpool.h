@@ -51,6 +51,8 @@ class BSONObjBuilder;
 class DBConnectionPool;
 
 namespace executor {
+const std::string KeySeparator = "#@#";
+
 struct ConnectionPoolStats;
 }  // namespace executor
 
