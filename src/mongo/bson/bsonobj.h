@@ -303,6 +303,8 @@ public:
     /** @return INT_MIN if not present - does some type conversions */
     int getIntField(StringData name) const;
 
+    long getLongField(StringData name) const;
+
     /** @return false if not present
         @see BSONElement::trueValue()
      */

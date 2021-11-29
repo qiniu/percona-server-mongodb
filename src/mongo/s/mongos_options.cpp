@@ -94,6 +94,12 @@ Status addMongosOptions(moe::OptionSection* options) {
         "localThreshold",
         moe::Int,
         "ping time (in ms) for a node to be considered local (default 15ms)");
+        
+    sharding_options.addOptionChaining(
+        "authproxy.model",
+        "authproxy",
+        moe::Bool,
+        "use authproxy to multi dc");
 
     sharding_options.addOptionChaining("test", "test", moe::Switch, "just run unit tests")
         .setSources(moe::SourceAllLegacy);

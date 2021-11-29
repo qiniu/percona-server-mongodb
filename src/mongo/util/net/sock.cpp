@@ -30,8 +30,11 @@
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kNetwork
 
 #include "mongo/platform/basic.h"
+#include "mongo/db/server_options.h"
 
 #include "mongo/util/net/sock.h"
+#include "mongo/util/scopeguard.h"
+#include "mongo/util/timer.h"
 
 #include <algorithm>
 
@@ -361,10 +364,17 @@ Socket::Socket(double timeout, logger::LogSeverity ll) : _logLevel(ll) {
     _timeout = timeout;
     _lastValidityCheckAtSecs = time(0);
     _init();
+
+    //链路追踪
+    _trace = std::make_shared<trace::OneTrace>();
+    auto nowTime = Date_t::now().toMillisSinceEpoch();
+    _trace->setStartTime(nowTime);
+    _trace->setPrePhase(nowTime);
 }
 
 Socket::~Socket() {
     close();
+    _trace = nullptr;
 }
 
 void Socket::_init() {
@@ -375,6 +385,7 @@ void Socket::_init() {
     _sslManager = 0;
 #endif
 }
+
 
 void Socket::close() {
     if (_fd != INVALID_SOCKET) {
@@ -434,17 +445,37 @@ std::string Socket::getSNIServerName() const {
 #endif
 
 bool Socket::connect(SockAddr& remote) {
+    bool funcResult = false;
+    Timer timer;
+    auto remoteTmpAddr = remote.toString();
+    ON_BLOCK_EXIT([&funcResult, &timer, remoteTmpAddr, this] {
+        if (this->_trace != nullptr) {
+            this->_trace->addEntry(trace::ConnPhase::C_Conn_Succ, funcResult, Date_t::now().toMillisSinceEpoch());
+            log() << "[MongoStat][legacy connect trace]" << this->_trace->toString();
+        }
+
+        if (funcResult) {
+            auto cs = timer.millis();
+            globalSocksCounter.legacyConnect(cs); 
+        } else {
+            globalSocksCounter.incLegacyConnectErrorCnt();
+        }
+    });
+
     _remote = remote;
 
     _fd = ::socket(remote.getType(), SOCK_STREAM, 0);
     if (_fd == INVALID_SOCKET) {
         networkWarnWithDescription(*this, "socket");
-        return false;
+        return funcResult;
+    }
+    if (_trace) {
+        _trace->setFd(_fd);
     }
 
     if (!setBlock(_fd, false)) {
         networkWarnWithDescription(*this, "set socket to non-blocking mode");
-        return false;
+        return funcResult;
     }
 
     const Milliseconds connectTimeoutMillis(static_cast<int64_t>(
@@ -452,6 +483,10 @@ bool Socket::connect(SockAddr& remote) {
     const Date_t expiration = Date_t::now() + connectTimeoutMillis;
 
     bool connectSucceeded = ::connect(_fd, _remote.raw(), _remote.addressSize) == 0;
+
+    if(_trace) {
+        _trace->addEntry(trace::ConnPhase::C_ConnToLocal, connectSucceeded, Date_t::now().toMillisSinceEpoch());
+    }
 
     if (!connectSucceeded) {
 #ifdef _WIN32
@@ -462,7 +497,7 @@ bool Socket::connect(SockAddr& remote) {
 #else
         if (errno != EINTR && errno != EINPROGRESS) {
             networkWarnWithDescription(*this, "connect");
-            return false;
+            return funcResult;
         }
 #endif
 
@@ -483,7 +518,7 @@ bool Socket::connect(SockAddr& remote) {
             if (pollReturn == -1) {
                 if (errno != EINTR) {
                     networkWarnWithDescription(*this, "poll");
-                    return false;
+                    return funcResult;
                 }
 
                 // EINTR in poll, try again
@@ -495,7 +530,7 @@ bool Socket::connect(SockAddr& remote) {
                 warning() << "Failed to connect to " << _remote.getAddr() << ":"
                           << _remote.getPort() << " after " << connectTimeoutMillis
                           << " milliseconds, giving up.";
-                return false;
+                return funcResult;
             }
 
             // We had a result, see if there's an error on the socket.
@@ -504,11 +539,11 @@ bool Socket::connect(SockAddr& remote) {
             if (::getsockopt(
                     _fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&optVal), &optLen) == -1) {
                 networkWarnWithDescription(*this, "getsockopt");
-                return false;
+                return funcResult;
             }
             if (optVal != 0) {
                 networkWarnWithDescription(*this, "checking socket for error after poll", optVal);
-                return false;
+                return funcResult;
             }
 
             // We had activity and we don't have errors on the socket, we're connected.
@@ -518,7 +553,19 @@ bool Socket::connect(SockAddr& remote) {
 
     if (!setBlock(_fd, true)) {
         networkWarnWithDescription(*this, "could not set socket to blocking mode");
-        return false;
+        return funcResult;
+    }
+
+    if (serverGlobalParams.authproxyModel) {
+        if(!_switchSocket()) {
+            return funcResult;
+        } else {
+            //重新让新的fd变成block;
+            if (!setBlock(_fd, true)) {
+                networkWarnWithDescription(*this, "could not set socket to blocking mode");
+                return funcResult;
+            }
+        }
     }
 
     if (_timeout > 0) {
@@ -539,6 +586,8 @@ bool Socket::connect(SockAddr& remote) {
     _fdCreationMicroSec = curTimeMicros64();
 
     _awaitingHandshake = false;
+
+    funcResult = true;
 
     return true;
 }
@@ -749,6 +798,116 @@ void Socket::handleRecvError(int ret, int len) {
 void Socket::setTimeout(double secs) {
     setSockTimeouts(_fd, secs);
 }
+
+//copy message_port的代码，主要是为了接受一个msg信息，本来想在message_port做收口，但是还不够底层，所以就只能出此下策
+bool Socket::_recvMsg(Message& m) {
+    try {
+        MSGHEADER::Value header;
+        this->recv((char*)&header, sizeof(header));
+        int len = header.constView().getMessageLength();
+
+        if (len == 542393671) {
+            // an http GET
+            string msg =
+                "It looks like you are trying to access MongoDB over HTTP on the native driver "
+                "port.\n";
+            LOG(this->getLogLevel()) << msg;
+            std::stringstream ss;
+            ss << "HTTP/1.0 200 OK\r\nConnection: close\r\nContent-Type: "
+                  "text/plain\r\nContent-Length: "
+               << msg.size() << "\r\n\r\n"
+               << msg;
+            string s = ss.str();
+            send(s.c_str(), s.size(), "http");
+            return false;
+        }
+        // If responseTo is not 0 or -1 for first packet assume SSL
+        else if (this->isAwaitingHandshake()) {
+            if (header.constView().getResponseToMsgId() != 0 &&
+                header.constView().getResponseToMsgId() != -1) {
+                uasserted(17451,
+                          "SSL handshake requested, SSL feature not available in this build");
+            }
+        }
+        if (static_cast<size_t>(len) < sizeof(header) ||
+            static_cast<size_t>(len) > MaxMessageSizeBytes) {
+            LOG(0) << "recv(): message len " << len << " is invalid. "
+                   << "Min " << sizeof(header) << " Max: " << MaxMessageSizeBytes;
+            return false;
+        }
+
+        this->_awaitingHandshake = false;
+
+        auto buf = SharedBuffer::allocate(len);
+        MsgData::View md = buf.get();
+        memcpy(md.view2ptr(), &header, sizeof(header));
+
+        const int left = len - sizeof(header);
+        if (left)
+            this->recv(md.data(), left);
+
+        m.setData(std::move(buf));
+        return true;
+
+    } catch (const SocketException& e) {
+        logger::LogSeverity severity = getLogLevel();
+        if (!e.shouldPrint())
+            severity = severity.lessSevere();
+        LOG(severity) << "SocketException: remote: " << _remote.toString() << " error: " << e;
+        m.reset();
+        return false;
+    }
+}
+
+bool Socket::_switchSocket() {
+    bool result = false;
+    Timer timer;
+    ON_BLOCK_EXIT([&result, &timer, this](){
+        if (this->_trace) {
+            this->_trace->addEntry(trace::ConnPhase::C_SwitchToNewFd, result, Date_t::now().toMillisSinceEpoch());
+        }
+        if (!result) {
+            globalSocksCounter.incLegacySwitchErrorCnt();
+        } else {
+           auto cs = timer.millis(); 
+           globalSocksCounter.legacySwitch(cs);
+        }
+    });
+
+    if (isStillConnected()) {
+        auto oldTimeout = _timeout;
+        this->setTimeout(1.5);
+        // 获得一个message
+        Message tmp;
+        if (this->_recvMsg(tmp)) {
+            NewFdRespMsg msg(tmp.header().data());
+            if (!msg.check()) {
+                LOG(0) << "[MongoStat][Legacy][Socket][Switch] msg check is error, msg:" << msg.toString();
+                return result;
+            } else {
+                if (!msg.checkHostPort(_remote.getAddr(), _remote.getPort())) {
+                    LOG(0) << "[MongoStat][Legacy][Socket][Switch] switch new fd is error, reason remote addr is not equal, [w:"
+                          << _remote.toString() << ", r:" << msg.getHostAndPort() << "]";
+                    return result;
+                }
+
+                LOG(0) << "[MongoStat][Legacy][Socket][Switch][fd1:" << this->_fd << " => fd2:" << msg.getRemoteFd() << "] is success"; 
+                this->close(); 
+                this->_fd = msg.getRemoteFd(); 
+                if (_trace) {
+                    _trace->setNewFd(msg.getRemoteFd());
+                }
+
+                setTimeout(oldTimeout);
+
+                result = true;
+                return result;
+            }
+        }
+    } 
+
+    return result;
+} 
 
 // TODO: allow modification?
 //

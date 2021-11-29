@@ -25,6 +25,8 @@ var $config = extendWorkload($config, function($config, $super) {
         var ns = db[collName].getFullName();
         var config = ChunkHelper.getPrimary(connCache.config);
 
+        print("connCache:" + tojson(connCache));
+
         // Verify that more than one shard exists in the cluster. If only one shard existed,
         // there would be no way to move a chunk from one shard to another.
         var numShards = config.getDB('config').shards.find().itcount();
@@ -35,6 +37,7 @@ var $config = extendWorkload($config, function($config, $super) {
         // Choose a random chunk in our partition to move.
         var chunk = this.getRandomChunkInPartition(config);
         var fromShard = chunk.shard;
+        print("AFromShard:" + tojson(fromShard));
 
         // Choose a random shard to move the chunk to.
         var shardNames = Object.keys(connCache.shards);
@@ -44,6 +47,7 @@ var $config = extendWorkload($config, function($config, $super) {
             }
         });
         var toShard = destinationShards[Random.randInt(destinationShards.length)];
+        print("AToShard:" + tojson(toShard));
 
         // Save the number of documents in this chunk's range found on the chunk's current shard
         // (the fromShard) before the moveChunk operation. This will be used to verify that the
@@ -52,13 +56,23 @@ var $config = extendWorkload($config, function($config, $super) {
         // chunk's range found on the _fromShard_ after a _failed_ moveChunk operation is the same
         // as numDocsBefore.
         // Choose the mongos randomly to distribute load.
-        var numDocsBefore = ChunkHelper.getNumDocs(
-            ChunkHelper.getRandomMongos(connCache.mongos), ns, chunk.min._id, chunk.max._id);
+        var randomMongos = ChunkHelper.getRandomMongos(connCache.mongos);
+        var numDocsBefore = ChunkHelper.getNumDocs(randomMongos, ns, chunk.min._id, chunk.max._id);
+        var fromShardChunks = ChunkHelper.getNumChunksWithShard(randomMongos, fromShard, ns);
+        var toShardChunks = ChunkHelper.getNumChunksWithShard(randomMongos, toShard, ns);
+
+        print("randomMongos:" + tojson(randomMongos));
+        print("numDocsBefore:" + numDocsBefore);
+
+        print("AToShardChunk:" + toShardChunks);
+        print("AFromShardChunk:" + fromShardChunks);
 
         // Save the number of chunks before the moveChunk operation. This will be used
         // to verify that the number of chunks after the moveChunk operation remains the same.
         var numChunksBefore =
             ChunkHelper.getNumChunks(config, this.partition.chunkLower, this.partition.chunkUpper);
+        print("config:" + tojson(config));
+        print("numChunksBefore:" + numChunksBefore);
 
         // Randomly choose whether to wait for all documents on the fromShard
         // to be deleted before the moveChunk operation returns.
@@ -81,6 +95,8 @@ var $config = extendWorkload($config, function($config, $super) {
         // If the moveChunk operation succeeded, verify that the shard the chunk
         // was moved to returns all data for the chunk. If waitForDelete was true,
         // also verify that the shard the chunk was moved from returns no data for the chunk.
+
+        print("AwaitForDelete:" + waitForDelete);
         if (moveChunkRes.ok) {
             if (waitForDelete) {
                 msg = 'moveChunk succeeded but original shard still had documents.\n' + msgBase +
@@ -136,12 +152,14 @@ var $config = extendWorkload($config, function($config, $super) {
         // Verify that all mongos processes see the correct after-state on the shards and configs.
         // (see comments below for specifics).
         for (var mongos of connCache.mongos) {
+            print("cache mongos:" + tojson(mongos));
+
             // Regardless of if the moveChunk operation succeeded or failed,
             // verify that each mongos sees as many documents in the chunk's
             // range after the move as there were before.
             var numDocsAfter = ChunkHelper.getNumDocs(mongos, ns, chunk.min._id, chunk.max._id);
             msg =
-                'Number of chunks in partition seen by mongos changed with moveChunk.\n' + msgBase;
+                'Number of chunks in partition seen by mongos changed with moveChunk.\n' + msgBase + "\n" + tojson(mongos) + "\n" + tojson(chunk) + "\n" + waitForDelete + "\n fromShard:" + fromShard + "\n toShard:" + toShard + "\n fromShardChunks:" + fromShardChunks + "\n toShardChunks:" + toShardChunks;
             assertWhenOwnColl.eq(numDocsAfter, numDocsBefore, msg);
 
             // If the moveChunk operation succeeded, verify that each mongos sees all data in the

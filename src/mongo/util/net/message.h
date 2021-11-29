@@ -33,8 +33,9 @@
 #include "mongo/base/data_type_endian.h"
 #include "mongo/base/data_view.h"
 #include "mongo/base/encoded_value_storage.h"
-#include "mongo/base/static_assert.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/db/jsobj.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
 
@@ -456,6 +457,81 @@ public:
 private:
     SharedBuffer _buf;
 };
+
+class NewFdRespMsg {
+public:
+    explicit NewFdRespMsg(const char* msg) {
+        invariant((msg != nullptr));
+
+        BSONObj obj(msg);
+        if (!obj.hasField("remoteFd")) {
+            this->_remoteFd =  -1;
+        } else {
+            this->_remoteFd = obj.getLongField("remoteFd");
+        }
+
+        if (!obj.hasField("rHost")) {
+            this->_rHost = "";
+        } else {
+            this->_rHost = obj.getStringField(("rHost"));
+        }
+
+        if (!obj.hasField("rPort")) {
+            this->_rPort = 0;
+        } else {
+            this->_rPort = obj.getIntField("rPort");
+        }
+    }
+
+    bool check() {
+        if(_remoteFd <= 0) {
+            return false;
+        }
+
+        if (_rHost.empty() || _rPort == 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    int64_t getRemoteFd() {
+        return _remoteFd;
+    }
+
+    const std::string& getRhost() {
+        return _rHost;
+    }
+
+    uint16_t getRPort() {
+        return _rPort;
+    }
+
+    std::string getHostAndPort() {
+        std::stringstream ss;
+        ss << _rHost<<":" << _rPort;
+        return ss.str();
+    }
+
+    bool checkHostPort(const std::string& host, int port) {
+        if (_rHost == host && _rPort == port) {
+            return true;
+        }
+        return false;
+    }
+
+    std::string toString() {
+        std::stringstream ss;
+        ss << "remoteFd:" << _remoteFd << ", Rhost:" << _rHost<<":" << _rPort;
+        return ss.str();
+    }
+
+private:
+    int64_t _remoteFd;
+    std::string _rHost;
+    uint16_t _rPort;
+};
+
 
 /**
  * Returns an always incrementing value to be used to assign to the next received network message.

@@ -171,6 +171,7 @@ env.Library(
         '$BUILD_DIR/mongo/client/authentication',
         '$BUILD_DIR/mongo/util/net/network',
         '$BUILD_DIR/third_party/shim_asio',
+        '$BUILD_DIR/mongo/db/stats/socks5counter',
         'task_executor_interface',
     ]
 )
