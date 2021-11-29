@@ -76,6 +76,16 @@ env.Library(
 )
 
 env.Library(
+    target='socks5counter',
+    source=[
+        'sockscounter.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+    ],
+)
+
+env.Library(
     target='watchdogcounter',
     source=[
         'watchdogcounter.cpp',

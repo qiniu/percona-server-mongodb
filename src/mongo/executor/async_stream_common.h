@@ -32,6 +32,7 @@
 
 #include "mongo/util/assert_util.h"
 #include "mongo/util/net/sock.h"
+#include "mongo/db/stats/sockscounter.h"
 
 namespace mongo {
 namespace executor {
@@ -133,7 +134,7 @@ template <typename ASIOStream>
 bool checkIfStreamIsOpen(ASIOStream* stream, bool connected) {
     if (!connected) {
         return false;
-    };
+    }
     std::error_code ec;
     std::array<char, 1> buf;
     // Although we call the blocking form of receive, we ensure the socket is in non-blocking mode.

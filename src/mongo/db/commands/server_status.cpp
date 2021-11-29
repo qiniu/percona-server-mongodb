@@ -219,6 +219,17 @@ BSONObj ApCounterServerStatusSection::generateSection(OperationContext* txn,
 
 ApCounterServerStatusSection globalApCounterServerStatusSection("apcounters", &globalApCounter);
 
+Socks5CounterServerStatusSection::Socks5CounterServerStatusSection(const string& sectionName,
+                                                           Socks5Counter* counters)
+    : ServerStatusSection(sectionName), _counters(counters) {}
+
+BSONObj Socks5CounterServerStatusSection::generateSection(OperationContext* txn,
+                                                      const BSONElement& configElement) const {
+    return _counters->getObj();
+}
+
+Socks5CounterServerStatusSection globalSocks5CounterServerStatusSection("proxy_info", &globalSocksCounter);
+
 WatchdogServerStatusSection::WatchdogServerStatusSection(const string& sectionName,
                                                            WatchdogCounter* counters)
     : ServerStatusSection(sectionName), _counters(counters) {}
