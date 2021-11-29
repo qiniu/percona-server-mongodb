@@ -191,18 +191,20 @@ allocatePort = (function() {
         maxPort = maxPort || jsTestOptions().maxPort || Math.pow(2, 16) - 1;
         
         // random next port.
-        tmp = nextPort;
-        while (tmp == nextPort) {
-            tmp =  Math.floor(jsTestOptions().minPort + (maxPort - jsTestOptions().minPort) * Math.random() / 2);
-        }
+        // tmp = nextPort;
+        // while (tmp == nextPort) {
+        //     nextPort =  Math.floor(jsTestOptions().minPort + (maxPort - jsTestOptions().minPort) * Math.random() / 2);
+        // }
 
         while(true){
-            if (nextPort === maxPort) {
-                throw new Error("Exceeded maximum port range in allocatePort()");
+            if (nextPort >= maxPort) {
+                nextPort = jsTestOptions().minPort || 20000;
+                print("Exceeded maximum port range in allocatePort()");
             }
 
             nextPort++
             if(checkPort(nextPort)){
+                print("port:" + nextPort + " is ok");
                 break;
             }
             print('port can not use port = ' + nextPort);
@@ -221,7 +223,7 @@ allocatePorts = function(numPorts) {
     for (var i = 0; i < numPorts; i++) {
         ports.push(allocatePort());
     }
-
+    print("i choose ports:" + ports.toString()); 
     return ports;
 };
 

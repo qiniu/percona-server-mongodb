@@ -43,6 +43,7 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
 #include "mongo/util/timer.h"
+#include "mongo/db/server_options.h"
 
 namespace mongo {
 namespace executor {
@@ -76,7 +77,10 @@ void NetworkInterfaceASIO::AsyncConnection::setServerProtocols(rpc::ProtocolSet 
 }
 
 void NetworkInterfaceASIO::_connect(AsyncOp* op) {
-    log() << "Connecting to " << op->request().target.toString();
+    log() << "[MongoStat][Asio][uid:" << op->getId() << "] Connecting to " << op->request().target.toString();
+
+    op->initTrace();
+    op->getTrace()->addEntry(trace::ConnPhase::C_PreTaskRun, true, Date_t::now().toMillisSinceEpoch());
 
     tcp::resolver::query query(op->request().target.host(),
                                std::to_string(op->request().target.port()));
@@ -86,6 +90,10 @@ void NetworkInterfaceASIO::_connect(AsyncOp* op) {
             // Workaround a bug in ASIO returning an invalid resolver iterator (with a non-error
             // std::error_code) when file descriptors are exhausted.
             ec = make_error_code(ErrorCodes::HostUnreachable);
+        }
+
+        if (op->getTrace() != nullptr) {
+            op->getTrace()->addEntry(trace::ConnPhase::C_Resolver, !ec, Date_t::now().toMillisSinceEpoch());
         }
         _validateAndRun(
             op, ec, [this, op, endpoints]() { _setupSocket(op, std::move(endpoints)); });
@@ -100,13 +108,40 @@ void NetworkInterfaceASIO::_setupSocket(AsyncOp* op, tcp::resolver::iterator end
         op->setConnection({std::move(stream), rpc::supports::kOpQueryOnly});
     }
 
+    auto connectionSuccess = [this, op](std::error_code ec, size_t bytes) {
+        _validateAndRun(op, ec, [this, op, ec]() {
+            {
+                if (op->getTrace() != nullptr) {
+                    op->getTrace()->addEntry(trace::ConnPhase::C_Conn_Succ, !ec, Date_t::now().toMillisSinceEpoch());
+                    LOG(0) << "[MongoStat][asio connect trace]" << op->getTrace()->toString();
+                    op->setTrace(nullptr);
+                }
+
+                auto getConnectionDuration = now() - op->start();
+                globalSocksCounter.asioConnect(getConnectionDuration.count());
+            }
+            _runIsMaster(op);
+        });
+    };
+
     auto& stream = op->connection().stream();
-    stream.connect(std::move(endpoints),
-                   [this, op](std::error_code ec) {
-                       _validateAndRun(op, ec, [this, op]() {
-                           _runIsMaster(op);
-                       });
-                   });
+    stream.connect(std::move(endpoints),[this, op, connectionSuccess](std::error_code ec){
+        if (op->getTrace() != nullptr) {
+            op->getTrace()->addEntry(trace::ConnPhase::C_ConnToLocal, !ec, Date_t::now().toMillisSinceEpoch());
+        }
+
+        _validateAndRun(op, ec, [this, op, ec, connectionSuccess]() {
+            if (op->getTrace() != nullptr) {
+                op->getTrace()->setFd(op->connection().stream().getSocketFd());
+            }
+
+            if (serverGlobalParams.authproxyModel) {
+                _getNewSocket(op, std::move(connectionSuccess));
+            } else {
+                connectionSuccess(ec, 0);
+            }
+        });
+    });
 }
 
 }  // namespace executor

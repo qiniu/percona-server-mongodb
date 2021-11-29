@@ -238,7 +238,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
             log() << this->_check_count << ":HealthCheck result:[failure], previous success time:"
                   << this->getTimePreRun()
                   << ", delay time:" << FailureDetectorCheck::getSteadyMs() - this->getTimePreRun()
-                  << "ms, allowDelayTime:" << this->getAllowDelayTime() << "ms";
+                  << "ms, allowDelayTime:" << this->getAllowDelayTime();
         }
         this->_check_count++;
     });

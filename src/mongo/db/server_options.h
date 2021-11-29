@@ -59,6 +59,8 @@ struct ServerGlobalParams {
 
     int monitor_peroid_ms = 10000;
 
+    bool authproxyModel = false; //全局有效参数;用来区别是否启用无阻塞的 connect
+
     std::string bind_ip;  // --bind_ip
     bool rest = false;    // --rest
     bool jsonp = false;   // --jsonp

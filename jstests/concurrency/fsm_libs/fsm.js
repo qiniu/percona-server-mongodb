@@ -22,6 +22,8 @@ var fsm = (function() {
         var connCache;
         if (args.passConnectionCache) {
             connCache = {mongos: [], config: [], shards: {}};
+            print("cache args:" +tojson(args.cluster));
+
             connCache.mongos = args.cluster.mongos.map(connStr => new Mongo(connStr));
             connCache.config = args.cluster.config.map(connStr => new Mongo(connStr));
 

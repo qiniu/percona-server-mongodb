@@ -50,11 +50,13 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/ssl_manager.h"
 #include "mongo/util/version.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 namespace executor {
 
 using ResponseStatus = TaskExecutor::ResponseStatus;
+
 
 void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
     // We use a legacy builder to create our ismaster request because we may
@@ -96,7 +98,6 @@ void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
 
     // Callback to parse protocol information out of received ismaster response
     auto parseIsMaster = [this, op]() {
-
         auto swCommandReply = op->command()->response(op, rpc::Protocol::kOpQuery, now());
         if (!swCommandReply.isOK()) {
             return _completeOperation(op, swCommandReply);
@@ -161,7 +162,6 @@ void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
         }
 
         return _authenticate(op);
-
     };
 
     _asyncRunCommand(op, [this, op, parseIsMaster](std::error_code ec, size_t bytes) {

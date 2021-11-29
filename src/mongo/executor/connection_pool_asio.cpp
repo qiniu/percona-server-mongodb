@@ -40,6 +40,7 @@
 #include "mongo/rpc/reply_interface.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
+#include "mongo/util/trace.h"
 
 namespace mongo {
 namespace executor {

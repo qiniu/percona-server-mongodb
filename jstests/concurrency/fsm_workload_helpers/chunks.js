@@ -139,7 +139,11 @@ var ChunkHelper = (function() {
     function getNumDocs(conn, collName, lower, upper) {
         var coll = conn.getCollection(collName);
         var query = {$and: [{_id: {$gte: lower}}, {_id: {$lt: upper}}]};
-        return coll.find(query).itcount();
+        var cn = coll.find(query).itcount();
+
+        print("conn:" + tojson(conn) + " collName:" + collName + " lower:" + lower + " upper:" + upper + " res:" + cn);
+
+        return cn;
     }
 
     // Intended for use on config or mongos connections only.
@@ -149,6 +153,14 @@ var ChunkHelper = (function() {
         assert(isMongos(conn.getDB('admin')) || isMongodConfigsvr(conn.getDB('admin')),
                tojson(conn) + ' is not to a mongos or a mongod config server');
         var query = {'min._id': {$gte: lower}, 'max._id': {$lte: upper}};
+
+        return conn.getDB('config').chunks.find(query).itcount();
+    }
+
+    function getNumChunksWithShard(conn, shardName, ns) {
+        assert(isMongos(conn.getDB('admin')) || isMongodConfigsvr(conn.getDB('admin')),
+               tojson(conn) + ' is not to a mongos or a mongod config server');
+        var query = {'shard': shardName};
 
         return conn.getDB('config').chunks.find(query).itcount();
     }
@@ -183,6 +195,7 @@ var ChunkHelper = (function() {
         getNumDocs: getNumDocs,
         getNumChunks: getNumChunks,
         getChunks: getChunks,
-        stringifyChunks: stringifyChunks
+        stringifyChunks: stringifyChunks,
+        getNumChunksWithShard: getNumChunksWithShard
     };
 })();

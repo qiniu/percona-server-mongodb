@@ -236,6 +236,12 @@ error_code("MaxOpenConnPerHostTooMuch", 17289);
 error_code("MaxGetShardHostTooMuch", 17290);
 error_code("MaxWaitRORequestPerHostTooMuch", 17291);
 
+# for local msg
+
+error_code("InvalidFdResp", 17501);
+error_code("InvalidNewFd", 17502);
+error_code("InvalidRemoteAddr", 17503);
+
 
 # SERVER-21428 explains the extra changes needed if error_class components change.
 error_class("NetworkError", ["HostUnreachable", "HostNotFound", "NetworkTimeout"])

@@ -40,6 +40,8 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
@@ -50,6 +52,16 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                                         std::string& errmsg,
                                         double socketTimeout,
                                         const MongoURI* uri) const {
+    DBClientBase* client = nullptr;
+    Timer timer;
+    ON_BLOCK_EXIT([&client, &timer, socketTimeout](){ 
+        auto cs = timer.millis();
+        if (client != nullptr) {
+            log() << "[MongoStat][Legacy][DBClientConn] connection is success, elapsed time:" << cs << " ms, socketTimeout:" << socketTimeout << " s";
+        } else {
+            log() << "[MongoStat][Legacy][DBClientConn] connection is failure, elapsed time:" << cs << " ms, socketTimeout:" << socketTimeout << " s";
+        }
+    });
     MongoURI newURI{};
     if (uri) {
         newURI = *uri;
@@ -65,7 +77,9 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                 return 0;
             }
             LOG(1) << "connected connection!";
-            return c.release();
+
+            client = c.release();
+            return client;
         }
 
         case SET: {
@@ -76,7 +90,8 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                 errmsg += toString();
                 return 0;
             }
-            return set.release();
+            client = set.release();
+            return client;
         }
 
         case CUSTOM: {
@@ -96,7 +111,8 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
             log() << "replacing connection to " << this->toString() << " with "
                   << (replacementConn ? replacementConn->getServerAddress() : "(empty)");
 
-            return replacementConn;
+            client = replacementConn;
+            return client;
         }
 
         case LOCAL:
