@@ -33,19 +33,21 @@
 #include <stack>
 #include <atomic>
 #include <string>
+#include <iostream>
 
 #include "mongo/client/dbclientinterface.h"
 #include "mongo/client/mongo_uri.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/mutex.h"
-#include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/replication_coordinator_global.h"
+#include "mongo/client/global_rsmonitor_manager.h"
 
 
 namespace mongo {
 
 using std::string;
+using std::cerr;
+using std::endl;
 
 class BSONObjBuilder;
 class DBConnectionPool;
@@ -349,22 +351,30 @@ private:
 
     bool _limitMaxOpenConnectionSize(string url, double socketTimeout);
 
-    static std::string _getRealPoolKey(const std::string& url);
+    // first: primary, second: 真实的 url；maybe first is empty
+    static std::pair<std::string, std::string> _getRealPoolKey(const std::string& url);
 
     template <typename T>
     static std::string _getPoolKey(const T& url) {
-    if (url.type() == ConnectionString::ConnectionType::SET) {
-        std::string primary = url.getServers()[0].toString();
-        auto replicaCoord = repl::getGlobalReplicationCoordinator();
-        invariant(replicaCoord);
+    auto key = url.toString();
 
-        auto res = replicaCoord->getPrimary();
-        if (std::get<0>(res)) {
-            primary = std::get<1>(res).toString();
+    if (url.type() == ConnectionString::ConnectionType::SET) {
+        auto setMonitor = globalRSMonitorManager.getMonitor(url.getSetName());
+        if (!setMonitor) {
+            cerr << "[MongoStat] now i don't find the ReplicaSetMonitor for " << url.getSetName() << endl;
+            return key;
         }
-        return primary + KeySeparator + url.toString();
+
+        try {
+            auto res = setMonitor->getMasterOrUassert();
+            return res.toString() + KeySeparator + key;
+        } catch(...) {
+            // 假如找不到 leader 就不进行任何处理;
+            cerr << "[MongoStat] now i get exception when get master from " << url.getSetName() << endl;
+            return key;
+        }
     } else {
-        return url.toString();
+        return key;
     } 
 }
 

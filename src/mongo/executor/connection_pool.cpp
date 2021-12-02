@@ -313,7 +313,7 @@ void ConnectionPool::appendConnectionStats(ConnectionPoolStats* stats) const {
                                      pool->createdConnections(lk),
                                      pool->refreshingConnections(lk), 
                                      pool->reqQueueLimit(lk)};
-        stats->updateStatsForHost(_name, host, hostStats);
+        stats->updateStatsForHost(_name, "", host, hostStats);
     }
 }
 

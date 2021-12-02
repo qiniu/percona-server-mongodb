@@ -142,6 +142,7 @@ env.Library(
         'dbclientcursor.cpp',
         'index_spec.cpp',
         'global_conn_pool.cpp',
+        'global_rsmonitor_manager.cpp',
         'replica_set_monitor.cpp',
         'replica_set_monitor_manager.cpp',
     ],

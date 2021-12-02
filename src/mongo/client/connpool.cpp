@@ -262,17 +262,17 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
-std::string DBConnectionPool::_getRealPoolKey(const std::string& url) {
+std::pair<std::string, std::string> DBConnectionPool::_getRealPoolKey(const std::string& url) {
     if (url.empty()) {
-        return url;
+        return std::make_pair("", "");
     }
 
     auto idx = url.find(KeySeparator);
     if (idx == std::string::npos) {
-        return url;
+        return std::make_pair("", url);
     }
-    return url.substr(idx + KeySeparator.size(),   // start of the key
-                      url.size() - idx - KeySeparator.size());  // end of the key
+    return std::make_pair(url.substr(0, idx),
+                          url.substr(idx + KeySeparator.size(), url.size() - idx - KeySeparator.size()));  // end of the key
 }
 
 bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTimeout) {
@@ -352,6 +352,7 @@ DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
     return _finishCreate(key, socketTimeout, c.release(), true);
 }
 
+//这个函数没有地方调用，可以不关心，做了一个预防，如果是set模型就提早发现问题;
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
 
@@ -363,6 +364,7 @@ int DBConnectionPool::getNumAvailableConns(const string& host, double socketTime
     return (it == _pools.end()) ? 0 : it->second.numAvailable();
 }
 
+//这个函数没有地方调用，可以不关心，做了一个预防，如果是set模型就提早发现问题;
 int DBConnectionPool::getNumBadConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
 
@@ -391,6 +393,7 @@ void DBConnectionPool::release(const string& host, DBClientBase* c) {
     if (!c->getClientKey().empty()) {
         key = c->getClientKey();
     }
+
     stdx::lock_guard<stdx::mutex> L(_mutex);
     _pools[PoolKey(key, c->getSoTimeout())].done(this, c);
 }
@@ -402,6 +405,7 @@ void DBConnectionPool::decrementEgress(const string& host, DBClientBase* c) {
     if (!c->getClientKey().empty()) {
         key = c->getClientKey();
     } 
+
     PoolForHost& p = _pools[PoolKey(key, c->getSoTimeout())];
     p.descCheckout();
 }
@@ -433,14 +437,15 @@ void DBConnectionPool::clear() {
     }
 }
 
+//调用方都是移除shard使用，所以name应该是shard的全名; 
 void DBConnectionPool::removeHost(const string& host) {
     stdx::lock_guard<stdx::mutex> L(_mutex);
     LOG(2) << "Removing connections from all pools for host: " << host << endl;
     for (PoolMap::iterator i = _pools.begin(); i != _pools.end(); ++i) {
         const string& key = i->first.ident;
-        string poolHost = _getRealPoolKey(key);
+        auto keyPair = _getRealPoolKey(key);
 
-        if (!serverNameCompare()(host, poolHost) && !serverNameCompare()(poolHost, host)) {
+        if (!serverNameCompare()(host, keyPair.second) && !serverNameCompare()(keyPair.second, host)) {
             // hosts are the same
             i->second.clear();
         }
@@ -489,17 +494,30 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             // the identifier here, so we always take the first server parsed out
             // as our label for connPoolStats. Note that these stats will collide
             // with any existing stats for the chosen host.
-            string poolHost = _getRealPoolKey(i->first.ident);
-            auto uri = ConnectionString::parse(poolHost);
 
+            /**
+             * 尝试修改上面的这个问题，统计的时候按照正确的primary的地址来进行统计；理论上如果是副本集的模型，它的key前面都会带有primary的信息
+             * 副本集的模型url专门存储到一个单独地方，叫做replica
+             */
+            auto keyPair = _getRealPoolKey(i->first.ident);
+
+            auto uri = ConnectionString::parse(keyPair.second);
             invariant(uri.isOK());
             HostAndPort host = uri.getValue().getServers().front();
+            std::string replicaSet = uri.getValue().getSetName();
+
+            if (!keyPair.first.empty()) {
+                auto result = HostAndPort::parse(keyPair.first);
+                invariant(result.isOK());
+                host = result.getValue();
+            }
+
 
             executor::ConnectionStatsPer hostStats{static_cast<size_t>(i->second.numInUse()),
                                                    static_cast<size_t>(i->second.numAvailable()),
                                                    static_cast<size_t>(i->second.numCreated()),
                                                    0, 0};
-            stats->updateStatsForHost("global", host, hostStats);
+            stats->updateStatsForHost("global", replicaSet, host, hostStats);
         }
     }
 }
