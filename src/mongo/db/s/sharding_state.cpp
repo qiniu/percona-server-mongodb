@@ -616,6 +616,7 @@ ChunkVersion ShardingState::_refreshMetadata(OperationContext* txn, const Namesp
                           << " before shard name has been set",
             shardId.isValid());
 
+    //先出发路由更新
     auto const catalogCache = Grid::get(txn)->catalogCache();
     catalogCache->invalidateShardedCollection(nss);
 
@@ -664,6 +665,7 @@ ChunkVersion ShardingState::_refreshMetadata(OperationContext* txn, const Namesp
         return css->getMetadata()->getShardVersion();
     }
 
+    //expected的版本比较新，需要更新;shardChunksMap是包含了shard自己的所有的chunk信息;
     RangeMap shardChunksMap =
         SimpleBSONObjComparator::kInstance.makeBSONObjIndexedMap<CachedChunkInfo>();
 

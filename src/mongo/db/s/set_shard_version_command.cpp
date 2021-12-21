@@ -150,6 +150,7 @@ public:
 
             // TODO: SERVER-21397 remove post v3.3.
             // Send back wire version to let mongos know what protocol we can speak
+            // 如果是init的话，那就将mongod的版本信息返回给mongos
             result.append("minWireVersion", WireSpec::instance().incoming.minWireVersion);
             result.append("maxWireVersion", WireSpec::instance().incoming.maxWireVersion);
 
@@ -188,6 +189,7 @@ public:
 
         {
             boost::optional<AutoGetDb> autoDb;
+            // db lock
             autoDb.emplace(txn, nss.db(), MODE_IS);
 
             // Views do not require a shard version check.
@@ -197,9 +199,11 @@ public:
             }
 
             boost::optional<Lock::CollectionLock> collLock;
+            // coll lock
             collLock.emplace(txn->lockState(), nss.ns(), MODE_IS);
 
             auto css = CollectionShardingState::get(txn, nss);
+            // 当前mongod自己维护的版本信息,也就是最准的版本信息
             const ChunkVersion collectionShardVersion =
                 (css->getMetadata() ? css->getMetadata()->getShardVersion()
                                     : ChunkVersion::UNSHARDED());
@@ -217,11 +221,14 @@ public:
                 if (!connectionVersion.isWriteCompatibleWith(requestedVersion)) {
                     if (connectionVersion < collectionShardVersion &&
                         connectionVersion.epoch() == collectionShardVersion.epoch()) {
+                            // 如果connectionVersion版本比mongod的要老，并且epoch是一样的，那么就更新
                         info->setVersion(ns, requestedVersion);
                     } else if (authoritative) {
                         // this means there was a drop and our version is reset
+                        // 如果是权威认证的，那就直接把connection版本更新掉
                         info->setVersion(ns, requestedVersion);
                     } else {
+                        // 如果mongos和mongod的版本那是兼容的，但是epoch不一样的，那说明了collection可能被删除过?
                         result.append("ns", ns);
                         result.appendBool("need_authoritative", true);
                         errmsg = "verifying drop on '" + ns + "'";
@@ -232,8 +239,11 @@ public:
                 return true;
             }
 
+            //假如requestedVersion和真实的version不兼容，那么往下走
+
             // step 4
             // Cases below all either return OR fall-through to remote metadata reload.
+            // 假如mongod是副本集但是mongos不是副本集，那么说明这个表被删除然后重建了
             const bool isDropRequested =
                 !requestedVersion.isSet() && collectionShardVersion.isSet();
 
@@ -251,6 +261,7 @@ public:
                 // Not Dropping
 
                 // TODO: Refactor all of this
+                // 说明mongos的版本比较老，需要更新
                 if (requestedVersion < connectionVersion &&
                     requestedVersion.epoch() == connectionVersion.epoch()) {
                     errmsg = str::stream() << "this connection already had a newer version "
@@ -262,6 +273,7 @@ public:
                 }
 
                 // TODO: Refactor all of this
+                // 说明mongos的版本比较老，需要更新
                 if (requestedVersion < collectionShardVersion &&
                     requestedVersion.epoch() == collectionShardVersion.epoch()) {
                     if (css->getMigrationSourceManager()) {
@@ -311,6 +323,7 @@ public:
             }
         }
 
+        // mongos的版本比mongod要新;
         Status status = shardingState->onStaleShardVersion(txn, nss, requestedVersion);
 
         {

@@ -135,6 +135,7 @@ bool setShardVersion(OperationContext* opCtx,
             SetShardVersionRequest::makeForInit(configServer, shardId, shardCS);
         cmd = ssv.toBSON();
     } else {
+        //带有版本的连接
         SetShardVersionRequest ssv = SetShardVersionRequest::makeForVersioning(
             configServer, shardId, shardCS, NamespaceString(ns), version, authoritative);
         cmd = ssv.toBSON();
@@ -252,6 +253,7 @@ bool checkShardVersion(OperationContext* opCtx,
         return initShardVersionEmptyNS(opCtx, conn_in);
     }
 
+    // 获得master的conn
     DBClientBase* const conn = getVersionable(conn_in);
     verify(conn);  // errors thrown above
 
@@ -270,9 +272,11 @@ bool checkShardVersion(OperationContext* opCtx,
 
     auto& routingInfo = routingInfoStatus.getValue();
 
+    // manager: 当时最新的manger， refManager: 连接再被构建时候的manager
     const auto manager = routingInfo.cm();
     const auto primary = routingInfo.primary();
 
+    //获得当前进程最新的ChunkManager的版本
     unsigned long long officialSequenceNumber = 0;
 
     if (manager) {
@@ -293,6 +297,7 @@ bool checkShardVersion(OperationContext* opCtx,
 
     // Check this manager against the reference manager
     if (manager) {
+        // 说明refManager是过期了
         if (refManager && !refManager->compatibleWith(*manager, shard->getId())) {
             const ChunkVersion refVersion(refManager->getVersion(shard->getId()));
             const ChunkVersion currentVersion(manager->getVersion(shard->getId()));
@@ -314,6 +319,7 @@ bool checkShardVersion(OperationContext* opCtx,
             throw SendStaleConfigException(ns, msg, refVersion, currentVersion);
         }
     } else if (refManager) {
+        // manager = nil, but refManager != nil; 
         string msg(str::stream() << "not sharded (" << (!manager ? string("<none>") : str::stream()
                                                                 << manager->getSequenceNumber())
                                  << ") but has reference manager ("
@@ -329,7 +335,9 @@ bool checkShardVersion(OperationContext* opCtx,
             ns, msg, refManager->getVersion(shard->getId()), ChunkVersion::UNSHARDED());
     }
 
-    // 每一个连接会维护这id到版本之间的信息;
+    //经过上面的检查，说明起码在manager上的比较之后是没有问题的;maybe manager = nil
+
+    //如果当前连接之前关联的版本和最新版本是不一样的话，就返回false;
     // Has the ChunkManager been reloaded since the last time we updated the shard version over
     // this connection?  If we've never updated the shard version, do so now.
     unsigned long long sequenceNumber = 0;
@@ -339,8 +347,10 @@ bool checkShardVersion(OperationContext* opCtx,
         }
     }
 
+    //设置一个空version
     ChunkVersion version = ChunkVersion(0, 0, OID());
     if (manager) {
+        //获得shard的当前ns的最大的version
         version = manager->getVersion(shard->getId());
     }
 
@@ -377,7 +387,6 @@ bool checkShardVersion(OperationContext* opCtx,
     if (!authoritative) {
         // use the original connection and get a fresh versionable connection
         // since conn can be invalidated (or worse, freed) after the failure
-        // 强制更新
         checkShardVersion(opCtx, conn_in, ns, refManager, 1, tryNumber + 1);
         return true;
     }
