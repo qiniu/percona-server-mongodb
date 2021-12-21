@@ -262,7 +262,7 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
-std::pair<std::string, std::string> DBConnectionPool::_getRealPoolKey(const std::string& url) {
+std::pair<std::string, std::string> DBConnectionPool::_getOriginalPoolKey(const std::string& url) {
     if (url.empty()) {
         return std::make_pair("", "");
     }
@@ -443,7 +443,7 @@ void DBConnectionPool::removeHost(const string& host) {
     LOG(2) << "Removing connections from all pools for host: " << host << endl;
     for (PoolMap::iterator i = _pools.begin(); i != _pools.end(); ++i) {
         const string& key = i->first.ident;
-        auto keyPair = _getRealPoolKey(key);
+        auto keyPair = _getOriginalPoolKey(key);
 
         if (!serverNameCompare()(host, keyPair.second) && !serverNameCompare()(keyPair.second, host)) {
             // hosts are the same
@@ -499,7 +499,7 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
              * 尝试修改上面的这个问题，统计的时候按照正确的primary的地址来进行统计；理论上如果是副本集的模型，它的key前面都会带有primary的信息
              * 副本集的模型url专门存储到一个单独地方，叫做replica
              */
-            auto keyPair = _getRealPoolKey(i->first.ident);
+            auto keyPair = _getOriginalPoolKey(i->first.ident);
 
             auto uri = ConnectionString::parse(keyPair.second);
             invariant(uri.isOK());
