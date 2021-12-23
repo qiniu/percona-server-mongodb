@@ -33,16 +33,21 @@
 #include <stack>
 #include <atomic>
 #include <string>
+#include <iostream>
 
 #include "mongo/client/dbclientinterface.h"
 #include "mongo/client/mongo_uri.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/mutex.h"
+#include "mongo/client/global_rsmonitor_manager.h"
+
 
 namespace mongo {
 
 using std::string;
+using std::cerr;
+using std::endl;
 
 class BSONObjBuilder;
 class DBConnectionPool;
@@ -51,6 +56,8 @@ namespace executor {
 struct ConnectionPoolStats;
 }  // namespace executor
 
+//10.1.1.1:27017#@#shard0/10.1.1.1:27017,10.2.2.2:27017,10.3.3.3:27017
+const std::string KeySeparator = "#@#";
 /**
  * not thread safe
  * thread safety is handled by DBConnectionPool
@@ -344,6 +351,35 @@ private:
     DBClientBase* _finishCreate(const std::string& ident, double socketTimeout, DBClientBase* conn, bool tryAddCheckout = false);
 
     bool _limitMaxOpenConnectionSize(string url, double socketTimeout);
+
+    // first: primary, second: 真实的 url；maybe first is empty
+    static std::pair<std::string, std::string> _getOriginalPoolKey(const std::string& url);
+
+    template <typename T>
+    static std::string _getPoolKey(const T& url) {
+        auto key = url.toString();
+
+        if (url.type() == ConnectionString::ConnectionType::SET) {
+            auto setMonitor = globalRSMonitorManager.getMonitor(url.getSetName());
+            if (!setMonitor) {
+                cerr << "[MongoStat] now i don't find the ReplicaSetMonitor for "
+                     << url.getSetName() << endl;
+                return key;
+            }
+
+            try {
+                auto res = setMonitor->getMasterOrUassert();
+                return res.toString() + KeySeparator + key;
+            } catch (...) {
+                // 假如找不到 leader 就不进行任何处理;
+                cerr << "[MongoStat] now i get exception when get master from " << url.getSetName()
+                     << endl;
+                return key;
+            }
+        } else {
+            return key;
+        }
+    }
 
     struct PoolKey {
         PoolKey(const std::string& i, double t) : ident(i), timeout(t) {}

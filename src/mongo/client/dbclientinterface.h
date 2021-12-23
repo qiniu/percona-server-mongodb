@@ -845,6 +845,7 @@ class DBClientBase : public DBClientWithCommands {
 protected:
     static AtomicInt64 ConnectionIdSequence;
     long long _connectionId;  // unique connection id for this connection
+    std::string _clientKey{""}; //添加这个参数是为了能在归还 connection 的时候能够根据 connection 去找到对应的 clientKey
 
 public:
     static const uint64_t INVALID_SOCK_CREATION_TIME;
@@ -859,6 +860,13 @@ public:
 
     virtual int getMinWireVersion() = 0;
     virtual int getMaxWireVersion() = 0;
+
+    std::string getClientKey() const {
+        return _clientKey;
+    }
+    void setClientKey(const std::string& clientKey) {
+        _clientKey = clientKey;
+    }
 
     /** send a query to the database.
      @param ns namespace to query, format is <dbname>.<collectname>[.<collectname>]*

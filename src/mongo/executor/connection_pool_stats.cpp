@@ -56,12 +56,17 @@ ConnectionStatsPer& ConnectionStatsPer::operator+=(const ConnectionStatsPer& oth
 }
 
 void ConnectionPoolStats::updateStatsForHost(std::string pool,
+                                             const std::string& replicaSet,
                                              HostAndPort host,
                                              ConnectionStatsPer newStats) {
     // Update stats for this host.
     statsByPool[pool] += newStats;
     statsByHost[host] += newStats;
     statsByPoolHost[pool][host] += newStats;
+
+    if (!replicaSet.empty()) {
+        statsBySetNameHost[replicaSet][host] += newStats;
+    }
 
     // Update total connection stats.
     totalInUse += newStats.inUse;
@@ -109,6 +114,22 @@ void ConnectionPoolStats::appendToBSON(mongo::BSONObjBuilder& result) {
             hostInfo.appendNumber("created", hostStats.created);
             hostInfo.appendNumber("refreshing", hostStats.refreshing);
             hostInfo.appendNumber("reqQueueLimit", hostStats.reqQueueLimit);
+        }
+    }
+    {
+        BSONObjBuilder replicaSetBuilder(result.subobjStart("replica"));
+        for (auto&& item : statsBySetNameHost) {
+            BSONObjBuilder replicaSetInfo(replicaSetBuilder.subobjStart(item.first));
+            for (auto&& hostItem : item.second) {
+                BSONObjBuilder hostInfo(replicaSetInfo.subobjStart(hostItem.first.toString()));
+
+                auto hostStats = hostItem.second;
+                hostInfo.appendNumber("inUse", hostStats.inUse);
+                hostInfo.appendNumber("available", hostStats.available);
+                hostInfo.appendNumber("created", hostStats.created);
+                hostInfo.appendNumber("refreshing", hostStats.refreshing);
+                hostInfo.appendNumber("reqQueueLimit", hostStats.reqQueueLimit); 
+            }
         }
     }
 }

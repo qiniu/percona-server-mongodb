@@ -57,6 +57,7 @@ using std::set;
 using std::string;
 using std::vector;
 
+
 // ------ PoolForHost ------
 
 PoolForHost::~PoolForHost() {
@@ -261,6 +262,19 @@ DBClientBase* DBConnectionPool::_finishCreate(const string& ident,
     return conn;
 }
 
+std::pair<std::string, std::string> DBConnectionPool::_getOriginalPoolKey(const std::string& url) {
+    if (url.empty()) {
+        return std::make_pair("", "");
+    }
+
+    auto idx = url.find(KeySeparator);
+    if (idx == std::string::npos) {
+        return std::make_pair("", url);
+    }
+    return std::make_pair(url.substr(0, idx),
+                          url.substr(idx + KeySeparator.size(), url.size() - idx - KeySeparator.size()));  // end of the key
+}
+
 bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTimeout) {
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     PoolForHost& p = this->_pools[PoolKey(url, socketTimeout)];
@@ -282,7 +296,9 @@ bool DBConnectionPool::_limitMaxOpenConnectionSize(string url, double socketTime
 }
 
 DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTimeout) {
-    DBClientBase* c = _get(url.toString(), socketTimeout);
+    std::string key = _getPoolKey(url);
+
+    DBClientBase* c = _get(key, socketTimeout);
     if (c) {
         try {
             onHandedOut(c);
@@ -293,79 +309,70 @@ DBClientBase* DBConnectionPool::get(const ConnectionString& url, double socketTi
         return c;
     }
 
-    this->_limitMaxOpenConnectionSize(url.toString(), socketTimeout);
+    this->_limitMaxOpenConnectionSize(key, socketTimeout);
     string errmsg;
     c = url.connect(StringData(), errmsg, socketTimeout);
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(url.toString(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(key, socketTimeout)];
         p.descCheckout();
     }
-    uassert(13328, _name + ": connect failed " + url.toString() + " : " + errmsg, c);
+    uassert(13328, _name + ": connect failed " + key + " : " + errmsg, c);
+    c->setClientKey(key);
 
-    return _finishCreate(url.toString(), socketTimeout, c, true);
+    return _finishCreate(key, socketTimeout, c, true);
 }
 
 DBClientBase* DBConnectionPool::get(const string& host, double socketTimeout) {
-    DBClientBase* c = _get(host, socketTimeout);
-    if (c) {
-        try {
-            onHandedOut(c);
-        } catch (std::exception&) {
-            delete c;
-            throw;
-        }
-        return c;
-    }
-
-    this->_limitMaxOpenConnectionSize(host, socketTimeout);
     const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
-    string errmsg;
-    c = cs.connect(StringData(), errmsg, socketTimeout);
-    if (!c) {
-        stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(host, socketTimeout)];
-        p.descCheckout();
-
-        throw SocketException(SocketException::CONNECT_ERROR,
-                              host,
-                              11002,
-                              str::stream() << _name << " error: " << errmsg);
-    }
-
-    return _finishCreate(host, socketTimeout, c, true);
+    return get(cs, socketTimeout);
 }
 
 DBClientBase* DBConnectionPool::get(const MongoURI& uri, double socketTimeout) {
-    std::unique_ptr<DBClientBase> c(_get(uri.toString(), socketTimeout));
+    std::string key = _getPoolKey(uri);
+
+    std::unique_ptr<DBClientBase> c(_get(key, socketTimeout));
     if (c) {
         onHandedOut(c.get());
         return c.release();
     }
 
-    this->_limitMaxOpenConnectionSize(uri.toString(), socketTimeout);
+    this->_limitMaxOpenConnectionSize(key, socketTimeout);
     string errmsg;
     c = std::unique_ptr<DBClientBase>(uri.connect(StringData(), errmsg, socketTimeout));
 
     if (!c) {
         stdx::unique_lock<stdx::mutex> lk(_mutex);
-        PoolForHost& p = this->_pools[PoolKey(uri.toString(), socketTimeout)];
+        PoolForHost& p = this->_pools[PoolKey(key, socketTimeout)];
         p.descCheckout();
     }
-    uassert(40356, _name + ": connect failed " + uri.toString() + " : " + errmsg, c);
+    uassert(40356, _name + ": connect failed " + key + " : " + errmsg, c);
 
-    return _finishCreate(uri.toString(), socketTimeout, c.release(), true);
+    c->setClientKey(key);
+    return _finishCreate(key, socketTimeout, c.release(), true);
 }
 
+//这个函数没有地方调用，可以不关心，做了一个预防，如果是set模型就提早发现问题;
 int DBConnectionPool::getNumAvailableConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    auto it = _pools.find(PoolKey(host, socketTimeout));
+
+    const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
+    invariant(cs.type() != ConnectionString::SET);
+
+    auto key = _getPoolKey(cs);
+    auto it = _pools.find(PoolKey(key, socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.numAvailable();
 }
 
+//这个函数没有地方调用，可以不关心，做了一个预防，如果是set模型就提早发现问题;
 int DBConnectionPool::getNumBadConns(const string& host, double socketTimeout) const {
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    auto it = _pools.find(PoolKey(host, socketTimeout));
+
+    const ConnectionString cs(uassertStatusOK(ConnectionString::parse(host)));
+    invariant(cs.type() != ConnectionString::SET);
+
+    auto key = _getPoolKey(cs);
+    auto it = _pools.find(PoolKey(key, socketTimeout));
     return (it == _pools.end()) ? 0 : it->second.getNumBadConns();
 }
 
@@ -382,13 +389,24 @@ void DBConnectionPool::onRelease(DBClientBase* conn) {
 void DBConnectionPool::release(const string& host, DBClientBase* c) {
     onRelease(c);
 
+    auto key = host;
+    if (!c->getClientKey().empty()) {
+        key = c->getClientKey();
+    }
+
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    _pools[PoolKey(host, c->getSoTimeout())].done(this, c);
+    _pools[PoolKey(key, c->getSoTimeout())].done(this, c);
 }
 
 void DBConnectionPool::decrementEgress(const string& host, DBClientBase* c) {
     stdx::lock_guard<stdx::mutex> L(_mutex);
-    PoolForHost& p = _pools[PoolKey(host, c->getSoTimeout())];
+
+    auto key = host;
+    if (!c->getClientKey().empty()) {
+        key = c->getClientKey();
+    } 
+
+    PoolForHost& p = _pools[PoolKey(key, c->getSoTimeout())];
     p.descCheckout();
 }
 
@@ -419,12 +437,15 @@ void DBConnectionPool::clear() {
     }
 }
 
+//调用方都是移除shard使用，所以name应该是shard的全名; 
 void DBConnectionPool::removeHost(const string& host) {
     stdx::lock_guard<stdx::mutex> L(_mutex);
     LOG(2) << "Removing connections from all pools for host: " << host << endl;
     for (PoolMap::iterator i = _pools.begin(); i != _pools.end(); ++i) {
-        const string& poolHost = i->first.ident;
-        if (!serverNameCompare()(host, poolHost) && !serverNameCompare()(poolHost, host)) {
+        const string& key = i->first.ident;
+        auto keyPair = _getOriginalPoolKey(key);
+
+        if (!serverNameCompare()(host, keyPair.second) && !serverNameCompare()(keyPair.second, host)) {
             // hosts are the same
             i->second.clear();
         }
@@ -473,15 +494,30 @@ void DBConnectionPool::appendConnectionStats(executor::ConnectionPoolStats* stat
             // the identifier here, so we always take the first server parsed out
             // as our label for connPoolStats. Note that these stats will collide
             // with any existing stats for the chosen host.
-            auto uri = ConnectionString::parse(i->first.ident);
+
+            /**
+             * 尝试修改上面的这个问题，统计的时候按照正确的primary的地址来进行统计；理论上如果是副本集的模型，它的key前面都会带有primary的信息
+             * 副本集的模型url专门存储到一个单独地方，叫做replica
+             */
+            auto keyPair = _getOriginalPoolKey(i->first.ident);
+
+            auto uri = ConnectionString::parse(keyPair.second);
             invariant(uri.isOK());
             HostAndPort host = uri.getValue().getServers().front();
+            std::string replicaSet = uri.getValue().getSetName();
+
+            if (!keyPair.first.empty()) {
+                auto result = HostAndPort::parse(keyPair.first);
+                invariant(result.isOK());
+                host = result.getValue();
+            }
+
 
             executor::ConnectionStatsPer hostStats{static_cast<size_t>(i->second.numInUse()),
                                                    static_cast<size_t>(i->second.numAvailable()),
                                                    static_cast<size_t>(i->second.numCreated()),
                                                    0, 0};
-            stats->updateStatsForHost("global", host, hostStats);
+            stats->updateStatsForHost("global", replicaSet, host, hostStats);
         }
     }
 }
@@ -532,8 +568,13 @@ bool DBConnectionPool::isConnectionGood(const string& hostName, DBClientBase* co
     }
 
     {
+        std::string key = conn->getClientKey();
+        if (key.empty()) {
+            key = hostName;
+        }
+
         stdx::lock_guard<stdx::mutex> sl(_mutex);
-        PoolForHost& pool = _pools[PoolKey(hostName, conn->getSoTimeout())];
+        PoolForHost& pool = _pools[PoolKey(key, conn->getSoTimeout())];
         if (pool.isBadSocketCreationTime(conn->getSockCreationMicroSec())) {
             return false;
         }

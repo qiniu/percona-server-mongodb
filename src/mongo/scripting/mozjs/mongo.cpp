@@ -32,6 +32,7 @@
 
 #include "mongo/client/dbclientinterface.h"
 #include "mongo/client/global_conn_pool.h"
+#include "mongo/client/global_rsmonitor_manager.h"
 #include "mongo/client/mongo_uri.h"
 #include "mongo/client/native_sasl_client_session.h"
 #include "mongo/client/sasl_client_authenticate.h"
