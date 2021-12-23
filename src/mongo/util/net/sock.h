@@ -56,6 +56,9 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/net/sockaddr.h"
+#include "mongo/util/net/message.h"
+#include "mongo/db/stats/sockscounter.h"
+#include "mongo/util/trace.h"
 
 namespace mongo {
 
@@ -194,6 +197,7 @@ public:
     }
 
     void setTimeout(double secs);
+
     bool isStillConnected();
 
     void setHandshakeReceived() {
@@ -251,6 +255,13 @@ private:
     /** raw recv, same semantics as ::recv */
     int _recv(char* buf, int max);
 
+    // 切换 fd
+    bool _switchSocket();
+
+    // 内部用来获得一个 msg 的接口;不想自己写接受消息过程所有 copy 了 messageport::recv 的代码
+    bool _recvMsg(Message& msg);
+
+
     int _fd;
     uint64_t _fdCreationMicroSec;
     SockAddr _local;
@@ -260,6 +271,8 @@ private:
     long long _bytesIn;
     long long _bytesOut;
     time_t _lastValidityCheckAtSecs;
+
+    std::shared_ptr<trace::OneTrace> _trace{nullptr};
 
 #ifdef MONGO_CONFIG_SSL
     std::unique_ptr<SSLConnection> _sslConnection;

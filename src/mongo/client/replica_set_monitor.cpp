@@ -37,6 +37,7 @@
 #include "mongo/bson/simple_bsonelement_comparator.h"
 #include "mongo/client/connpool.h"
 #include "mongo/client/global_conn_pool.h"
+#include "mongo/client/global_rsmonitor_manager.h"
 #include "mongo/client/read_preference.h"
 #include "mongo/client/replica_set_monitor_internal.h"
 #include "mongo/db/operation_context.h"

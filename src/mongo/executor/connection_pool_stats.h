@@ -58,7 +58,7 @@ struct ConnectionStatsPer {
  * Total connection counts will then be updated accordingly.
  */
 struct ConnectionPoolStats {
-    void updateStatsForHost(std::string pool, HostAndPort host, ConnectionStatsPer newStats);
+    void updateStatsForHost(std::string pool, const std::string& replicaSet, HostAndPort host, ConnectionStatsPer newStats);
 
     void appendToBSON(mongo::BSONObjBuilder& result);
 
@@ -70,6 +70,8 @@ struct ConnectionPoolStats {
 
     stdx::unordered_map<std::string, ConnectionStatsPer> statsByPool;
     stdx::unordered_map<HostAndPort, ConnectionStatsPer> statsByHost;
+    //副本集的连接池管理; 
+    stdx::unordered_map<std::string, stdx::unordered_map<HostAndPort, ConnectionStatsPer>> statsBySetNameHost;
     stdx::unordered_map<std::string, stdx::unordered_map<HostAndPort, ConnectionStatsPer>>
         statsByPoolHost;
 };

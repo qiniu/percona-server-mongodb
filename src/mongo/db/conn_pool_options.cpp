@@ -33,6 +33,7 @@
 #include "mongo/base/init.h"
 #include "mongo/client/connpool.h"
 #include "mongo/client/global_conn_pool.h"
+#include "mongo/client/global_rsmonitor_manager.h"
 #include "mongo/db/server_parameters.h"
 #include "mongo/s/client/shard_connection.h"
 #include <algorithm>

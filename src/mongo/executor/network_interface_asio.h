@@ -58,6 +58,8 @@
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/transport/message_compressor_manager.h"
 #include "mongo/util/net/message.h"
+#include "mongo/util/trace.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
@@ -323,6 +325,24 @@ private:
 
         bool operator==(const AsyncOp& other) const;
 
+        void initTrace() {
+            _trace = std::make_unique<trace::OneTrace>();
+            _trace->setUid(_id);
+            _trace->setStartTime(_start.toMillisSinceEpoch());
+            _trace->setPrePhase(_start.toMillisSinceEpoch());
+        }
+
+        int64_t getId() {
+            return _id;
+        }
+
+        std::shared_ptr<trace::OneTrace> getTrace() {
+            return _trace;
+        }
+
+        void setTrace(std::shared_ptr<trace::OneTrace> trace) {
+            _trace = trace;
+        }
     private:
         // Type to represent the internal id of this request.
         using AsyncOpId = uint64_t;
@@ -374,6 +394,7 @@ private:
         asio::ip::tcp::resolver _resolver;
 
         const AsyncOpId _id;
+        std::shared_ptr<trace::OneTrace> _trace{nullptr};
 
         /**
          * We maintain a shared_ptr to an access control object. This ensures that tangent
@@ -390,6 +411,7 @@ private:
         boost::optional<AsyncCommand> _command;
         bool _inSetup;
         bool _inRefresh;
+
 
         /**
          * The explicit strand that all operations for this op must run on.
@@ -432,14 +454,19 @@ private:
             auto rs = ResponseStatus(
                 ErrorCodes::NetworkInterfaceExceededTimeLimit, msg, now() - op->start());
             return _completeOperation(op, rs);
-        } else if (ec)
+        } else if (ec) {
             return _networkErrorCallback(op, ec);
-
+        }
         handler();
     }
 
     // Connection
     void _connect(AsyncOp* op);
+
+    /*
+     * 为了应付libsocks5的connect阻塞问题，所以需要通过在创建好连接之后继续等到一个回复获得新的fd来使用;
+     */   
+    void _getNewSocket(AsyncOp* op, NetworkOpHandler handler);
 
     // setup plaintext TCP socket
     void _setupSocket(AsyncOp* op, asio::ip::tcp::resolver::iterator endpoints);

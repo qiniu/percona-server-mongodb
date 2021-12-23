@@ -53,19 +53,21 @@ DBClientBase* ConnectionString::connect(StringData applicationName,
                                         double socketTimeout,
                                         const MongoURI* uri) const {
     DBClientBase* client = nullptr;
-    Timer timer;
-    ON_BLOCK_EXIT([&client, &timer](){ 
-        auto cs = timer.micros();
-        if (client != nullptr) {
-            log() << "Leacy connection is success, elapsed time:" << cs;
-        } else {
-            log() << "Leacy connection is failure, elapsed time:" << cs;
-        }
-    });
     MongoURI newURI{};
     if (uri) {
         newURI = *uri;
     }
+
+
+    Timer timer;
+    ON_BLOCK_EXIT([&client, &timer, socketTimeout, this](){ 
+        auto cs = timer.millis();
+        if (client != nullptr) {
+            log() << "[MongoStat][Legacy][DBClientConn] connection is success, uri:" << this->toString() << ", elapsed time:" << cs << " ms, socketTimeout:" << socketTimeout << " s";
+        } else {
+            log() << "[MongoStat][Legacy][DBClientConn] connection is failure, uri:" << this->toString() << ", elapsed time:" << cs << " ms, socketTimeout:" << socketTimeout << " s";
+        }
+    });
 
     switch (_type) {
         case MASTER: {

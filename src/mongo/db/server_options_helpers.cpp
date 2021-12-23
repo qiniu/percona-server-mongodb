@@ -190,6 +190,8 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
         moe::String,
         "comma separated list of ip addresses to listen on - all local ips by default");
 
+    options->addOptionChaining("authproxy.model", "authproxyModel", moe::Bool, "enable nonblocking connect, defalut false");
+
     options->addOptionChaining(
         "net.ipv6", "ipv6", moe::Switch, "enable IPv6 support (disabled by default)");
 
@@ -826,6 +828,12 @@ Status storeServerOptions(const moe::Environment& params) {
 
     if (params.count("net.bindIp")) {
         serverGlobalParams.bind_ip = params["net.bindIp"].as<std::string>();
+    }
+
+    if (params.count("authproxy.model")) {
+        serverGlobalParams.authproxyModel = params["authproxy.model"].as<bool>();
+    } else {
+        serverGlobalParams.authproxyModel = false;
     }
 
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {

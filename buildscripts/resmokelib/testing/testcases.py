@@ -344,7 +344,7 @@ class JSTestCase(TestCase):
         test_data = global_vars.get("TestData", {}).copy()
         test_data["minPort"] = core.network.PortAllocator.min_test_port(fixture.job_num)
         test_data["maxPort"] = core.network.PortAllocator.max_test_port(fixture.job_num)
-        self.logger.info("lixin minPort:%d, maxPort:%d", test_data["minPort"], test_data["maxPort"])
+        self.logger.info("jobnum:%d, test_name:%s, minPort:%d, maxPort:%d", fixture.job_num, self.test_name, test_data["minPort"], test_data["maxPort"])
 
         global_vars["TestData"] = test_data
         self.shell_options["global_vars"] = global_vars

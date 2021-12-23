@@ -50,6 +50,8 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
 namespace executor {
@@ -373,6 +375,82 @@ void NetworkInterfaceASIO::_completeOperation(AsyncOp* op, ResponseStatus resp) 
     signalWorkAvailable();
 }
 
+void NetworkInterfaceASIO::_getNewSocket(AsyncOp* op, NetworkOpHandler handler) {
+    if (!serverGlobalParams.authproxyModel) {
+        log() << "authproxy model is false, so call this function is impossible";
+        invariant(false);
+    }
+
+    std::shared_ptr<MSGHEADER::Value> header = std::make_shared<MSGHEADER::Value>();
+    std::shared_ptr<Message> recvMsg = std::make_shared<Message>();
+    Timer t;
+
+    /**
+     * 当接受到新的文件句柄的时候，需要做的事情:
+     * 1. 请求成功
+     *      1.1 将新的文件句柄进行替换，
+     *      1.2 关闭之前的socket
+     * 2. 请求失败
+     *      2.1 直接关闭当前的这个异步任务
+     */
+    auto recvMsgCallback = [this, op, recvMsg, header, handler, t](std::error_code ec, size_t bytes) {
+        if (ec) {
+            globalSocksCounter.incAsioSwitchErrorCnt();
+        }
+
+        if(op->getTrace() != nullptr) {
+            op->getTrace()->addEntry(trace::ConnPhase::C_GetNewFd_Body, !ec, Date_t::now().toMillisSinceEpoch());
+        }
+
+       _validateAndRun(op, ec, [this, op, header, recvMsg, ec, bytes, handler, t]{
+            NewFdRespMsg msg(recvMsg->header().data());
+            if (!msg.check()) {
+                LOG(0) << "msg is invaild, msg:" << msg.toString();
+                handler(make_error_code(ErrorCodes::InvalidFdResp), bytes);
+
+                globalSocksCounter.incAsioSwitchErrorCnt();
+                return;
+            }
+
+            if (!msg.checkHostPort(op->connection().stream().getRemoteAddr().getAddr(), op->connection().stream().getRemoteAddr().getPort())) {
+                LOG(0) << "[asio] check remoteaddr is error,real remote:" << op->connection().stream().getRemoteAddr().toString() << ", receive remote:" << msg.toString();
+                handler(make_error_code(ErrorCodes::InvalidRemoteAddr), bytes);
+                globalSocksCounter.incAsioSwitchErrorCnt();
+                return;
+            }
+
+            auto tmp = op->connection().stream().switchSocket(msg.getRemoteFd());
+            if (op->getTrace() != nullptr) {
+                op->getTrace()->setNewFd(msg.getRemoteFd());
+                op->getTrace()->addEntry(trace::ConnPhase::C_SwitchToNewFd, tmp, Date_t::now().toMillisSinceEpoch());
+            }
+
+            if (tmp) {
+                globalSocksCounter.asioSwitch(t.millis());
+                handler(ec, bytes);
+            } else {
+                globalSocksCounter.incAsioSwitchErrorCnt();
+                handler(make_error_code(ErrorCodes::InvalidNewFd), bytes);
+            }
+        });
+    };
+
+    auto recvHeaderCallback = [this, op, header, recvMsg, recvMsgCallback](std::error_code ec, size_t bytes) {
+        if (ec) {
+            globalSocksCounter.incAsioSwitchErrorCnt();
+        }
+
+        if(op->getTrace() != nullptr) {
+            op->getTrace()->addEntry(trace::ConnPhase::C_GetNewFd_Header, !ec, Date_t::now().toMillisSinceEpoch());
+        }
+
+        _validateAndRun(op, ec, [this, op, header, bytes, recvMsg, recvMsgCallback]{
+            asyncRecvMessageBody(op->connection().stream(), header.get(), recvMsg.get(), std::move(recvMsgCallback));
+        });
+    };
+    asyncRecvMessageHeader(op->connection().stream(), header.get(), std::move(recvHeaderCallback)); 
+}
+
 void NetworkInterfaceASIO::_asyncRunCommand(AsyncOp* op, NetworkOpHandler handler) {
     LOG(2) << "Starting asynchronous command " << op->request().id << " on host "
            << op->request().target.toString();
@@ -425,8 +503,6 @@ void NetworkInterfaceASIO::_asyncRunCommand(AsyncOp* op, NetworkOpHandler handle
             asyncRecvMessageHeader(
                 cmd->conn().stream(), &cmd->header(), std::move(recvHeaderCallback));
         });
-
-
     };
 
     // Step 1

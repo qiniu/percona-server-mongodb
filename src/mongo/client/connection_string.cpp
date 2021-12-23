@@ -31,17 +31,16 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/client/connection_string.h"
-
 #include "mongo/base/status_with.h"
 #include "mongo/util/mongoutils/str.h"
 
 namespace mongo {
-
+// type = master
 ConnectionString::ConnectionString(const HostAndPort& server) : _type(MASTER) {
     _servers.push_back(server);
     _finishInit();
 }
-
+// type = set
 ConnectionString::ConnectionString(StringData setName, std::vector<HostAndPort> servers)
     : _type(SET), _servers(std::move(servers)), _setName(setName.toString()) {
     _finishInit();
@@ -70,6 +69,7 @@ ConnectionString::ConnectionString(const std::string& s, ConnectionType connType
     _finishInit();
 }
 
+// type = local
 ConnectionString::ConnectionString(ConnectionType connType) : _type(connType), _string("<local>") {
     invariant(_type == LOCAL);
 }
@@ -160,7 +160,6 @@ void ConnectionString::_finishInit() {
 
         ss << _servers[i].toString();
     }
-
     _string = ss.str();
 }
 
@@ -236,5 +235,4 @@ std::string ConnectionString::typeToString(ConnectionType type) {
 
     MONGO_UNREACHABLE;
 }
-
 }  // namespace mongo
