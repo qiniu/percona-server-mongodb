@@ -108,6 +108,9 @@ enum StageType {
     STAGE_UNKNOWN,
 
     STAGE_UPDATE,
+
+    // sharding filter for secondary
+    STAGE_SECONDARY_SHARDING_FILTER,
 };
 
 }  // namespace mongo
