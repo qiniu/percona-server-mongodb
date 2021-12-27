@@ -53,7 +53,11 @@ std::string watchdogReasonStr(WatchdogReason reason) {
 
 bool FailureDetectorCheck::enableBecomeCandidateWithCurrentState() {
     auto replicaCoord = repl::getGlobalReplicationCoordinator();
-    invariant(replicaCoord);
+
+    if (!replicaCoord || !replicaCoord->isReplEnabled()) {
+        log() << "[MongoStat] this node is not a replica set member, skip becomeCandidate";
+        return false;
+    }
 
     repl::ReplSetConfig config = replicaCoord->getConfig();
     if (!config.validate().isOK()) {
@@ -74,21 +78,30 @@ bool FailureDetectorCheck::enableBecomeCandidateWithCurrentState() {
 
 std::string FailureDetectorCheck::getMemberStateStr() {
     auto replicaCoord = repl::getGlobalReplicationCoordinator();
-    invariant(replicaCoord);
+    if (!replicaCoord || !replicaCoord->isReplEnabled()) {
+        log() << "[MongoStat] this node is not a replica set member, skip";
+        return "NotReplSet";
+    }
 
     return replicaCoord->getMemberState().toString();
 }
 
 bool FailureDetectorCheck::isSecondary() {
     auto replicaCoord = repl::getGlobalReplicationCoordinator();
-    invariant(replicaCoord);
+    if (!replicaCoord || !replicaCoord->isReplEnabled()) {
+        log() << "[MongoStat] this node is not a replica set member, skip";
+        return false;
+    }
 
     return replicaCoord->getMemberState().secondary();
 }
 
 std::tuple<bool, HostAndPort> FailureDetectorCheck::getPrimary() {
     auto replicaCoord = repl::getGlobalReplicationCoordinator();
-    invariant(replicaCoord);
+    if (!replicaCoord || !replicaCoord->isReplEnabled()) {
+        log() << "[MongoStat] this node is not a replica set member, skip getPrimary";
+        return std::make_tuple(false, HostAndPort());
+    }
 
     return replicaCoord->getPrimary();
 }

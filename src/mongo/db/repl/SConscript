@@ -363,6 +363,9 @@ env.Library('topology_coordinator_impl',
                 'rslog',
                 'topology_coordinator',
                 '$BUILD_DIR/mongo/util/fail_point',
+                '$BUILD_DIR/mongo/db/s/sharding',
+                '$BUILD_DIR/mongo/db/stats/apcounter',
+                '$BUILD_DIR/mongo/db/s/refresh_secondary_routing',    
             ])
 
 env.CppUnitTest('repl_set_heartbeat_response_test',
@@ -650,6 +653,7 @@ env.Library('replica_set_messages',
                 '$BUILD_DIR/mongo/db/server_options_core',
                 '$BUILD_DIR/mongo/transport/transport_layer_common',
                 '$BUILD_DIR/mongo/util/net/hostandport',
+                '$BUILD_DIR/mongo/db/stats/apcounter',
                 'optime',
                 'read_concern_args',
             ])

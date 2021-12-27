@@ -715,6 +715,7 @@ serveronlyLibdeps = [
     "$BUILD_DIR/mongo/s/coreshard",
     "$BUILD_DIR/mongo/s/shard_id",
     "$BUILD_DIR/mongo/s/serveronly",
+    "$BUILD_DIR/mongo/db/s/refresh_secondary_routing",
     "$BUILD_DIR/mongo/scripting/scripting_server",
     "$BUILD_DIR/mongo/util/clock_sources",
     "$BUILD_DIR/mongo/util/elapsed_tracker",

@@ -53,6 +53,14 @@
 #include "mongo/bson/bsonelement.h"
 namespace mongo {
 
+/**
+ * Global free function.
+ */
+bool isMongos() {
+    log() << "[MongoStat] isMongos() = false";
+    return false;
+}
+
 AutoRefreshRouting::AutoRefreshRouting(uint64_t start){
         std::default_random_engine random(time(NULL));
         std::uniform_int_distribution<int> r1(60,240);//避免批量启动secondary mongod 同时拉取chunks configsvr压力大

@@ -41,6 +41,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/db/stats/apcounter.h"
 
 namespace mongo {
 namespace repl {
@@ -67,6 +68,17 @@ const std::string kSyncSourceFieldName = "syncingTo";
 const std::string kTermFieldName = "term";
 const std::string kTimeFieldName = "time";
 const std::string kTimestampFieldName = "ts";
+
+
+/** 用来触发secondary来更新元数据，只有当前的node是primary的情况下才会带有这个信息，而节点也只会因为接受到的是primary的情况下来分析这个字段;
+* 如果接受到的是非primary的心跳信息就不会分析这个字段;
+* 字段的样式会是这样:
+* {
+    "mock.smy": chunkversion,
+    "mock.smy2": chunkversion
+}
+*/
+const std::string kNsShardVersions = "nsShardVersions";
 
 }  // namespace
 
@@ -129,6 +141,11 @@ void ReplSetHeartbeatResponse::addToBSON(BSONObjBuilder* builder, bool isProtoco
             builder->appendDate(kAppliedOpTimeFieldName,
                                 Date_t::fromMillisSinceEpoch(_appliedOpTime.getTimestamp().asLL()));
         }
+    }
+
+    BSONObjBuilder shardVersionsBuilder(builder->subobjStart(kNsShardVersions));
+    for (auto& ns : _nsShardVersions) {
+        shardVersionsBuilder.append(ns.first, ns.second->toBSON());
     }
 }
 
@@ -331,6 +348,44 @@ Status ReplSetHeartbeatResponse::initialize(const BSONObj& doc, long long term) 
         _syncingTo = HostAndPort(syncingToElement.String());
     }
 
+
+    try {
+        // 新加入的ns的shardversion
+        BSONElement tmpShardVersionElement = doc[kNsShardVersions];
+        if (!tmpShardVersionElement.eoo()) {
+            auto tmpObj = tmpShardVersionElement.Obj();
+            BSONForEach(versionItem, tmpObj) {
+                StringData ns = versionItem.fieldNameStringData();
+                if (ns.empty()) {
+                    continue;
+                }
+
+                auto statusCV = ChunkVersion::parseFromBSONObj(versionItem.Obj());
+                if (!statusCV.isOK()) {
+                    log() << "[MongoStat] can't parse chunk version: ns:" << ns << ":"
+                          << versionItem.Obj() << ",reason:" << statusCV.getStatus().toString();
+                    globalApCounter.gotParseShardVersionError();
+                    continue;
+                }
+                _nsShardVersions[ns.toString()] =
+                    std::make_shared<ChunkVersion>(statusCV.getValue().majorVersion(),
+                                                   statusCV.getValue().minorVersion(),
+                                                   statusCV.getValue().epoch());
+            }
+        } else {
+            globalApCounter.gotParseShardVersionError();
+            log() << "heartbeat response missing nsShardVersions";
+        }
+
+        log() << "heartbeat response: " << tmpShardVersionElement.toString() << ". size:" << _nsShardVersions.size();
+        for (auto& ns : _nsShardVersions) {
+            log() << "[MongoStat] ns: " << ns.first << " version: " << ns.second->toString();
+        }
+    } catch(...) {
+        log() << "heartbeat response parse nsShardVersions has exception, but ignore it";
+        globalApCounter.gotParseShardVersionError();
+    }
+
     const BSONElement rsConfigElement = doc[kConfigFieldName];
     if (rsConfigElement.eoo()) {
         _configSet = false;
@@ -344,7 +399,6 @@ Status ReplSetHeartbeatResponse::initialize(const BSONObj& doc, long long term) 
                                     << typeName(rsConfigElement.type()));
     }
     _configSet = true;
-
     return _config.initialize(rsConfigElement.Obj());
 }
 

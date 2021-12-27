@@ -98,6 +98,10 @@ public:
      */
     static StatusWith<ChunkVersion> parseFromBSONForChunk(const BSONObj& obj);
 
+    // 新加的解析 chunkversion;
+    // 原因主要是因为 chunkVersion 自带的 toBson 方法返回的 Obj 没有函数能直接进行解析; 上面几个都是有着自己特定结构    
+    static StatusWith<ChunkVersion> parseFromBSONObj(const BSONObj& obj);
+
     /**
      * Indicates a dropped collection. All components are zeroes (OID is zero time, zero
      * machineId/inc).

@@ -66,6 +66,8 @@
 #include "mongo/s/sharding_initialization.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/util/timer.h"
+#include "mongo/util/scopeguard.h"
 
 #include <chrono>
 #include <ctime>
@@ -196,6 +198,47 @@ Status ShardingState::updateConfigServerOpTimeFromMetadata(OperationContext* txn
     }
 
     return Status::OK();
+}
+
+std::map<std::string, std::shared_ptr<ChunkVersion>> ShardingState::getAllShardVersions() {
+    static std::shared_ptr<ChunkVersion> kUninitializedChunkVersion(
+        new ChunkVersion(0, 0, OID()));
+
+    Timer timer;
+    ON_BLOCK_EXIT([&timer] {  
+        auto cs = timer.millis();
+        if (cs > 10) {
+            log() << "[ShardingState::getAllShardVersions] getAllShardVersions() took " << cs << "ms";
+        }
+    });
+
+    std::map<std::string, std::shared_ptr<ChunkVersion>> allShardVersions;
+    {
+        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        for (const auto& coll : _collections) {
+            if (coll.second == nullptr) {
+                continue;
+            }
+            std::shared_ptr<ChunkVersion> newTmp = kUninitializedChunkVersion;
+            if (coll.second->getMetadata()) {
+                auto tmpChunkVersion = coll.second->getMetadata()->getShardVersion();
+                newTmp = std::make_shared<ChunkVersion>(tmpChunkVersion.majorVersion(),
+                                                        tmpChunkVersion.minorVersion(),
+                                                        tmpChunkVersion.epoch());
+            } else {
+                if (coll.first == "local.system.replset" || coll.first == "admin.system.roles" ||
+                    coll.first == "local.replset.minvalid" ||
+                    coll.first == "admin.system.version" || coll.first == "local.startup_log" ||
+                    coll.first == "local.me" || coll.first == "local.replset.election" ||
+                    coll.first == "local.oplog.rs") {
+                    continue;
+                }
+            }
+            allShardVersions[coll.first] = newTmp;
+        }
+    }
+
+    return allShardVersions;
 }
 
 CollectionShardingState* ShardingState::getNS(const std::string& ns, OperationContext* txn) {
@@ -616,7 +659,7 @@ ChunkVersion ShardingState::_refreshMetadata(OperationContext* txn, const Namesp
                           << " before shard name has been set",
             shardId.isValid());
 
-    //先出发路由更新
+    //先触发路由更新
     auto const catalogCache = Grid::get(txn)->catalogCache();
     catalogCache->invalidateShardedCollection(nss);
 
@@ -790,11 +833,5 @@ Status ShardingState::updateShardIdentityConfigString(OperationContext* txn,
     return Status::OK();
 }
 
-/**
- * Global free function.
- */
-bool isMongos() {
-    return false;
-}
 
 }  // namespace mongo

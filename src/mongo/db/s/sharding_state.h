@@ -136,6 +136,11 @@ public:
     CollectionShardingState* getNS(const std::string& ns, OperationContext* txn);
 
     /**
+     * Returns the shard version for all namespace.
+     */
+    std::map<std::string, std::shared_ptr<ChunkVersion>> getAllShardVersions();
+
+    /**
      * Iterates through all known sharded collections and marks them (in memory only) as not sharded
      * so that no filtering will be happening for slaveOk queries.
      */

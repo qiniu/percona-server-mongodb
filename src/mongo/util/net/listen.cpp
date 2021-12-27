@@ -49,6 +49,7 @@
 #include "mongo/util/net/ssl_manager.h"
 #include "mongo/util/net/ssl_options.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/db/server_options.h"
 
 #ifndef _WIN32
 
@@ -77,7 +78,6 @@
 #define errno WSAGetLastError()
 
 #endif
-
 namespace mongo {
 
 namespace {
@@ -246,9 +246,11 @@ void Listener::initAndListen() {
         return;
     }
 
+    log() << "listen backlog:" << serverGlobalParams.listenBacklog;
+
     SOCKET maxfd = 0;  // needed for select()
     for (unsigned i = 0; i < _socks.size(); i++) {
-        if (::listen(_socks[i], SOMAXCONN) != 0) {
+        if (::listen(_socks[i], serverGlobalParams.listenBacklog) != 0) {
             error() << "listen(): listen() failed " << errnoWithDescription();
             return;
         }
@@ -427,7 +429,7 @@ void Listener::initAndListen() {
     }
 
     for (unsigned i = 0; i < _socks.size(); i++) {
-        if (::listen(_socks[i], SOMAXCONN) != 0) {
+        if (::listen(_socks[i], serverGlobalParams.listenBacklog) != 0) {
             error() << "listen(): listen() failed " << errnoWithDescription();
             return;
         }

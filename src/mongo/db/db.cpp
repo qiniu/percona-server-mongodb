@@ -93,6 +93,7 @@
 #include "mongo/db/s/balancer/balancer.h"
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_state.h"
+#include "mongo/db/s/refresh_secondary_routing.h"
 #include "mongo/db/s/sharding_state_recovery.h"
 #include "mongo/db/s/type_shard_identity.h"
 #include "mongo/db/server_options.h"
@@ -777,6 +778,8 @@ ExitCode _initAndListen(int listenPort) {
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
         static AutoRefreshRouting task = AutoRefreshRouting(0);
+        log() << "Sharding is enabled.  Starting refresh secondary routing.";
+        refreshSecondaryRoutingJob.go();
     }
 
     if (!storageGlobalParams.readOnly) {
@@ -1017,7 +1020,6 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(CreateReplicationManager,
     repl::TopologyCoordinatorImpl::Options topoCoordOptions;
     topoCoordOptions.maxSyncSourceLagSecs = Seconds(repl::maxSyncSourceLagSecs);
     topoCoordOptions.clusterRole = serverGlobalParams.clusterRole;
-
     auto replCoord = stdx::make_unique<repl::ReplicationCoordinatorImpl>(
         getGlobalReplSettings(),
         new repl::ReplicationCoordinatorExternalStateImpl(storageInterface),

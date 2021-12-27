@@ -203,7 +203,6 @@ public:
             collLock.emplace(txn->lockState(), nss.ns(), MODE_IS);
 
             auto css = CollectionShardingState::get(txn, nss);
-            // 当前mongod自己维护的版本信息,也就是最准的版本信息
             const ChunkVersion collectionShardVersion =
                 (css->getMetadata() ? css->getMetadata()->getShardVersion()
                                     : ChunkVersion::UNSHARDED());

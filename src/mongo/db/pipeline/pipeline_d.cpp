@@ -269,8 +269,6 @@ StatusWith<unique_ptr<PlanExecutor>> createRandomCursorExecutor(Collection* coll
                                       std::move(shardFilterStage),
                                       collection,
                                       PlanExecutor::YIELD_AUTO);
-        } else if() {
-
         }
     }
 

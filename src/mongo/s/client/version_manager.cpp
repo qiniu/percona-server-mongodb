@@ -319,7 +319,6 @@ bool checkShardVersion(OperationContext* opCtx,
             throw SendStaleConfigException(ns, msg, refVersion, currentVersion);
         }
     } else if (refManager) {
-        // manager = nil, but refManager != nil; 
         string msg(str::stream() << "not sharded (" << (!manager ? string("<none>") : str::stream()
                                                                 << manager->getSequenceNumber())
                                  << ") but has reference manager ("

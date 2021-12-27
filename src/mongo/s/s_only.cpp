@@ -57,6 +57,7 @@ using std::string;
 using std::stringstream;
 
 bool isMongos() {
+    log() << "[MongoStat] isMongos() = true";
     return true;
 }
 

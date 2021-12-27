@@ -78,6 +78,47 @@ void ApCounter::gotShardHostLimit() {
     _shardHostLimit.fetchAndAdd(1);
 }
 
+void ApCounter::gotShardingStateNull() {
+    RARELY _checkWrap();
+    _shardingStateNull.fetchAndAdd(1);
+}
+
+void ApCounter::gotShardingStateNotEnable() {
+    RARELY _checkWrap();
+    _shardingStateNotEnable.fetchAndAdd(1);
+}
+void ApCounter::gotNewCollectionCnt() {
+    RARELY _checkWrap();
+    _newCollectionCnt.fetchAndAdd(1);
+}
+
+void ApCounter::gotRemoveVersionCnt() {
+    RARELY _checkWrap();
+    _removeVersionCnt.fetchAndAdd(1);
+}
+void ApCounter::gotCollectionVersionNotCompatible() {
+    RARELY _checkWrap();
+    _collectionVersionNotCompatible.fetchAndAdd(1);
+}
+void ApCounter::gotSkipVersionUpdated() {
+    RARELY _checkWrap();
+    _skipVersionUpdated.fetchAndAdd(1);
+}
+void ApCounter::gotEpochNotEqual() {
+    RARELY _checkWrap();
+    _epochNotEqual.fetchAndAdd(1);
+}
+
+void ApCounter::gotOnStaleShardVersion() {
+    RARELY _checkWrap();
+    _onStaleShardVersion.fetchAndAdd(1);
+}
+
+void ApCounter::gotParseShardVersionError() {
+    RARELY _checkWrap();
+    _parseShardVersionError.fetchAndAdd(1);
+}
+
 void ApCounter::_checkWrap() {
     const unsigned MAX = 1 << 30;
 
@@ -88,6 +129,14 @@ void ApCounter::_checkWrap() {
         _writeSlowLog.loadRelaxed() > MAX || _famSlowLog.loadRelaxed() > MAX ||
         _legacyConnectionLimit.loadRelaxed() > MAX || _asioWaitReqQueueLimit.loadRelaxed() > MAX ||
         _shardHostLimit.loadRelaxed() > MAX || _readUnSlowLog.loadRelaxed() > MAX;
+
+    if (!wrap) {
+        wrap = _shardingStateNull.loadRelaxed() > MAX || _shardingStateNotEnable.loadRelaxed() > MAX ||
+            _newCollectionCnt.loadRelaxed() > MAX ||
+            _collectionVersionNotCompatible.loadRelaxed() > MAX ||
+            _skipVersionUpdated.loadRelaxed() > MAX || _epochNotEqual.loadRelaxed() > MAX ||
+            _onStaleShardVersion.loadRelaxed() > MAX || _parseShardVersionError.loadRelaxed() > MAX || _removeVersionCnt.loadRelaxed() > MAX;
+    }
 
     if (wrap) {
         _readAp.store(0);
@@ -107,6 +156,16 @@ void ApCounter::_checkWrap() {
         _legacyConnectionLimit.store(0);
         _asioWaitReqQueueLimit.store(0);
         _shardHostLimit.store(0);
+
+        _shardingStateNull.store(0);
+        _shardingStateNotEnable.store(0);
+        _newCollectionCnt.store(0);
+        _removeVersionCnt.store(0);
+        _collectionVersionNotCompatible.store(0);
+        _skipVersionUpdated.store(0);
+        _epochNotEqual.store(0);
+        _onStaleShardVersion.store(0);
+        _parseShardVersionError.store(0);
     }
 }
 
@@ -128,6 +187,17 @@ BSONObj ApCounter::getObj() const {
     b.append("limitForLegacy", _legacyConnectionLimit.loadRelaxed());
     b.append("limitForAsioReqQ", _asioWaitReqQueueLimit.loadRelaxed());
     b.append("limitForRefresh", _shardHostLimit.loadRelaxed());
+
+    b.append("sharding_state_null", _shardingStateNull.loadRelaxed());
+    b.append("sharding_state_not_enable", _shardingStateNotEnable.loadRelaxed());
+    b.append("new_collection_cnt", _newCollectionCnt.loadRelaxed());
+    b.append("primary_null_version_cnt", _removeVersionCnt.loadRelaxed());
+    b.append("collection_version_not_compatible", _collectionVersionNotCompatible.loadRelaxed());
+    b.append("skip_version_updated", _skipVersionUpdated.loadRelaxed());
+    b.append("epoch_not_equal", _epochNotEqual.loadRelaxed());
+    b.append("on_stale_shard_version", _onStaleShardVersion.loadRelaxed());
+    b.append("parse_shard_version_error", _parseShardVersionError.loadRelaxed());
+
     return b.obj();
 }
 
