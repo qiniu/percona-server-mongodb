@@ -30,7 +30,7 @@ class TestCase(unittest.TestCase):
     A test case to execute.
     """
 
-    def __init__(self, logger, test_kind, test_name):
+    def __init__(self, logger, test_kind, test_name, suite_name = "suite_name"):
         """
         Initializes the TestCase with the name of the test.
         """
@@ -49,11 +49,15 @@ class TestCase(unittest.TestCase):
         self.logger = logger
         self.test_kind = test_kind
         self.test_name = test_name
+        self.suite_name = suite_name
 
         self.fixture = None
         self.return_code = None
 
         self.is_configured = False
+
+    def get_suite_name(self):
+        return self.suite_name
 
     def long_name(self):
         """
@@ -139,12 +143,13 @@ class CPPUnitTestCase(TestCase):
     def __init__(self,
                  logger,
                  program_executable,
+                 suite_name = "suite_name",
                  program_options=None):
         """
         Initializes the CPPUnitTestCase with the executable to run.
         """
 
-        TestCase.__init__(self, logger, "Program", program_executable)
+        TestCase.__init__(self, logger, "Program", program_executable, suite_name)
 
         self.program_executable = program_executable
         self.program_options = utils.default_if_none(program_options, {}).copy()
@@ -173,12 +178,13 @@ class CPPIntegrationTestCase(TestCase):
     def __init__(self,
                  logger,
                  program_executable,
+                 suite_name = "suite_name",
                  program_options=None):
         """
         Initializes the CPPIntegrationTestCase with the executable to run.
         """
 
-        TestCase.__init__(self, logger, "Program", program_executable)
+        TestCase.__init__(self, logger, "Program", program_executable, suite_name)
 
         self.program_executable = program_executable
         self.program_options = utils.default_if_none(program_options, {}).copy()
@@ -213,13 +219,14 @@ class DBTestCase(TestCase):
     def __init__(self,
                  logger,
                  dbtest_suite,
+                 suite_name = "suite_name",
                  dbtest_executable=None,
                  dbtest_options=None):
         """
         Initializes the DBTestCase with the dbtest suite to run.
         """
 
-        TestCase.__init__(self, logger, "DBTest", dbtest_suite)
+        TestCase.__init__(self, logger, "DBTest", dbtest_suite, suite_name)
 
         # Command line options override the YAML configuration.
         self.dbtest_executable = utils.default_if_none(config.DBTEST_EXECUTABLE, dbtest_executable)
@@ -308,12 +315,13 @@ class JSTestCase(TestCase):
     def __init__(self,
                  logger,
                  js_filename,
+                 suite_name = "suite_name",
                  shell_executable=None,
                  shell_options=None,
                  test_kind="JSTest"):
         "Initializes the JSTestCase with the JS file to run."
 
-        TestCase.__init__(self, logger, test_kind, js_filename)
+        TestCase.__init__(self, logger, test_kind, js_filename, suite_name)
 
         # Command line options override the YAML configuration.
         self.shell_executable = utils.default_if_none(config.MONGO_EXECUTABLE, shell_executable)
@@ -459,7 +467,9 @@ class MongosTestCase(TestCase):
 
     def __init__(self,
                  logger,
-                 mongos_options):
+                 mongos_options, 
+                 suite_name = "suite_name"):
+
         """
         Initializes the mongos test and saves the options.
         """
@@ -467,7 +477,7 @@ class MongosTestCase(TestCase):
         self.mongos_executable = utils.default_if_none(config.MONGOS_EXECUTABLE,
                                                        config.DEFAULT_MONGOS_EXECUTABLE)
         # Use the executable as the test name.
-        TestCase.__init__(self, logger, "mongos", self.mongos_executable)
+        TestCase.__init__(self, logger, "mongos", self.mongos_executable, suite_name)
         self.options = mongos_options.copy()
 
     def configure(self, fixture, *args, **kwargs):

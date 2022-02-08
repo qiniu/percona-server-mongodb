@@ -38,9 +38,9 @@
 namespace mongo {
 namespace {
 
-class MongosDumpChunksInfoCmd : public Command {
+class MongoDBDumpChunksInfoCmd : public Command {
 public:
-    MongosDumpChunksInfoCmd() : Command("dumpchunks", false, "dumpchunks") {}
+    MongoDBDumpChunksInfoCmd() : Command("dumpchunks", false, "dumpchunks") {}
 
     virtual bool slaveOk() const {
         return true;
@@ -82,7 +82,7 @@ public:
         if (cmdObj.hasField("print")){
             print = true;
         }
-        
+
         auto cc = Grid::get(txn)->catalogCache();
         if (!cc) {
             errmsg = "no sharding catalog cache";

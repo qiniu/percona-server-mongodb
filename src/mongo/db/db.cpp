@@ -147,6 +147,7 @@
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 #include "mongo/db/s/auto_refresh_routing.h"
+#include "mongo/db/s/refresh_metainfo.h"
 #include "mongo/db/watchdog_mongod.h"
 
 #ifdef MONGO_CONFIG_SSL
@@ -694,6 +695,7 @@ ExitCode _initAndListen(int listenPort) {
 
     startWatchdog(globalServiceContext);
     
+    
     if (mongodGlobalParams.scriptingEnabled) {
         ScriptEngine::setup();
     }
@@ -777,10 +779,13 @@ ExitCode _initAndListen(int listenPort) {
                             ->initializeShardingAwarenessIfNeeded(startupOpCtx.get()));
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
-        static AutoRefreshRouting task = AutoRefreshRouting(0);
-        log() << "Sharding is enabled.  Starting refresh secondary routing.";
-        refreshSecondaryRoutingJob.go();
+        //static AutoRefreshRouting task = AutoRefreshRouting(0);
     }
+
+    log() << "starting refresh secondary Routing";
+    refreshSecondaryRoutingJob.go();
+    log() << "starting refresh config server metainfo";
+    refreshMetaInfoJob.go();
 
     if (!storageGlobalParams.readOnly) {
         logStartup(startupOpCtx.get());

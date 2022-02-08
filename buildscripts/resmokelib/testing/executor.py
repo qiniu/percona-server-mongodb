@@ -326,6 +326,7 @@ class TestGroupExecutor(object):
             test_case = testcases.make_test_case(self._test_group.test_kind,
                                                  test_kind_logger,
                                                  test_name,
+                                                 self._test_group.get_suite_name(),
                                                  **self.test_config)
             queue.put(test_case)
 

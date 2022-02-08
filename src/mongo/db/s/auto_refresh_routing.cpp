@@ -57,7 +57,6 @@ namespace mongo {
  * Global free function.
  */
 bool isMongos() {
-    log() << "[MongoStat] isMongos() = false";
     return false;
 }
 

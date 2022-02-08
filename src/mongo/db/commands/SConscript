@@ -113,6 +113,7 @@ env.Library(
         "feature_compatibility_version.cpp",
         "find_and_modify.cpp",
         "find_cmd.cpp",
+        "mongodb_dump_chunks_info.cpp",
         "fsync.cpp",
         "geo_near_cmd.cpp",
         "get_last_error.cpp",
