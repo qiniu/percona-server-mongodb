@@ -59,6 +59,7 @@
 #include "mongo/util/net/message.h"
 #include "mongo/db/stats/sockscounter.h"
 #include "mongo/util/trace.h"
+#include <iostream>
 
 namespace mongo {
 
@@ -84,7 +85,9 @@ std::string getAddrInfoStrError(int code);
 #if !defined(_WIN32)
 
 inline void closesocket(int s) {
-    close(s);
+    if (close(s)) {
+        std::cout << "close failed: fd:" << s << " err: " << errno << std::endl; 
+    }
 }
 const int INVALID_SOCKET = -1;
 typedef int SOCKET;

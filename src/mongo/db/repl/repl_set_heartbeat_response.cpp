@@ -374,12 +374,7 @@ Status ReplSetHeartbeatResponse::initialize(const BSONObj& doc, long long term) 
             }
         } else {
             globalApCounter.gotParseShardVersionError();
-            log() << "heartbeat response missing nsShardVersions";
-        }
-
-        log() << "heartbeat response: " << tmpShardVersionElement.toString() << ". size:" << _nsShardVersions.size();
-        for (auto& ns : _nsShardVersions) {
-            log() << "[MongoStat] ns: " << ns.first << " version: " << ns.second->toString();
+            LOG(1) << "heartbeat response missing nsShardVersions";
         }
     } catch(...) {
         log() << "heartbeat response parse nsShardVersions has exception, but ignore it";

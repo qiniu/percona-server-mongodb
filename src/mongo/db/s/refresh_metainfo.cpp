@@ -76,7 +76,8 @@ namespace mongo {
                     }
                 }
             } while (false);
-            auto waitSecs = rand() % 60;
+            
+            auto waitSecs = 82800 + rand() % 3600;
             log() << "i will sleep " << waitSecs << " seconds";
             sleepsecs(waitSecs);
         }
@@ -92,10 +93,6 @@ namespace mongo {
             });
 
             std::lock_guard<stdx::mutex> lk(_mutex);
-            for(const auto& item : *_sharedCollections) {
-                log() << "collection:" << item;
-            } 
-
             return _sharedCollections;
     }
 }
