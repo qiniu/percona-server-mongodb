@@ -84,7 +84,7 @@ std::string getAddrInfoStrError(int code);
 #if !defined(_WIN32)
 
 inline void closesocket(int s) {
-    close(s)
+    close(s);
 }
 const int INVALID_SOCKET = -1;
 typedef int SOCKET;
