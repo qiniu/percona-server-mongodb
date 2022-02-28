@@ -118,6 +118,8 @@ public:
     long long keysDeleted{0};   // Number of index keys removed.
     long long writeConflicts{0};
 
+    long long waitForSecondaryMS{0}; // 
+
     BSONObj execStats;  // Owned here.
 
     // error handling

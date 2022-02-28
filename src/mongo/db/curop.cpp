@@ -517,6 +517,10 @@ string OpDebug::report(Client* client,
         s << " writeConflicts:" << writeConflicts;
     }
 
+    if (waitForSecondaryMS > 0){
+        s << " waitForSecondaryMS:" << waitForSecondaryMS;
+    }
+
     if (!exceptionInfo.empty()) {
         s << " exception: " << redact(exceptionInfo.msg);
         if (exceptionInfo.code)
@@ -619,6 +623,10 @@ void OpDebug::append(const CurOp& curop,
 
     if (writeConflicts > 0) {
         b.appendNumber("writeConflicts", writeConflicts);
+    }
+
+    if (waitForSecondaryMS > 0){
+        b.appendNumber("waitForSecondary", waitForSecondaryMS);
     }
 
     b.appendNumber("numYield", curop.numYields());
