@@ -395,7 +395,6 @@ void Socket::close() {
 #else
         shutdown(_fd, SHUT_RDWR);
 #endif
-        log() << "local: " << _local.toString() << " remote: " << _remote.toString() << " closing socket " << _fd;
         closesocket(_fd);
         _fd = INVALID_SOCKET;
     }

@@ -57,7 +57,8 @@ void RefreshSecondaryRoutingJob::putTask(const string& ns,
     } 
 
     if (!version->hasEqualEpoch(*(value->second))) {
-        log() << "[MongoStat] update task ns:" << ns << " version:" << version->toString() << ",because epoch is not equal";
+        log() << "[MongoStat] update task ns:" << ns << " new version:" << version->toString() << " old version:" << version->second->toString() << ",because epoch is not equal";
+
         globalApCounter.gotEpochNotEqual();
         _taskPool[ns] = version;
         return;

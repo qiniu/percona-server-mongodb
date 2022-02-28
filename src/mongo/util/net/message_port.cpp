@@ -85,7 +85,6 @@ void MessagingPort::shutdown() {
 }
 
 MessagingPort::~MessagingPort() {
-    log() << "[~MessagingPort] close sockt";
     shutdown();
 }
 

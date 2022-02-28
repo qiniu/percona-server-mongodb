@@ -130,13 +130,12 @@ void ApCounter::_checkWrap() {
         _legacyConnectionLimit.loadRelaxed() > MAX || _asioWaitReqQueueLimit.loadRelaxed() > MAX ||
         _shardHostLimit.loadRelaxed() > MAX || _readUnSlowLog.loadRelaxed() > MAX;
 
-    if (!wrap) {
-        wrap = _shardingStateNull.loadRelaxed() > MAX || _shardingStateNotEnable.loadRelaxed() > MAX ||
+
+        wrap = wrap ? true : (_shardingStateNull.loadRelaxed() > MAX || _shardingStateNotEnable.loadRelaxed() > MAX ||
             _newCollectionCnt.loadRelaxed() > MAX ||
             _collectionVersionNotCompatible.loadRelaxed() > MAX ||
             _skipVersionUpdated.loadRelaxed() > MAX || _epochNotEqual.loadRelaxed() > MAX ||
-            _onStaleShardVersion.loadRelaxed() > MAX || _parseShardVersionError.loadRelaxed() > MAX || _removeVersionCnt.loadRelaxed() > MAX;
-    }
+            _onStaleShardVersion.loadRelaxed() > MAX || _parseShardVersionError.loadRelaxed() > MAX || _removeVersionCnt.loadRelaxed() > MAX);
 
     if (wrap) {
         _readAp.store(0);

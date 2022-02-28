@@ -63,7 +63,7 @@ CURRENT_DATE=$(date +"%Y%m%d")
 REVISION=$(git rev-parse --short HEAD)
 REVISION_LONG=$(git rev-parse HEAD)
 PSM_VERSION=$(git describe --tags | sed 's/^psmdb-//' | sed 's/^r//' | awk -F '-' '{print $1}')
-PSM_RELEASE=$(git describe --tags | sed 's/^psmdb-//' | sed 's/^r//' |awk -F '-' '{print $2}')" | "$(CURRENT_DATE)
+PSM_RELEASE=$(git describe --tags | sed 's/^psmdb-//' | sed 's/^r//' |awk -F '-' '{print $2}')"@"$CURRENT_DATE
 TARBALL_NAME="percona-server-mongodb-${PSM_VERSION}-${PSM_RELEASE}-${REVISION}${TARBALL_SUFFIX}"
 # create a proper version.json
 echo "{" > version.json
