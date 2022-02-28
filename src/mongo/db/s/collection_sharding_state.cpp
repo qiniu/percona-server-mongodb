@@ -198,6 +198,7 @@ void CollectionShardingState::checkShardVersionOrThrow(OperationContext* txn,
     ChunkVersion received;
     ChunkVersion wanted;
     if (!_checkShardVersionOk(txn, &errmsg, &received, &wanted, waitForMigrationCommit)) {
+        //只要检测不过就抛出配置过期异常
         throw SendStaleConfigException(
             _nss.ns(),
             str::stream() << "[" << _nss.ns() << "] shard version not ok: " << errmsg,
@@ -372,10 +373,11 @@ bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
         return true;
     }
 
-    if (!repl::ReplicationCoordinator::get(txn)->canAcceptWritesForDatabase(_nss.db())) {
-        // Right now connections to secondaries aren't versioned at all.
-        return true;
-    }
+    // 让非primary带有版本信息
+    // if (!repl::ReplicationCoordinator::get(txn)->canAcceptWritesForDatabase(_nss.db())) {
+    //     // Right now connections to secondaries aren't versioned at all.
+    //     return true;
+    // }
 
     auto& oss = OperationShardingState::get(txn);
 
@@ -408,6 +410,7 @@ bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
 
         auto criticalSectionSignal = _sourceMgr->getMigrationCriticalSectionSignal(isReader);
         if (criticalSectionSignal) {
+            // 当前操作在迁移中
             *errmsg = str::stream() << "migration commit in progress for " << _nss.ns();
 
             // Set migration critical section on operation sharding state: operation will wait for
@@ -428,24 +431,29 @@ bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
 
     // Check epoch first, to send more meaningful message, since other parameters probably won't
     // match either.
+
+    // 如果mongos的epoch不匹配，则返回错误
     if (actualShardVersion->epoch() != expectedShardVersion->epoch()) {
         *errmsg = str::stream() << "version epoch mismatch detected for " << _nss.ns() << ", "
                                 << "the collection may have been dropped and recreated";
         return false;
     }
 
+    //如果mongos的collection是副本集，而本shard的collection是非副本集，则返回错误
     if (!actualShardVersion->isSet() && expectedShardVersion->isSet()) {
         *errmsg = str::stream() << "this shard no longer contains chunks for " << _nss.ns() << ", "
                                 << "the collection may have been dropped";
         return false;
     }
-
+    
+    //如果mongos是collection是非副本集，而本shard的collection是副本集，则返回错误
     if (actualShardVersion->isSet() && !expectedShardVersion->isSet()) {
         *errmsg = str::stream() << "this shard contains versioned chunks for " << _nss.ns() << ", "
                                 << "but no version set in request";
         return false;
     }
 
+    // 假如mongos的collection的版本和mongod的不一样的话，就返回false
     if (actualShardVersion->majorVersion() != expectedShardVersion->majorVersion()) {
         // Could be > or < - wanted is > if this is the source of a migration, wanted < if this is
         // the target of a migration

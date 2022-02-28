@@ -36,7 +36,7 @@ class Suite(object):
             # 获得本次 suite 的 type 的测试用例，比如过滤出 j_test 类型的
             tests = self._get_tests_for_group(test_kind)
             # TestGroup 是会测试 suite 下面的某一种特定 typ 的所有测试用例
-            test_group = testgroup.TestGroup(test_kind, tests)
+            test_group = testgroup.TestGroup(test_kind, tests, self._suite_name)
             self.test_groups.append(test_group)
 
         self.return_code = None

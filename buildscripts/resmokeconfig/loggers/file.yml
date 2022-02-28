@@ -6,7 +6,7 @@ logging:
         filename: integrationTest/executor.log
         mode: w
   fixture:
-    format: '[%(name)s] %(message)s'
+    format: '[%(name)s] %(asctime)s %(message)s'
     handlers:
       - class: logging.FileHandler
         filename: integrationTest/fixture.log

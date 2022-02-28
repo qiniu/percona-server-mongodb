@@ -18,7 +18,7 @@ class TestGroup(object):
     of a particular kind (e.g. C++ unit tests, dbtests, jstests).
     """
 
-    def __init__(self, test_kind, tests):
+    def __init__(self, test_kind, tests, suite_name = "suite_name"):
         """
         Initializes the TestGroup with a list of tests.
         """
@@ -31,10 +31,14 @@ class TestGroup(object):
         self._start_times = []
         self._end_times = []
         self._reports = []
+        self._suite_name = suite_name
 
         # We keep a reference to the TestReports from the currently running jobs so that we can
         # report intermediate results.
         self._partial_reports = None
+
+    def get_suite_name(self):
+        return self._suite_name
 
     def get_reports(self):
         """

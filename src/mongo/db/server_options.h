@@ -87,6 +87,9 @@ struct ServerGlobalParams {
 
     int maxConns = DEFAULT_MAX_CONN;  // Maximum number of simultaneous open connections.
 
+    // 新增参数用来设定
+    int listenBacklog = 1024;  // Maximum number of connections in the listen queue.
+
     int unixSocketPermissions = DEFAULT_UNIX_PERMS;  // permissions for the UNIX domain socket
 
     std::string keyFile;  // Path to keyfile, or empty if none.

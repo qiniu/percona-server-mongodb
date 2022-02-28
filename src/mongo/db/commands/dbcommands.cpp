@@ -1372,6 +1372,7 @@ void Command::execCommand(OperationContext* txn,
         repl::ReplicationCoordinator* replCoord =
             repl::ReplicationCoordinator::get(txn->getClient()->getServiceContext());
         const bool iAmPrimary = replCoord->canAcceptWritesForDatabase(dbname);
+        const bool isSecondary = replCoord->getMemberState().secondary();
 
         {
             bool commandCanRunOnSecondary = command->slaveOk();
@@ -1438,12 +1439,13 @@ void Command::execCommand(OperationContext* txn,
 
         // Operations are only versioned against the primary. We also make sure not to redo shard
         // version handling if this command was issued via the direct client.
-        if (iAmPrimary && !txn->getClient()->isInDirectClient()) {
+        if ((iAmPrimary|| isSecondary) && !txn->getClient()->isInDirectClient()) {
             // Handle shard version and config optime information that may have been sent along with
             // the command.
             auto& oss = OperationShardingState::get(txn);
 
             auto commandNS = NamespaceString(command->parseNs(dbname, request.getCommandArgs()));
+            // 初始化一个版本;
             oss.initializeShardVersion(commandNS, shardVersionFieldIdx);
             auto shardingState = ShardingState::get(txn);
             if (oss.hasShardVersion()) {
@@ -1500,7 +1502,7 @@ void Command::execCommand(OperationContext* txn,
         if (e.getCode() == ErrorCodes::SendStaleConfig) {
             auto sce = dynamic_cast<const StaleConfigException*>(&e);
             invariant(sce);  // do not upcasts from DBException created by uassert variants.
-
+            
             ShardingState::get(txn)->onStaleShardVersion(
                 txn, NamespaceString(sce->getns()), sce->getVersionReceived());
         }

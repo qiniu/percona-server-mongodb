@@ -134,6 +134,10 @@ public:
         return _updatedSinceRestart;
     }
 
+    std::map<std::string, std::shared_ptr<ChunkVersion>> getAllShardVersions() const {
+        return _lastResponse.getNsShardVersions();
+    }
+
 private:
     // -1 = not checked yet, 0 = member is down/unreachable, 1 = member is up
     int _health;

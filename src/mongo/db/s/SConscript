@@ -17,6 +17,37 @@ env.Library(
 )
 
 env.Library(
+    target='refresh_secondary_routing',
+    source=[
+        'refresh_secondary_routing.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/common',
+        '$BUILD_DIR/mongo/s/common',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/db/stats/apcounter',
+        'sharding',
+    ]
+)
+
+env.Library(
+    target='refresh_metainfo',
+    source=[
+        'refresh_metainfo.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/common',
+        '$BUILD_DIR/mongo/s/common',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/s/coreshard',
+        '$BUILD_DIR/mongo/s/catalog/sharding_catalog_client_impl',
+    ]
+)
+
+
+env.Library(
     target='migration_types',
     source=[
         'migration_session_id.cpp',
@@ -68,6 +99,7 @@ env.Library(
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/bson/util/bson_extract',
         '$BUILD_DIR/mongo/db/common',
+        '$BUILD_DIR/mongo/db/s/refresh_metainfo',
         '$BUILD_DIR/mongo/s/sharding_initialization',
         'metadata',
         'migration_types',

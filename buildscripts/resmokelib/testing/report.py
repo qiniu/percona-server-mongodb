@@ -126,7 +126,7 @@ class TestReport(unittest.TestResult):
                 self.num_dynamic += 1
 
         # Set up the test-specific logger.
-        logger_name = "%s:%s" % (test.logger.name, test.short_name())
+        logger_name = "%s:%s:%s" % (test.logger.name, test.get_suite_name(), test.short_name())
         logger = logging.loggers.new_logger(logger_name, parent=test.logger)
         logging.config.apply_buildlogger_test_handler(logger,
                                                       self.logging_config,

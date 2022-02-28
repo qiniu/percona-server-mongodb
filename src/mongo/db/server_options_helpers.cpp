@@ -191,6 +191,9 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
         "comma separated list of ip addresses to listen on - all local ips by default");
 
     options->addOptionChaining("authproxy.model", "authproxyModel", moe::Bool, "enable nonblocking connect, defalut false");
+    
+    // add option to specify the max number of accept queue
+    options->addOptionChaining("listen.backlog", "listenBacklog", moe::Int, "listen backlog, default 1024");
 
     options->addOptionChaining(
         "net.ipv6", "ipv6", moe::Switch, "enable IPv6 support (disabled by default)");
@@ -834,6 +837,10 @@ Status storeServerOptions(const moe::Environment& params) {
         serverGlobalParams.authproxyModel = params["authproxy.model"].as<bool>();
     } else {
         serverGlobalParams.authproxyModel = false;
+    }
+
+    if (params.count("listen.backlog")) {
+        serverGlobalParams.listenBacklog = params["listen.backlog"].as<int>();
     }
 
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {

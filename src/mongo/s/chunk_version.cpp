@@ -135,4 +135,34 @@ BSONObj ChunkVersion::toBSON() const {
     return b.arr();
 }
 
+StatusWith<ChunkVersion> ChunkVersion::parseFromBSONObj(const BSONObj& obj) {
+    BSONObjIterator it(obj);
+    if (!it.more())
+        return {ErrorCodes::BadValue, "Unexpected empty version"};
+
+    ChunkVersion version;
+    // Expect the timestamp
+    {
+        BSONElement tsPart = it.next();
+        if (tsPart.type() != bsonTimestamp)
+            return {ErrorCodes::TypeMismatch,
+                    str::stream() << "Invalid type " << tsPart.type()
+                                  << " for version timestamp part."};
+
+        version._combined = tsPart.timestamp().asULL();
+    }
+
+    // Expect the epoch OID
+    {
+        BSONElement epochPart = it.next();
+        if (epochPart.type() != jstOID)
+            return {ErrorCodes::TypeMismatch,
+                    str::stream() << "Invalid type " << epochPart.type()
+                                  << " for version epoch part."};
+
+        version._epoch = epochPart.OID();
+    }
+    return version;
+}
+
 }  // namespace mongo

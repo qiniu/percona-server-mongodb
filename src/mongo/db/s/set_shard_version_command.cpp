@@ -117,6 +117,7 @@ public:
 
         ShardedConnectionInfo dummyInfo;
         ShardedConnectionInfo* info;
+        // noConnectionVersioning: 表示链接中不带有版本信息
         if (noConnectionVersioning) {
             info = &dummyInfo;
         } else {
@@ -138,7 +139,7 @@ public:
                 return false;
             }
         }
-
+        // 判断config是否正确
         if (!_checkConfigOrInit(txn, configDBStr, shardName, authoritative, errmsg, result)) {
             return false;
         }
@@ -149,6 +150,7 @@ public:
 
             // TODO: SERVER-21397 remove post v3.3.
             // Send back wire version to let mongos know what protocol we can speak
+            // 如果是init的话，那就将mongod的版本信息返回给mongos
             result.append("minWireVersion", WireSpec::instance().incoming.minWireVersion);
             result.append("maxWireVersion", WireSpec::instance().incoming.maxWireVersion);
 
@@ -169,6 +171,7 @@ public:
         }
 
         // we can run on a slave up to here
+        // 如果是slave，则直接返回; 本质上setShardVersion不应该出现在slave中，因为slave根本就没有版本信息
         if (!repl::getGlobalReplicationCoordinator()->canAcceptWritesForDatabase(nss.db())) {
             result.append("errmsg", "not master");
             result.append("note", "from post init in setShardVersion");
@@ -180,11 +183,13 @@ public:
             uassertStatusOK(ChunkVersion::parseFromBSONForSetShardVersion(cmdObj));
 
         // step 3 - Actual version checking
+        // mongo会维护当前connection的一个shard对应的版本信息;
         const ChunkVersion connectionVersion = info->getVersion(ns);
         connectionVersion.addToBSON(result, "oldVersion");
 
         {
             boost::optional<AutoGetDb> autoDb;
+            // db lock
             autoDb.emplace(txn, nss.db(), MODE_IS);
 
             // Views do not require a shard version check.
@@ -194,6 +199,7 @@ public:
             }
 
             boost::optional<Lock::CollectionLock> collLock;
+            // coll lock
             collLock.emplace(txn->lockState(), nss.ns(), MODE_IS);
 
             auto css = CollectionShardingState::get(txn, nss);
@@ -201,16 +207,27 @@ public:
                 (css->getMetadata() ? css->getMetadata()->getShardVersion()
                                     : ChunkVersion::UNSHARDED());
 
+
+            /**
+             * connectionVersion: connnect自己保存的版本
+             * requestedVersion: 请求本身带着的版本
+             * collecttionShardVersion: 集群本身真实的版本
+             */
+
+            // 如果requestVersion和真实的version是兼容的，那么就更新connection的version
             if (requestedVersion.isWriteCompatibleWith(collectionShardVersion)) {
                 // mongos and mongod agree!
                 if (!connectionVersion.isWriteCompatibleWith(requestedVersion)) {
                     if (connectionVersion < collectionShardVersion &&
                         connectionVersion.epoch() == collectionShardVersion.epoch()) {
+                            // 如果connectionVersion版本比mongod的要老，并且epoch是一样的，那么就更新
                         info->setVersion(ns, requestedVersion);
                     } else if (authoritative) {
                         // this means there was a drop and our version is reset
+                        // 如果是权威认证的，那就直接把connection版本更新掉
                         info->setVersion(ns, requestedVersion);
                     } else {
+                        // 如果mongos和mongod的版本那是兼容的，但是epoch不一样的，那说明了collection可能被删除过?
                         result.append("ns", ns);
                         result.appendBool("need_authoritative", true);
                         errmsg = "verifying drop on '" + ns + "'";
@@ -221,8 +238,11 @@ public:
                 return true;
             }
 
+            //假如requestedVersion和真实的version不兼容，那么往下走
+
             // step 4
             // Cases below all either return OR fall-through to remote metadata reload.
+            // 假如mongod是副本集但是mongos不是副本集，那么说明这个表被删除然后重建了
             const bool isDropRequested =
                 !requestedVersion.isSet() && collectionShardVersion.isSet();
 
@@ -240,6 +260,7 @@ public:
                 // Not Dropping
 
                 // TODO: Refactor all of this
+                // 说明mongos的版本比较老，需要更新
                 if (requestedVersion < connectionVersion &&
                     requestedVersion.epoch() == connectionVersion.epoch()) {
                     errmsg = str::stream() << "this connection already had a newer version "
@@ -251,6 +272,7 @@ public:
                 }
 
                 // TODO: Refactor all of this
+                // 说明mongos的版本比较老，需要更新
                 if (requestedVersion < collectionShardVersion &&
                     requestedVersion.epoch() == collectionShardVersion.epoch()) {
                     if (css->getMigrationSourceManager()) {
@@ -300,6 +322,7 @@ public:
             }
         }
 
+        // mongos的版本比mongod要新;
         Status status = shardingState->onStaleShardVersion(txn, nss, requestedVersion);
 
         {
