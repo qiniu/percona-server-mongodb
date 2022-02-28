@@ -1286,9 +1286,11 @@ void _waitForWriteConcernAndAddToCommandResponse(OperationContext* opCtx,
         waitForWriteConcern(opCtx, lastOpAfterRun, opCtx->getWriteConcern(), &res);
     Command::appendCommandWCStatus(*commandResponseBuilder, waitForWCStatus, res);
 
-    auto& curOp = *CurOp::get(opCtx);
-    curOp.debug().waitForSecondaryMS = res.wTime;
-
+    auto curOp = CurOp::get(opCtx);
+    if(curOp != nullptr){
+        curOp->debug().waitForSecondaryMS = res.wTime;
+    }
+   
     // SERVER-22421: This code is to ensure error response backwards compatibility with the
     // user management commands. This can be removed in 3.6.
     if (!waitForWCStatus.isOK() && Command::isUserManagementCommand(commandName)) {
