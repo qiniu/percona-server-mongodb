@@ -126,7 +126,7 @@ void RefreshSecondaryRoutingJob::run() {
                 }
                 sleepmillis(500);
             } else {
-                log() << "[MongoStat]RefreshSecondaryRoutingJob::run() not secondary, I wait 10 secondary";
+                LOG(1) << "[MongoStat]RefreshSecondaryRoutingJob::run() not secondary, I wait 10 secondary";
                 // 非secondary跳过
                 sleepsecs(10);
             }

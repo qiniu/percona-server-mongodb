@@ -97,6 +97,11 @@ public:
             auto routingInfo = uassertStatusOK(cc->getCollectionRoutingInfo(txn, nss));
             cm = routingInfo.cm();
         }
+
+        if (!cm) {
+            errmsg = nss.ns() + " not sharded";
+            return false;
+        }
         
         auto iterator_result = cm->iteratorChunks(start, limit, print);
         if (iterator_result->hashErr){

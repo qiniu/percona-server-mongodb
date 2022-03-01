@@ -29,13 +29,13 @@ namespace mongo {
 
         while (!inShutdown()) {
             const auto catalogClient = Grid::get(&opCtx)->catalogClient(&opCtx);
+            if (catalogClient == nullptr) {
+                LOG(1) << "RefreshMetainfoJob::run() catalogClient is null";
+                sleepsecs(60);
+                continue;
+            }
 
             do {
-                if (catalogClient == nullptr) {
-                    log() << "RefreshMetainfoJob::run() catalogClient is null";
-                    break;
-                }
-
                 // Load the sharded collections entries
                 std::vector<CollectionType> collections;
                 repl::OpTime collLoadConfigOptime;
