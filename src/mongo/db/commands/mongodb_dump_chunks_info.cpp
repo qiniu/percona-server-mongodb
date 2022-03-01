@@ -100,7 +100,7 @@ public:
 
         if (!cm) {
             errmsg = nss.ns() + " not sharded";
-            return false
+            return false;
         }
         
         auto iterator_result = cm->iteratorChunks(start, limit, print);
