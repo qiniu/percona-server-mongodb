@@ -31,6 +31,7 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/s/server.h"
+#include "mongo/db/s/refresh_metainfo.h"
 
 #include <boost/optional.hpp>
 
@@ -217,6 +218,7 @@ static Status initializeSharding(OperationContext* txn) {
         return status;
     }
 
+    refreshMetaInfoJob.initShardingMetaInfos(txn, mongosGlobalParams.clusterRole);
     status = reloadShardRegistryUntilSuccess(txn);
     if (!status.isOK()) {
         return status;
@@ -324,6 +326,7 @@ static ExitCode runMongosServer() {
 
     PeriodicTask::startRunningPeriodicTasks();
 
+    //启动mongo的服务，接受外界请求;
     auto start = getGlobalServiceContext()->addAndStartTransportLayer(std::move(transportLayer));
     if (!start.isOK()) {
         return EXIT_NET_ERROR;
