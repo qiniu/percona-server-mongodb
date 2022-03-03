@@ -348,6 +348,7 @@ env.Install(
             'db/commands/core',
             'db/ftdc/ftdc_mongos',
             'db/mongodandmongos',
+            'db/s/init_router_info_for_mongos',
             's/client/sharding_connection_hook',
             's/commands/cluster_commands',
             's/commands/shared_cluster_commands',

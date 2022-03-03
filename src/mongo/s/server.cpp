@@ -31,7 +31,6 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/s/server.h"
-#include "mongo/db/s/refresh_metainfo.h"
 
 #include <boost/optional.hpp>
 
@@ -218,7 +217,7 @@ static Status initializeSharding(OperationContext* txn) {
         return status;
     }
 
-    refreshMetaInfoJob.initShardingMetaInfos(txn, mongosGlobalParams.clusterRole);
+    initShardingMetaInfos(txn, ClusterRole::None);
     status = reloadShardRegistryUntilSuccess(txn);
     if (!status.isOK()) {
         return status;

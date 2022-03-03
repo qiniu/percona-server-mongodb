@@ -45,7 +45,6 @@
 #include "mongo/s/sharding_egress_metadata_hook_for_mongod.h"
 #include "mongo/s/sharding_initialization.h"
 #include "mongo/stdx/memory.h"
-#include "mongo/db/s/refresh_metainfo.h"
 
 namespace mongo {
 
@@ -81,7 +80,7 @@ Status initializeGlobalShardingStateForMongod(OperationContext* txn,
     auto shardFactory =
         stdx::make_unique<ShardFactory>(std::move(buildersMap), std::move(targeterFactory));
 
-    auto status = initializeGlobalShardingState(
+    return initializeGlobalShardingState(
         txn,
         configCS,
         distLockProcessId,
@@ -95,10 +94,6 @@ Status initializeGlobalShardingStateForMongod(OperationContext* txn,
                     return nullptr;  // Only config servers get a real ShardingCatalogManager
                 }
             });
-    if (status.isOK()) {
-        refreshMetaInfoJob.initShardingMetaInfos(txn, serverGlobalParams.clusterRole);
-    } 
-    return status;
 }
 
 }  // namespace mongo

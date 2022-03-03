@@ -780,6 +780,12 @@ ExitCode _initAndListen(int listenPort) {
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
         //static AutoRefreshRouting task = AutoRefreshRouting(0);
+        {
+            log() << "[MongoStat] init sharding router info, but only run once";
+            initShardingMetaInfos(startupOpCtx.get(), ClusterRole::ShardServer);
+        }
+    } else {
+        log() << "shardingInitialize failed, not starting sharding";
     }
 
     log() << "starting refresh secondary Routing";

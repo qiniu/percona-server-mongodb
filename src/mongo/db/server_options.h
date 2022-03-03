@@ -195,4 +195,6 @@ struct ServerGlobalParams {
 };
 
 extern ServerGlobalParams serverGlobalParams;
+
+void initShardingMetaInfos(OperationContext* opCtx, ClusterRole role = ClusterRole::None);
 }

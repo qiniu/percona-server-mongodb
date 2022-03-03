@@ -13,6 +13,8 @@
 
 namespace mongo {
 
+class OperationContext;
+
 /**
  * 目前只是为了同步configsvr中的collections的信息
  */
@@ -21,11 +23,9 @@ public:
     std::string name() const final;
     void run() final;
     std::shared_ptr<std::set<std::string>> getSharedCollections();
-    // 用来输出化当前进程的路由信息
-    void initShardingMetaInfos(OperationContext& opCtx, ClusterRole role);
-private:
-    StatusWith<std::map<std::string, std::set<string>>> _getShardingCollections(OperationContext& opCtx);
+    StatusWith<std::map<std::string, std::set<std::string>>> getShardingCollections(OperationContext* opCtx);
 
+private:
     std::shared_ptr<std::set<std::string>> _sharedCollections;
     // 用来保护 map
     stdx::mutex _mutex;
