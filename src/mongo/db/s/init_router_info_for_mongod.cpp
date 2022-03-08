@@ -57,7 +57,6 @@ void initShardingMetaInfos(OperationContext* txn, ClusterRole role) {
                      "unknown role: " << static_cast<int>(role);
         }
     }
-    sleepsecs(60);
 }
 
 }
