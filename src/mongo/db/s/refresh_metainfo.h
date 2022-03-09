@@ -23,7 +23,7 @@ public:
     std::string name() const final;
     void run() final;
     std::shared_ptr<std::set<std::string>> getSharedCollections();
-    StatusWith<std::map<std::string, std::set<std::string>>> getShardingCollections(OperationContext* opCtx);
+    StatusWith<std::map<std::string, std::set<std::string>>> getShardingCollectionsForConfigsrv(OperationContext* opCtx);
 
 private:
     std::shared_ptr<std::set<std::string>> _sharedCollections;

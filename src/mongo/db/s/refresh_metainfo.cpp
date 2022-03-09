@@ -25,7 +25,7 @@ std::string RefreshMetainfoJob::name() const {
 }
 
 
-StatusWith<map<string, set<string>>> RefreshMetainfoJob::getShardingCollections(
+StatusWith<map<string, set<string>>> RefreshMetainfoJob::getShardingCollectionsForConfigsrv(
     OperationContext* txn) {
     map<string, set<string>> collectionRes;
     const auto catalogClient = Grid::get(txn)->catalogClient(txn);
@@ -43,7 +43,7 @@ StatusWith<map<string, set<string>>> RefreshMetainfoJob::getShardingCollections(
         ON_BLOCK_EXIT([&t1] {
             auto cs = t1.millis();
             if (cs > 10) {
-                log() << "[MongoStat] RefreshMetainfoJob::_getShardingCollections() get "
+                log() << "[MongoStat] RefreshMetainfoJob::getShardingCollectionsForConfigsrv() get "
                          "collections  cost:"
                       << cs << "ms";
             }
@@ -51,7 +51,7 @@ StatusWith<map<string, set<string>>> RefreshMetainfoJob::getShardingCollections(
         Status status =
             catalogClient->getCollections(txn, nullptr, &collections, &collLoadConfigOptime);
         if (!status.isOK()) {
-            log() << "[MongoStat] RefreshMetainfoJob::_getShardingCollections() get collections "
+            log() << "[MongoStat] RefreshMetainfoJob::getShardingCollectionsForConfigsrv() get collections "
                      "failed: "
                   << status;
             return StatusWith<map<string, set<string>>>(status);
@@ -81,7 +81,7 @@ void RefreshMetainfoJob::run() {
         }
 
         do {
-            auto status = getShardingCollections(txn.get());
+            auto status = getShardingCollectionsForConfigsrv(txn.get());
             if (!status.isOK()) {
                 break;
             }
@@ -98,7 +98,7 @@ void RefreshMetainfoJob::run() {
             ON_BLOCK_EXIT([&t] {
                 auto cs = t.millis();
                 if (cs > 10) {
-                    log() << "[MongoStat] RefreshMetainfoJob::getShardingCollections() lock "
+                    log() << "[MongoStat] RefreshMetainfoJob::getShardingCollectionsForConfigsrv() lock "
                              "cost:"
                           << cs << "ms";
                 }

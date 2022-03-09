@@ -23,7 +23,7 @@ void initShardingMetaInfos(OperationContext* txn, ClusterRole role) {
         log() << "initShardingMetaInfos() is complete, took " << t.millis() << "ms";
     });
 
-    auto status = refreshMetaInfoJob.getShardingCollections(txn);
+    auto status = refreshMetaInfoJob.getShardingCollectionsForConfigsrv(txn);
     invariant(status.isOK());
 
     auto value = status.getValue();
