@@ -46,6 +46,36 @@ env.Library(
     ]
 )
 
+env.Library(
+    target='init_router_info_for_mongos',
+    source=[
+        'init_router_info_for_mongos.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/common',
+        '$BUILD_DIR/mongo/s/common',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/s/coreshard',
+        'refresh_metainfo',
+    ]
+)
+
+env.Library(
+    target='init_router_info_for_mongod',
+    source=[
+        'init_router_info_for_mongod.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/common',
+        '$BUILD_DIR/mongo/s/common',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/s/coreshard',
+        'sharding',
+        'refresh_metainfo',
+    ]
+)
 
 env.Library(
     target='migration_types',
@@ -74,10 +104,23 @@ env.Library(
 )
 
 env.Library(
+    target='auto_refresh_routing',
+    source=[
+        'auto_refresh_routing.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/s/write_ops/batch_write_types',
+        '$BUILD_DIR/mongo/bson/util/bson_extract',
+        '$BUILD_DIR/mongo/s/common',
+        'sharding',
+    ],
+)
+
+env.Library(
     target='sharding',
     source=[
         'active_migrations_registry.cpp',
-        'auto_refresh_routing.cpp',
         'chunk_move_write_concern_options.cpp',
         'collection_sharding_state.cpp',
         'metadata_manager.cpp',

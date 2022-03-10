@@ -780,6 +780,12 @@ ExitCode _initAndListen(int listenPort) {
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
         //static AutoRefreshRouting task = AutoRefreshRouting(0);
+        {
+            log() << "[MongoStat] init sharding router info, but only run once";
+            initShardingMetaInfos(startupOpCtx.get(), ClusterRole::ShardServer);
+        }
+    } else {
+        log() << "shardingInitialize failed, not starting sharding";
     }
 
     log() << "starting refresh secondary Routing";
@@ -850,6 +856,7 @@ ExitCode _initAndListen(int listenPort) {
     // operation context anymore
     startupOpCtx.reset();
 
+    //mongod开始启动;
     auto start = getGlobalServiceContext()->addAndStartTransportLayer(std::move(transportLayer));
     if (!start.isOK()) {
         error() << "Failed to start the listener: " << start.toString();

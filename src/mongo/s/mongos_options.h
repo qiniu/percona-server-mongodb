@@ -35,7 +35,6 @@
 #include "mongo/util/options_parser/option_section.h"
 
 namespace mongo {
-
 namespace optionenvironment {
 class OptionSection;
 class Environment;
@@ -82,4 +81,4 @@ Status storeMongosOptions(const moe::Environment& params);
 // This function should eventually go away, but needs to be here now because the sorter and
 // the version manager must know at runtime which binary it is in.
 bool isMongos();
-}
+}  // namespace mongo   

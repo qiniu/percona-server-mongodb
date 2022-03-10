@@ -217,6 +217,7 @@ static Status initializeSharding(OperationContext* txn) {
         return status;
     }
 
+    initShardingMetaInfos(txn, ClusterRole::None);
     status = reloadShardRegistryUntilSuccess(txn);
     if (!status.isOK()) {
         return status;
@@ -324,6 +325,7 @@ static ExitCode runMongosServer() {
 
     PeriodicTask::startRunningPeriodicTasks();
 
+    //启动mongo的服务，接受外界请求;
     auto start = getGlobalServiceContext()->addAndStartTransportLayer(std::move(transportLayer));
     if (!start.isOK()) {
         return EXIT_NET_ERROR;
