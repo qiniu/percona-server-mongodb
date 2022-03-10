@@ -41,6 +41,7 @@ void initShardingMetaInfos(OperationContext* txn, ClusterRole role) {
                 log() << "[MongoStat] initShardingMetaInfos, "
                          "refreshMetadataNow failed, "
                       << "collection: " << collection << ", status: " << (versionStatus.getStatus());
+                invariant(versionStatus.isOK());
             } else {
                 auto cm = versionStatus.getValue().cm();
                 if (cm) {
