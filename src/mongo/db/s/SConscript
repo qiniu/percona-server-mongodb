@@ -16,20 +16,20 @@ env.Library(
     ]
 )
 
-env.Library(
-    target='refresh_secondary_routing',
-    source=[
-        'refresh_secondary_routing.cpp',
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/base',
-        '$BUILD_DIR/mongo/db/common',
-        '$BUILD_DIR/mongo/s/common',
-        '$BUILD_DIR/mongo/db/service_context',
-        '$BUILD_DIR/mongo/db/stats/apcounter',
-        'sharding',
-    ]
-)
+# env.Library(
+#     target='refresh_secondary_routing',
+#     source=[
+#         'refresh_secondary_routing.cpp',
+#     ],
+#     LIBDEPS=[
+#         '$BUILD_DIR/mongo/base',
+#         '$BUILD_DIR/mongo/db/common',
+#         '$BUILD_DIR/mongo/s/common',
+#         '$BUILD_DIR/mongo/db/service_context',
+#         '$BUILD_DIR/mongo/db/stats/apcounter',
+#         'sharding',
+#     ]
+# )
 
 env.Library(
     target='refresh_metainfo',

@@ -49,10 +49,6 @@
 #include "mongo/db/repl/replication_executor.h"
 #include "mongo/db/repl/rslog.h"
 #include "mongo/db/server_parameters.h"
-#include "mongo/db/service_context.h"
-#include "mongo/db/s/sharding_state.h"
-#include "mongo/db/s/refresh_secondary_routing.h"
-#include "mongo/db/stats/apcounter.h"
 #include "mongo/rpc/metadata/oplog_query_metadata.h"
 #include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/util/fail_point_service.h"
@@ -830,21 +826,6 @@ Status TopologyCoordinatorImpl::prepareHeartbeatResponseV1(Date_t now,
 
     if (myState.primary()) {
         response->setElectionTime(_electionTime);
-
-        // 只有primary才会有标准的版本信息，并且需要在心跳回复中带上这个信息
-        auto shardingState = ShardingState::get(getGlobalServiceContext());
-        if(shardingState && shardingState->enabled()) {
-            auto tmpVersions = shardingState->getAllShardVersions();
-            response->setNsShardVersion(tmpVersions);
-        } else {
-            if (!shardingState) {
-                log() << "ShardingState is null";
-                globalApCounter.gotShardingStateNull();
-            } else if (!shardingState->enabled()) {
-                log() << "ShardingState not enabled, not setting shard version";
-                globalApCounter.gotShardingStateNotEnable();
-            }
-        }
     }
 
     response->setAppliedOpTime(lastOpApplied);
@@ -1158,55 +1139,7 @@ HeartbeatResponseAction TopologyCoordinatorImpl::_updatePrimaryFromHBDataV1(
     _currentPrimaryIndex = primaryIndex;
     if (_currentPrimaryIndex == -1) {
         return HeartbeatResponseAction::makeNoAction();
-    } else {
-        // 当当前的心跳和primary心跳是一致的时候才会获得版本进行比较
-        if (updatedConfigIndex == _currentPrimaryIndex) {
-            auto shardingState = ShardingState::get(getGlobalServiceContext());
-            if (shardingState && shardingState->enabled()) {
-                auto primaryHbData = _hbdata.at(_currentPrimaryIndex);
-                auto primaryVersions = primaryHbData.getAllShardVersions();
-                auto currentVersions = shardingState->getAllShardVersions();
-
-                /**
-                 * 比较的原则是: 一切以primary为准
-                 * 1. primary有但是secondary没有，那就触发更新
-                 * 2. primary与当前的要新，就放进去,进行刷新;
-                 * 3. secondary版本比较高，那就清空，下次心跳进行更新;
-                 * 4. seondary有但是primary没有的话啊，不触发更新, 这种情况理论上不应该有，有的话对整体的正确性是没问题得;
-                 */
-                for (const auto& pVersion : primaryVersions) {
-                    auto cVersion = currentVersions.find(pVersion.first);
-
-                    if (cVersion == currentVersions.end()) {
-                        refreshSecondaryRoutingJob.putTask(pVersion.first, pVersion.second);
-                        globalApCounter.gotNewCollectionCnt();
-                    } else if (!cVersion->second->isWriteCompatibleWith(*(pVersion.second))) {
-                        if (cVersion->second <= (*(pVersion.second))) {
-                            refreshSecondaryRoutingJob.putTask(pVersion.first, pVersion.second);
-                            globalApCounter.gotCollectionVersionNotCompatible();
-                        } else if (cVersion->second > (*(pVersion.second))) {
-                            refreshSecondaryRoutingJob.putClearTask(pVersion.first);
-                            globalApCounter.gotCollectionVersionNotCompatible();
-                        }
-                    } else {
-                        LOG(1) << "skip update shard version, current version is newer or "
-                                  "compatible with primary";
-                        globalApCounter.gotSkipVersionUpdated();
-                    }
-                }
-
-                for(const auto& cVersion : currentVersions) {
-                    auto pVersion = primaryVersions.find(cVersion.first);
-                    if (pVersion == primaryVersions.end()) {
-                        log() << "[MonogoStat] secondary have version, but primary no version so remove shard version: " << cVersion.first << ":" << cVersion.second->toString();
-                        //refreshSecondaryRoutingJob.putTask(cVersion.first, ChunkVersion::UNSHARDED());
-                        globalApCounter.gotRemoveVersionCnt();
-                    }
-                }
-            }
-        }
-    }
-
+    } 
     // Clear last heartbeat message on ourselves.
     setMyHeartbeatMessage(now, "");
 

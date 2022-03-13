@@ -93,7 +93,6 @@
 #include "mongo/db/s/balancer/balancer.h"
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_state.h"
-#include "mongo/db/s/refresh_secondary_routing.h"
 #include "mongo/db/s/sharding_state_recovery.h"
 #include "mongo/db/s/type_shard_identity.h"
 #include "mongo/db/server_options.h"
@@ -147,7 +146,7 @@
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 #include "mongo/db/s/auto_refresh_routing.h"
-#include "mongo/db/s/refresh_metainfo.h"
+// #include "mongo/db/s/refresh_metainfo.h"
 #include "mongo/db/watchdog_mongod.h"
 
 #ifdef MONGO_CONFIG_SSL
@@ -779,7 +778,8 @@ ExitCode _initAndListen(int listenPort) {
                             ->initializeShardingAwarenessIfNeeded(startupOpCtx.get()));
     if (shardingInitialized) {
         reloadShardRegistryUntilSuccess(startupOpCtx.get());
-        //static AutoRefreshRouting task = AutoRefreshRouting(0);
+        static AutoRefreshRouting task = AutoRefreshRouting(0);
+
         {
             log() << "[MongoStat] init sharding router info, but only run once";
             initShardingMetaInfos(startupOpCtx.get(), ClusterRole::ShardServer);
@@ -787,11 +787,6 @@ ExitCode _initAndListen(int listenPort) {
     } else {
         log() << "shardingInitialize failed, not starting sharding";
     }
-
-    log() << "starting refresh secondary Routing";
-    refreshSecondaryRoutingJob.go();
-    log() << "starting refresh config server metainfo";
-    refreshMetaInfoJob.go();
 
     if (!storageGlobalParams.readOnly) {
         logStartup(startupOpCtx.get());

@@ -34,7 +34,6 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/repl_set_config.h"
 #include "mongo/util/time_support.h"
-#include "mongo/s/chunk_version.h"
 
 namespace mongo {
 
@@ -134,12 +133,6 @@ public:
         return _durableOpTimeSet;
     }
     OpTime getDurableOpTime() const;
-
-
-    const std::map<std::string, std::shared_ptr<ChunkVersion>>& getNsShardVersions() const {
-        return _nsShardVersions;
-    }
-
 
     /**
      * Sets _mismatch to true.
@@ -255,10 +248,6 @@ public:
         _term = term;
     }
 
-    void setNsShardVersion(const std::map<std::string, std::shared_ptr<ChunkVersion>>& shardVersions) {
-        _nsShardVersions = shardVersions;
-    }
-
 private:
     bool _electionTimeSet = false;
     Timestamp _electionTime;
@@ -296,9 +285,6 @@ private:
     bool _primaryIdSet = false;
     long long _primaryId = -1;
     long long _term = -1;
-
-
-    std::map<std::string, std::shared_ptr<ChunkVersion>> _nsShardVersions;
 };
 
 }  // namespace repl

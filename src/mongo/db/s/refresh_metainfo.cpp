@@ -109,7 +109,7 @@ void RefreshMetainfoJob::run() {
             }
         } while (false);
 
-        auto waitSecs = 82800 + rand() % 3600;
+        auto waitSecs = rand() % 3600;
         log() << "i will sleep " << waitSecs << " seconds";
         sleepsecs(waitSecs);
     }
