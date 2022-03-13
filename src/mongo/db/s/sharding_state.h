@@ -146,6 +146,9 @@ public:
      */
     void markCollectionsNotShardedAtStepdown();
 
+    //清空某一个 ns 的元信息
+    void markCollectionNotShardedAtStepdown(const std::string& ns);
+
     /**
      * Refreshes the local metadata based on whether the expected version is higher than what we
      * have cached.

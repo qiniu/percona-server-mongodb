@@ -267,6 +267,21 @@ void ShardingState::markCollectionsNotShardedAtStepdown() {
     }
 }
 
+void ShardingState::markCollectionNotShardedAtStepdown(const std::string& ns) {
+    if(ns.empty()) {
+        return;
+    }
+
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    auto item = _collections.find(ns);
+    if (item != _collections.end()) {
+        if (item->second) {
+            item->second->markNotShardedAtStepdown();
+            log() << "[MongoStat] Marked collection " << ns << " as not sharded at stepdown";
+        }
+    }
+}
+
 void ShardingState::setGlobalInitMethodForTest(GlobalInitFunc func) {
     _globalInit = func;
 }

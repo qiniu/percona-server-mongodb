@@ -1170,8 +1170,8 @@ HeartbeatResponseAction TopologyCoordinatorImpl::_updatePrimaryFromHBDataV1(
                 /**
                  * 比较的原则是: 一切以primary为准
                  * 1. primary有但是secondary没有，那就触发更新
-                 * 2. primary与当前的写不兼容的话，就放进去;
-                 * 3. secondary版本比较高，那就不更新
+                 * 2. primary与当前的要新，就放进去,进行刷新;
+                 * 3. secondary版本比较高，那就清空，下次心跳进行更新;
                  * 4. seondary有但是primary没有的话啊，不触发更新, 这种情况理论上不应该有，有的话对整体的正确性是没问题得;
                  */
                 for (const auto& pVersion : primaryVersions) {
@@ -1181,8 +1181,13 @@ HeartbeatResponseAction TopologyCoordinatorImpl::_updatePrimaryFromHBDataV1(
                         refreshSecondaryRoutingJob.putTask(pVersion.first, pVersion.second);
                         globalApCounter.gotNewCollectionCnt();
                     } else if (!cVersion->second->isWriteCompatibleWith(*(pVersion.second))) {
-                        refreshSecondaryRoutingJob.putTask(pVersion.first, pVersion.second);
-                        globalApCounter.gotCollectionVersionNotCompatible();
+                        if (cVersion->second <= (*(pVersion.second))) {
+                            refreshSecondaryRoutingJob.putTask(pVersion.first, pVersion.second);
+                            globalApCounter.gotCollectionVersionNotCompatible();
+                        } else if (cVersion->second > (*(pVersion.second))) {
+                            refreshSecondaryRoutingJob.putClearTask(pVersion.first);
+                            globalApCounter.gotCollectionVersionNotCompatible();
+                        }
                     } else {
                         LOG(1) << "skip update shard version, current version is newer or "
                                   "compatible with primary";

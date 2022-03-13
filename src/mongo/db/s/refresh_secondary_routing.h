@@ -19,8 +19,10 @@ public:
     std::string name() const final;
     void run() final;
     void putTask(const std::string& ns, const std::shared_ptr<ChunkVersion>& version);
+    void putClearTask(const std::string& ns);
 private:
     std::map<std::string, std::shared_ptr<ChunkVersion>> _taskPool;
+    std::set<std::string> _clearPool;
     // 用来保护 map
     stdx::mutex _mutex;
 };
