@@ -195,6 +195,8 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
     // add option to specify the max number of accept queue
     options->addOptionChaining("listen.backlog", "listenBacklog", moe::Int, "listen backlog, default 1024");
 
+    options->addOptionChaining("secondary.route", "secondaryRouteSwitch", moe::Switch, "secondary route switch, default true");
+
     options->addOptionChaining(
         "net.ipv6", "ipv6", moe::Switch, "enable IPv6 support (disabled by default)");
 
@@ -841,6 +843,10 @@ Status storeServerOptions(const moe::Environment& params) {
 
     if (params.count("listen.backlog")) {
         serverGlobalParams.listenBacklog = params["listen.backlog"].as<int>();
+    }
+
+    if (params.count("secondary.route")) {
+        serverGlobalParams.secondaryRouteSwitch = params["secondary.route"].as<bool>();
     }
 
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {

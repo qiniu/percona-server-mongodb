@@ -41,6 +41,7 @@
 #include "mongo/db/auth/internal_user_auth.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/server_parameters.h"
+#include "mongo/db/server_options.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/logger/logger.h"
 #include "mongo/logger/parse_log_component_settings.h"
@@ -277,6 +278,40 @@ public:
         return Status::OK();
     }
 } logLevelSetting;
+
+class SecondaryRouterSwitch : public ServerParameter {
+    MONGO_DISALLOW_COPYING(SecondaryRouterSwitch);
+    public:
+    SecondaryRouterSwitch() : ServerParameter(ServerParameterSet::getGlobal(), "secondaryRouteSwitch", true, true) {}
+
+    virtual void append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) {
+        b << name << serverGlobalParams.secondaryRouteSwitch.load();
+    }
+
+    virtual Status set(const BSONElement& newValueElement) {
+        bool newValue;
+        if (!newValueElement.coerce(&newValue))
+            return Status(ErrorCodes::BadValue,
+                          mongoutils::str::stream() << "Invalid value for secondaryRouteSwitch: "
+                                                    << newValueElement);
+        serverGlobalParams.secondaryRouteSwitch = newValue;
+        return Status::OK();
+    }
+
+    virtual Status setFromString(const std::string& str) {
+        bool newValue;
+        if (str == "true") {
+            newValue = true;
+        } else if (str == "false") {
+            newValue = false;
+        } else {
+            return Status(ErrorCodes::BadValue,
+                          mongoutils::str::stream() << "Invalid value for secondaryRouteSwitch: " << str);
+        }
+        serverGlobalParams.secondaryRouteSwitch = newValue;
+        return Status::OK();
+    }
+} secondaryRouterSwitch;
 
 /**
  * Log component verbosity.

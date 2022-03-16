@@ -50,7 +50,7 @@
 #include "mongo/db/s/sharded_connection_info.h"
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_statistics.h"
-#include "mongo/db/s/refresh_metainfo.h"
+// #include "mongo/db/s/refresh_metainfo.h"
 #include "mongo/db/s/type_shard_identity.h"
 #include "mongo/executor/network_interface_factory.h"
 #include "mongo/executor/network_interface_thread_pool.h"
@@ -67,8 +67,6 @@
 #include "mongo/s/sharding_initialization.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
-#include "mongo/util/timer.h"
-#include "mongo/util/scopeguard.h"
 
 #include <chrono>
 #include <ctime>
@@ -199,49 +197,6 @@ Status ShardingState::updateConfigServerOpTimeFromMetadata(OperationContext* txn
     }
 
     return Status::OK();
-}
-
-std::map<std::string, std::shared_ptr<ChunkVersion>> ShardingState::getAllShardVersions() {
-    static std::shared_ptr<ChunkVersion> kUninitializedChunkVersion(
-        new ChunkVersion(0, 0, OID()));
-
-    Timer timer;
-    ON_BLOCK_EXIT([&timer] {  
-        auto cs = timer.millis();
-        if (cs > 10) {
-            log() << "[ShardingState::getAllShardVersions] getAllShardVersions() took " << cs << "ms";
-        }
-    });
-
-    std::map<std::string, std::shared_ptr<ChunkVersion>> allShardVersions;
-    std::shared_ptr<std::set<std::string>> csSharedCollections = refreshMetaInfoJob.getSharedCollections();
-
-    {
-        stdx::lock_guard<stdx::mutex> lk(_mutex);
-        for (const auto& coll : _collections) {
-            if (coll.second == nullptr) {
-                continue;
-            }
-
-            std::shared_ptr<ChunkVersion> newTmp = kUninitializedChunkVersion;
-            if (coll.second->getMetadata()) {
-                auto tmpChunkVersion = coll.second->getMetadata()->getShardVersion();
-                newTmp = std::make_shared<ChunkVersion>(tmpChunkVersion.majorVersion(),
-                                                        tmpChunkVersion.minorVersion(),
-                                                        tmpChunkVersion.epoch());
-                allShardVersions[coll.first] = newTmp;
-            } else {
-                if (csSharedCollections && csSharedCollections->find(coll.first) !=
-                                               csSharedCollections->end()) {
-                    // This collection is shared with the config server, so we can't
-                    // get the shard version from the metadata.
-                    allShardVersions[coll.first] = newTmp;
-                }
-            }
-        }
-    }
-
-    return allShardVersions;
 }
 
 CollectionShardingState* ShardingState::getNS(const std::string& ns, OperationContext* txn) {

@@ -715,7 +715,7 @@ serveronlyLibdeps = [
     "$BUILD_DIR/mongo/s/coreshard",
     "$BUILD_DIR/mongo/s/shard_id",
     "$BUILD_DIR/mongo/s/serveronly",
-    "$BUILD_DIR/mongo/db/s/refresh_secondary_routing",
+    # "$BUILD_DIR/mongo/db/s/refresh_secondary_routing",
     "$BUILD_DIR/mongo/db/s/init_router_info_for_mongod",
     "$BUILD_DIR/mongo/db/s/refresh_metainfo",
     "$BUILD_DIR/mongo/db/s/auto_refresh_routing",

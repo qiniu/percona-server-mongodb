@@ -373,11 +373,14 @@ bool CollectionShardingState::_checkShardVersionOk(OperationContext* txn,
         return true;
     }
 
-    // 让非primary带有版本信息
-    // if (!repl::ReplicationCoordinator::get(txn)->canAcceptWritesForDatabase(_nss.db())) {
-    //     // Right now connections to secondaries aren't versioned at all.
-    //     return true;
-    // }
+
+    //如果开始secondary路由刷新的功能话，就进行版本检查，如果没有开启的话，就不进行版本检查
+    if (!serverGlobalParams.secondaryRouteSwitch) {
+        if (!repl::ReplicationCoordinator::get(txn)->canAcceptWritesForDatabase(_nss.db())) {
+            // Right now connections to secondaries aren't versioned at all.
+            return true;
+        }
+    }
 
     auto& oss = OperationShardingState::get(txn);
 

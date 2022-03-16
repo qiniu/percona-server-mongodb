@@ -365,7 +365,7 @@ env.Library('topology_coordinator_impl',
                 '$BUILD_DIR/mongo/util/fail_point',
                 '$BUILD_DIR/mongo/db/s/sharding',
                 '$BUILD_DIR/mongo/db/stats/apcounter',
-                '$BUILD_DIR/mongo/db/s/refresh_secondary_routing',    
+                # '$BUILD_DIR/mongo/db/s/refresh_secondary_routing',    
             ])
 
 env.CppUnitTest('repl_set_heartbeat_response_test',

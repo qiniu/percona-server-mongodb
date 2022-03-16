@@ -12,9 +12,11 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/timer.h"
 #include "mongo/util/exit.h"
+#include <set>
 
 namespace mongo {
 using std::map;
+using std::set;
 using std::shared_ptr;
 using std::string;
 using stdx::mutex;
@@ -25,6 +27,11 @@ RefreshSecondaryRoutingJob refreshSecondaryRoutingJob;
 
 std::string RefreshSecondaryRoutingJob::name() const {
     return kRefreshSecondaryRoutingJobName;
+}
+
+void RefreshSecondaryRoutingJob::putClearTask(const string& ns) {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _clearPool.insert(ns);
 }
 
 void RefreshSecondaryRoutingJob::putTask(const string& ns,
@@ -85,27 +92,30 @@ void RefreshSecondaryRoutingJob::run() {
             if (replCoord && replCoord->isReplEnabled() &&
                 replCoord->getMemberState().secondary()) {
                 map<string, shared_ptr<ChunkVersion>> copyMap;
+                set<string> clearSet;
                 {
                     Timer t;
                     ON_BLOCK_EXIT([&t] {
                         auto cs = t.millis();
                         if (cs > 10) {
-                            log() << "[MongoStat]RefreshSecondaryRoutingJob::run() copyMap took "
+                            log() << "[MongoStat]RefreshSecondaryRoutingJob::run() copyMap and copySet took "
                                   << cs << "ms";
                         }
                     });
 
                     stdx::lock_guard<mutex> lk(_mutex);
                     copyMap = _taskPool;
+                    clearSet = _clearPool;
                     _taskPool.clear();
+                    _clearPool.clear();
                 }
 
                 {
                     Timer t;
-                    ON_BLOCK_EXIT([&copyMap, &t] {
-                        if (!copyMap.empty()) {
-                            log() << "[MongoStat]RefreshSecondaryRoutingJob::run() task size:"
-                                  << copyMap.size() << ",refresh routing took " << t.millis()
+                    ON_BLOCK_EXIT([&copyMap, &t, &clearSet] {
+                        if (!copyMap.empty() || !clearSet.empty()) {
+                            log() << "[MongoStat]RefreshSecondaryRoutingJob::run() update task size:"
+                                  << copyMap.size() << " and clear task:"<< clearSet.size() << ",refresh routing took " << t.millis()
                                   << "ms";
                         }
                     });
@@ -122,6 +132,11 @@ void RefreshSecondaryRoutingJob::run() {
                               << " version: " << version->toString();
                         shardingState->onStaleShardVersion(&txn, NamespaceString(ns), *version);
                         globalApCounter.gotOnStaleShardVersion();
+                    }
+
+                    for (const auto& ns : clearSet) {
+                        log() << "[MongoStat]RefreshSecondaryRoutingJob::run() clear ns: " << ns;
+                        shardingState->markCollectionNotShardedAtStepdown(ns);
                     }
                 }
                 sleepmillis(500);

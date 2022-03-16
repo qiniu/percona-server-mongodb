@@ -90,6 +90,8 @@ struct ServerGlobalParams {
     // 新增参数用来设定
     int listenBacklog = 1024;  // Maximum number of connections in the listen queue.
 
+    std::atomic<bool> secondaryRouteSwitch{true};  // --secondaryRouteSwitch
+
     int unixSocketPermissions = DEFAULT_UNIX_PERMS;  // permissions for the UNIX domain socket
 
     std::string keyFile;  // Path to keyfile, or empty if none.
