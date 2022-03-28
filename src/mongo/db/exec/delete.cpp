@@ -215,7 +215,7 @@ PlanStage::StageState DeleteStage::doWork(WorkingSetID* out) {
     if (!_params.isExplain) {
         try {
             WriteUnitOfWork wunit(getOpCtx());
-            _collection->deleteDocument(getOpCtx(), recordId, _params.opDebug, _params.fromMigrate);
+            _collection->deleteDocument(getOpCtx(), recordId, _params.opDebug, _params.additional, _params.fromMigrate);
             wunit.commit();
         } catch (const WriteConflictException& wce) {
             memberFreer.Dismiss();  // Keep this member around so we can retry deleting it.

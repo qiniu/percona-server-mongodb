@@ -303,12 +303,13 @@ static void insertDocuments(OperationContext* txn,
                             Collection* collection,
                             std::vector<BSONObj>::const_iterator begin,
                             std::vector<BSONObj>::const_iterator end,
-                            bool fromMigrate) {
+                            bool fromMigrate,
+                            const std::vector<BSONObj>& vecAdditionalInfo) {
     // Intentionally not using a WRITE_CONFLICT_RETRY_LOOP. That is handled by the caller so it can
     // react to oversized batches.
     WriteUnitOfWork wuow(txn);
     uassertStatusOK(collection->insertDocuments(
-        txn, begin, end, &CurOp::get(txn)->debug(), /*enforceQuota*/ true, fromMigrate));
+        txn, begin, end, &CurOp::get(txn)->debug(), vecAdditionalInfo, /*enforceQuota*/ true, fromMigrate));
     wuow.commit();
 }
 
@@ -354,7 +355,7 @@ static bool insertBatchAndHandleErrors(OperationContext* txn,
             // See Collection::_insertDocuments for why we do all capped inserts one-at-a-time.
             lastOpFixer->startingOp();
             insertDocuments(
-                txn, collection->getCollection(), batch.begin(), batch.end(), fromMigrate);
+                txn, collection->getCollection(), batch.begin(), batch.end(), fromMigrate, wholeOp.vecAdditional);
             lastOpFixer->finishedOpSuccessfully();
             globalOpCounters.gotInserts(batch.size());
             std::fill_n(
@@ -370,6 +371,7 @@ static bool insertBatchAndHandleErrors(OperationContext* txn,
 
     // Try to insert the batch one-at-a-time. This path is executed both for singular batches, and
     // for batches that failed all-at-once inserting.
+    int index_additional_info = 0;
     for (auto it = batch.begin(); it != batch.end(); ++it) {
         globalOpCounters.gotInsert();
         try {
@@ -378,10 +380,12 @@ static bool insertBatchAndHandleErrors(OperationContext* txn,
                     if (!collection)
                         acquireCollection();
                     lastOpFixer->startingOp();
-                    insertDocuments(txn, collection->getCollection(), it, it + 1, fromMigrate);
+                    std::vector<BSONObj> vecAdditionalInfo(1, wholeOp.vecAdditional[index_additional_info]);
+                    insertDocuments(txn, collection->getCollection(), it, it + 1, fromMigrate, vecAdditionalInfo);
                     lastOpFixer->finishedOpSuccessfully();
                     out->results.emplace_back(WriteResult::SingleResult{1});
                     curOp.debug().ninserted++;
+                    index_additional_info++;
                 } catch (...) {
                     // Release the lock following any error. Among other things, this ensures that
                     // we don't sleep in the WCE retry loop with the lock held.
@@ -502,6 +506,7 @@ static WriteResult::SingleResult performSingleUpdateOp(OperationContext* txn,
     request.setMulti(op.multi);
     request.setUpsert(op.upsert);
     request.setYieldPolicy(PlanExecutor::YIELD_AUTO);  // ParsedUpdate overrides this for $isolated.
+    request.setAdditionalInfo(op.additionalInfo);
 
     ParsedUpdate parsedUpdate(txn, &request);
     uassertStatusOK(parsedUpdate.parseRequest());
@@ -621,6 +626,7 @@ static WriteResult::SingleResult performSingleDeleteOp(OperationContext* txn,
     request.setCollation(op.collation);
     request.setMulti(op.multi);
     request.setYieldPolicy(PlanExecutor::YIELD_AUTO);  // ParsedDelete overrides this for $isolated.
+    request.setAdditionalInfo(op.additionalInfo);
 
     ParsedDelete parsedDelete(txn, &request);
     uassertStatusOK(parsedDelete.parseRequest());
@@ -702,7 +708,7 @@ WriteResult performDeletes(OperationContext* txn, const DeleteOp& wholeOp) {
                 break;
         }
     }
-
+    
     return out;
 }
 

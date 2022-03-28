@@ -274,7 +274,8 @@ OplogDocWriter _logOpWriter(OperationContext* txn,
                             const BSONObj* o2,
                             bool fromMigrate,
                             OpTime optime,
-                            long long hashNew) {
+                            long long hashNew,
+                            const BSONObj& additional) {
     BSONObjBuilder b(256);
 
     b.append("ts", optime.getTimestamp());
@@ -289,6 +290,10 @@ OplogDocWriter _logOpWriter(OperationContext* txn,
     if (o2)
         b.append("o2", *o2);
 
+    if(!additional.isEmpty()){
+        b.append("additional", additional);
+    }
+    
     return OplogDocWriter(OplogDocWriter(b.obj(), obj));
 }
 }  // end anon namespace
@@ -387,12 +392,14 @@ void _logOpsInner(OperationContext* txn,
     });
 }
 
+
 void logOp(OperationContext* txn,
            const char* opstr,
            const char* ns,
            const BSONObj& obj,
            const BSONObj* o2,
-           bool fromMigrate) {
+           bool fromMigrate,
+           const BSONObj& additional) {
     ReplicationCoordinator::Mode replMode = ReplicationCoordinator::get(txn)->getReplicationMode();
     NamespaceString nss(ns);
     if (oplogDisabled(txn, replMode, nss))
@@ -404,7 +411,7 @@ void logOp(OperationContext* txn,
     Lock::CollectionLock lock(txn->lockState(), _oplogCollectionName, MODE_IX);
     OplogSlot slot;
     getNextOpTime(txn, oplog, replCoord, replMode, 1, &slot);
-    auto writer = _logOpWriter(txn, opstr, nss, obj, o2, fromMigrate, slot.opTime, slot.hash);
+    auto writer = _logOpWriter(txn, opstr, nss, obj, o2, fromMigrate, slot.opTime, slot.hash, additional);
     const DocWriter* basePtr = &writer;
     _logOpsInner(txn, nss, &basePtr, 1, oplog, replMode, slot.opTime);
 }
@@ -414,7 +421,8 @@ void logOps(OperationContext* txn,
             const NamespaceString& nss,
             std::vector<BSONObj>::const_iterator begin,
             std::vector<BSONObj>::const_iterator end,
-            bool fromMigrate) {
+            bool fromMigrate,
+            const std::vector<BSONObj>& vecAdditionalInfo) {
     ReplicationCoordinator* replCoord = ReplicationCoordinator::get(txn);
     ReplicationCoordinator::Mode replMode = replCoord->getReplicationMode();
 
@@ -423,6 +431,9 @@ void logOps(OperationContext* txn,
         return;
 
     const size_t count = end - begin;
+    if (count != vecAdditionalInfo.size()){
+       log() << "additional infos vector's size not equal count. vector.size()=" << vecAdditionalInfo.size() << ", count=" << count;
+    }
     std::vector<OplogDocWriter> writers;
     writers.reserve(count);
     Collection* oplog = getLocalOplogCollection(txn, _oplogCollectionName);
@@ -431,8 +442,9 @@ void logOps(OperationContext* txn,
     std::unique_ptr<OplogSlot[]> slots(new OplogSlot[count]);
     getNextOpTime(txn, oplog, replCoord, replMode, count, slots.get());
     for (size_t i = 0; i < count; i++) {
+        auto additionInfo = vecAdditionalInfo[i];
         writers.emplace_back(_logOpWriter(
-            txn, opstr, nss, begin[i], NULL, fromMigrate, slots[i].opTime, slots[i].hash));
+            txn, opstr, nss, begin[i], NULL, fromMigrate, slots[i].opTime, slots[i].hash, additionInfo));
     }
 
     std::unique_ptr<DocWriter const* []> basePtrs(new DocWriter const*[count]);
@@ -820,8 +832,10 @@ Status applyOperation_inlock(OperationContext* txn,
         if (fieldO.type() == Array) {
             // Batched inserts.
             std::vector<BSONObj> insertObjs;
+            std::vector<BSONObj> vecAdditionalInfo;
             for (auto elem : fieldO.Obj()) {
                 insertObjs.push_back(elem.Obj());
+                vecAdditionalInfo.push_back(BSONObj());
             }
             uassert(ErrorCodes::OperationFailed,
                     str::stream() << "Failed to apply insert due to empty array element: "
@@ -830,7 +844,7 @@ Status applyOperation_inlock(OperationContext* txn,
             WriteUnitOfWork wuow(txn);
             OpDebug* const nullOpDebug = nullptr;
             Status status = collection->insertDocuments(
-                txn, insertObjs.begin(), insertObjs.end(), nullOpDebug, true);
+                txn, insertObjs.begin(), insertObjs.end(), nullOpDebug, vecAdditionalInfo, true);
             if (!status.isOK()) {
                 return status;
             }
@@ -865,7 +879,7 @@ Status applyOperation_inlock(OperationContext* txn,
             if (!needToDoUpsert) {
                 WriteUnitOfWork wuow(txn);
                 OpDebug* const nullOpDebug = nullptr;
-                auto status = collection->insertDocument(txn, o, nullOpDebug, true);
+                auto status = collection->insertDocument(txn, o, nullOpDebug, BSONObj(), true);
                 if (status.isOK()) {
                     wuow.commit();
                 } else if (status == ErrorCodes::DuplicateKey) {

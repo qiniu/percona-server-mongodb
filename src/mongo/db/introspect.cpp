@@ -144,7 +144,7 @@ void profile(OperationContext* txn, NetworkOp op) {
             if (coll) {
                 WriteUnitOfWork wuow(txn);
                 OpDebug* const nullOpDebug = nullptr;
-                coll->insertDocument(txn, p, nullOpDebug, false);
+                coll->insertDocument(txn, p, nullOpDebug, BSONObj(), false);
                 wuow.commit();
 
                 break;

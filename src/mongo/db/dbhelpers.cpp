@@ -448,7 +448,7 @@ long long Helpers::removeRange(OperationContext* txn,
                         callback->goingToDelete(obj);
 
                     OpDebug* const nullOpDebug = nullptr;
-                    collection->deleteDocument(txn, rloc, nullOpDebug, fromMigrate);
+                    collection->deleteDocument(txn, rloc, nullOpDebug, BSONObj(), fromMigrate);
                     wuow.commit();
                 }
                 MONGO_WRITE_CONFLICT_RETRY_LOOP_END(txn, "delete range", ns);

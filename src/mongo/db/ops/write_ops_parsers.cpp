@@ -25,7 +25,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kWrite
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/ops/write_ops_parsers.h"
@@ -36,8 +36,11 @@
 #include "mongo/db/dbmessage.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/util/log.h"
+#include "mongo/db/bson/trace_additional_from_query.h"
 
 namespace mongo {
+namespace tq = ::mongo::trace_query;
 namespace {
 
 // The specified limit to the number of operations that can be included in a single write command.
@@ -130,7 +133,11 @@ InsertOp parseInsertCommand(StringData dbName, const BSONObj& cmd) {
     checkBSONType(Array, documents);
     for (auto doc : documents.Obj()) {
         checkTypeInArray(Object, doc, documents);
-        op.documents.push_back(doc.Obj());
+        auto doc_no_additional_info = doc.Obj();
+        BSONObj doc_additional;
+        tq::traceAdditionalInfoFromQuery(doc_no_additional_info, doc_additional);
+        op.documents.push_back(doc_no_additional_info);
+        op.vecAdditional.push_back(doc_additional);
     }
     checkOpCountForCommand(op.documents.size());
 
@@ -161,6 +168,7 @@ UpdateOp parseUpdateCommand(StringData dbName, const BSONObj& cmd) {
                 haveQ = true;
                 checkBSONType(Object, field);
                 update.query = field.Obj();
+                tq::traceAdditionalInfoFromQuery(update.query, update.additionalInfo);
             } else if (fieldName == "u") {
                 haveU = true;
                 checkBSONType(Object, field);
@@ -204,6 +212,7 @@ DeleteOp parseDeleteCommand(StringData dbName, const BSONObj& cmd) {
                 haveQ = true;
                 checkBSONType(Object, field);
                 del.query = field.Obj();
+                tq::traceAdditionalInfoFromQuery(del.query, del.additionalInfo);
             } else if (fieldName == "collation") {
                 checkBSONType(Object, field);
                 del.collation = field.Obj();
@@ -244,7 +253,11 @@ InsertOp parseLegacyInsert(const Message& msgRaw) {
     op.continueOnError = msg.reservedField() & InsertOption_ContinueOnError;
     uassert(ErrorCodes::InvalidLength, "Need at least one object to insert", msg.moreJSObjs());
     while (msg.moreJSObjs()) {
-        op.documents.push_back(msg.nextJsObj());
+        auto insertMsg = msg.nextJsObj();
+        BSONObj additional;
+        trace_query::traceAdditionalInfoFromQuery(insertMsg, additional);
+        op.vecAdditional.push_back(additional);
+        op.documents.push_back(insertMsg);
     }
     // There is no limit on the number of inserts in a legacy batch.
 
@@ -265,6 +278,7 @@ UpdateOp parseLegacyUpdate(const Message& msgRaw) {
     singleUpdate.multi = flags & UpdateOption_Multi;
     singleUpdate.query = msg.nextJsObj();
     singleUpdate.update = msg.nextJsObj();
+    tq::traceAdditionalInfoFromQuery(singleUpdate.query, singleUpdate.additionalInfo);
 
     return op;
 }
@@ -281,6 +295,7 @@ DeleteOp parseLegacyDelete(const Message& msgRaw) {
     const int flags = msg.pullInt();
     singleDelete.multi = !(flags & RemoveOption_JustOne);
     singleDelete.query = msg.nextJsObj();
+    tq::traceAdditionalInfoFromQuery(singleDelete.query, singleDelete.additionalInfo);
 
     return op;
 }

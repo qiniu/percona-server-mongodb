@@ -184,6 +184,14 @@ public:
         return _yieldPolicy;
     }
 
+    inline void setAdditionalInfo(const BSONObj& additionalInfo) {
+        _additionalInfo = additionalInfo;
+    }
+
+    inline const BSONObj& getAdditionalInfo() const {
+        return _additionalInfo;
+    }
+
     const std::string toString() const {
         return str::stream() << " query: " << _query << " projection: " << _proj
                              << " sort: " << _sort << " collation: " << _collation
@@ -248,6 +256,9 @@ private:
 
     // Whether or not the update should yield. Defaults to YIELD_MANUAL.
     PlanExecutor::YieldPolicy _yieldPolicy;
+
+    BSONObj _additionalInfo;
+            
 };
 
 }  // namespace mongo

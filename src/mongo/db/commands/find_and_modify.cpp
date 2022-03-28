@@ -151,6 +151,7 @@ void makeUpdateRequest(const FindAndModifyRequest& args,
     requestOut->setYieldPolicy(PlanExecutor::YIELD_AUTO);
     requestOut->setExplain(explain);
     requestOut->setLifecycle(updateLifecycle);
+    requestOut->setAdditionalInfo(args.getAdditionalInfo());
 }
 
 void makeDeleteRequest(const FindAndModifyRequest& args, bool explain, DeleteRequest* requestOut) {
@@ -162,6 +163,7 @@ void makeDeleteRequest(const FindAndModifyRequest& args, bool explain, DeleteReq
     requestOut->setYieldPolicy(PlanExecutor::YIELD_AUTO);
     requestOut->setReturnDeleted(true);  // Always return the old value.
     requestOut->setExplain(explain);
+    requestOut->setAdditionalInfo(args.getAdditionalInfo());
 }
 
 void appendCommandResponse(PlanExecutor* exec,

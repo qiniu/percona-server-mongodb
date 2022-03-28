@@ -356,7 +356,9 @@ Status insertDocumentsSingleBatch(OperationContext* txn,
 
     WriteUnitOfWork wunit(txn);
     OpDebug* const nullOpDebug = nullptr;
-    auto status = collection->insertDocuments(txn, begin, end, nullOpDebug, false);
+    int count = end - begin;
+    std::vector<BSONObj> vecAdditionalInfo(count, BSONObj());
+    auto status = collection->insertDocuments(txn, begin, end, nullOpDebug, vecAdditionalInfo, false);
     if (!status.isOK()) {
         return status;
     }

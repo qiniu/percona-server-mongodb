@@ -102,6 +102,8 @@ public:
     // Not implemented. Use extractWriteConcern() to get the setting instead.
     WriteConcernOptions getWriteConcern() const;
 
+    BSONObj getAdditionalInfo() const;
+
     //
     // Setters for update type request only.
     //
@@ -140,6 +142,8 @@ public:
      */
     void setWriteConcern(WriteConcernOptions writeConcern);
 
+    void setAdditionalInfo(BSONObj additionalInfo);
+
 private:
     /**
      * Creates a new FindAndModifyRequest with the required fields.
@@ -152,6 +156,9 @@ private:
 
     // Required for updates
     const BSONObj _updateObj;
+
+    // Required additional msgs
+    boost::optional<BSONObj> _additionalInfo;
 
     boost::optional<bool> _isUpsert;
     boost::optional<BSONObj> _fieldProjection;

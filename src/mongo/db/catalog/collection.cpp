@@ -375,6 +375,7 @@ Status Collection::insertDocuments(OperationContext* txn,
                                    const vector<BSONObj>::const_iterator begin,
                                    const vector<BSONObj>::const_iterator end,
                                    OpDebug* opDebug,
+                                   const std::vector<BSONObj>& vecAdditionalInfo,
                                    bool enforceQuota,
                                    bool fromMigrate) {
 
@@ -419,7 +420,7 @@ Status Collection::insertDocuments(OperationContext* txn,
         return status;
     invariant(sid == txn->recoveryUnit()->getSnapshotId());
 
-    getGlobalServiceContext()->getOpObserver()->onInserts(txn, ns(), begin, end, fromMigrate);
+    getGlobalServiceContext()->getOpObserver()->onInserts(txn, ns(), begin, end, vecAdditionalInfo, fromMigrate);
 
     txn->recoveryUnit()->onCommit([this]() { notifyCappedWaitersIfNeeded(); });
 
@@ -429,11 +430,14 @@ Status Collection::insertDocuments(OperationContext* txn,
 Status Collection::insertDocument(OperationContext* txn,
                                   const BSONObj& docToInsert,
                                   OpDebug* opDebug,
+                                  const BSONObj& additionalInfo,
                                   bool enforceQuota,
                                   bool fromMigrate) {
     vector<BSONObj> docs;
     docs.push_back(docToInsert);
-    return insertDocuments(txn, docs.begin(), docs.end(), opDebug, enforceQuota, fromMigrate);
+    vector<BSONObj> vecAdditionalInfo;
+    vecAdditionalInfo.push_back(additionalInfo);
+    return insertDocuments(txn, docs.begin(), docs.end(), opDebug, vecAdditionalInfo, enforceQuota, fromMigrate);
 }
 
 Status Collection::insertDocument(OperationContext* txn,
@@ -464,6 +468,8 @@ Status Collection::insertDocument(OperationContext* txn,
 
     vector<BSONObj> docs;
     docs.push_back(doc);
+    vector<BSONObj> vecAdditionalInfo;
+    vecAdditionalInfo.push_back(BSONObj());
 
     getGlobalServiceContext()->getOpObserver()->aboutToInserts(
         txn, ns(), docs.begin(), docs.end(), false);
@@ -485,7 +491,7 @@ Status Collection::insertDocument(OperationContext* txn,
     }
 
     getGlobalServiceContext()->getOpObserver()->onInserts(
-        txn, ns(), docs.begin(), docs.end(), false);
+        txn, ns(), docs.begin(), docs.end(), vecAdditionalInfo, false);
 
     txn->recoveryUnit()->onCommit([this]() { notifyCappedWaitersIfNeeded(); });
 
@@ -520,6 +526,7 @@ Status Collection::_insertDocuments(OperationContext* txn,
     records.reserve(count);
     for (auto it = begin; it != end; it++) {
         Record record = {RecordId(), RecordData(it->objdata(), it->objsize())};
+        //log()<<"lixin record="<<record.data.toBson().toString();
         records.push_back(record);
     }
     Status status = _recordStore->insertRecords(txn, &records, _enforceQuota(enforceQuota));
@@ -535,6 +542,7 @@ Status Collection::_insertDocuments(OperationContext* txn,
         invariant(loc < RecordId::max());
 
         BsonRecord bsonRecord = {loc, &(*it)};
+        //log()<<"lixin bsonRecord="<<bsonRecord.docPtr->toString();
         bsonRecords.push_back(bsonRecord);
     }
 
@@ -575,7 +583,7 @@ Status Collection::aboutToDeleteCapped(OperationContext* txn,
 }
 
 void Collection::deleteDocument(
-    OperationContext* txn, const RecordId& loc, OpDebug* opDebug, bool fromMigrate, bool noWarn) {
+    OperationContext* txn, const RecordId& loc, OpDebug* opDebug, const BSONObj& additionalInfo, bool fromMigrate, bool noWarn) {
     if (isCapped()) {
         log() << "failing remove on a capped ns " << _ns;
         uasserted(10089, "cannot remove from a capped collection");
@@ -599,7 +607,7 @@ void Collection::deleteDocument(
     _recordStore->deleteRecord(txn, loc);
 
     getGlobalServiceContext()->getOpObserver()->onDelete(
-        txn, ns(), std::move(deleteState), fromMigrate);
+        txn, ns(), std::move(deleteState), fromMigrate, additionalInfo);
 }
 
 Counter64 moveCounter;
