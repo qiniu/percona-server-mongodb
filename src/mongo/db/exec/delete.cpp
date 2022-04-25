@@ -171,6 +171,7 @@ PlanStage::StageState DeleteStage::doWork(WorkingSetID* out) {
     // Deletes can't have projections. This means that covering analysis will always add
     // a fetch. We should always get fetched data, and never just key data.
     invariant(member->hasObj());
+    auto delete_obj = member->obj.value();
 
     // Ensure the document still exists and matches the predicate.
     bool docStillMatches;

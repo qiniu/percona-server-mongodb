@@ -275,7 +275,8 @@ OplogDocWriter _logOpWriter(OperationContext* txn,
                             bool fromMigrate,
                             OpTime optime,
                             long long hashNew,
-                            const BSONObj& additional) {
+                            const BSONObj& additional,
+                            const BSONObj& docWithoutId) {
     BSONObjBuilder b(256);
 
     b.append("ts", optime.getTimestamp());
@@ -292,6 +293,9 @@ OplogDocWriter _logOpWriter(OperationContext* txn,
 
     if(!additional.isEmpty()){
         b.append("additional", additional);
+    }
+    if(!docWithoutId.isEmpty() && !fromMigrate){ //fromMigrate的delete不带原始信息
+        b.append("fullfields", docWithoutId);
     }
     
     return OplogDocWriter(OplogDocWriter(b.obj(), obj));
@@ -399,7 +403,8 @@ void logOp(OperationContext* txn,
            const BSONObj& obj,
            const BSONObj* o2,
            bool fromMigrate,
-           const BSONObj& additional) {
+           const BSONObj& additional,
+           const BSONObj& docWithoutId) {
     ReplicationCoordinator::Mode replMode = ReplicationCoordinator::get(txn)->getReplicationMode();
     NamespaceString nss(ns);
     if (oplogDisabled(txn, replMode, nss))
@@ -411,7 +416,7 @@ void logOp(OperationContext* txn,
     Lock::CollectionLock lock(txn->lockState(), _oplogCollectionName, MODE_IX);
     OplogSlot slot;
     getNextOpTime(txn, oplog, replCoord, replMode, 1, &slot);
-    auto writer = _logOpWriter(txn, opstr, nss, obj, o2, fromMigrate, slot.opTime, slot.hash, additional);
+    auto writer = _logOpWriter(txn, opstr, nss, obj, o2, fromMigrate, slot.opTime, slot.hash, additional, docWithoutId);
     const DocWriter* basePtr = &writer;
     _logOpsInner(txn, nss, &basePtr, 1, oplog, replMode, slot.opTime);
 }
@@ -444,7 +449,7 @@ void logOps(OperationContext* txn,
     for (size_t i = 0; i < count; i++) {
         auto additionInfo = vecAdditionalInfo[i];
         writers.emplace_back(_logOpWriter(
-            txn, opstr, nss, begin[i], NULL, fromMigrate, slots[i].opTime, slots[i].hash, additionInfo));
+            txn, opstr, nss, begin[i], NULL, fromMigrate, slots[i].opTime, slots[i].hash, additionInfo, BSONObj()));
     }
 
     std::unique_ptr<DocWriter const* []> basePtrs(new DocWriter const*[count]);

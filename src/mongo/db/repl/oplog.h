@@ -98,7 +98,8 @@ void logOp(OperationContext* txn,
            const BSONObj& obj,
            const BSONObj* o2,
            bool fromMigrate,
-           const BSONObj& additional);
+           const BSONObj& additional,
+           const BSONObj& docWithoutId);
 
 // Flush out the cached pointers to the local database and oplog.
 // Used by the closeDatabase command to ensure we don't cache closed things.
