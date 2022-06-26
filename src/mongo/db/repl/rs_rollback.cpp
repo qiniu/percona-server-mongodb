@@ -68,6 +68,7 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/db/server_options.h"
 
 /* Scenarios
  *
@@ -403,6 +404,7 @@ void syncFixUp(OperationContext* opCtx,
 
             // Note good might be empty, indicating we should delete it.
             goodVersions[doc.ns][doc] = good;
+            log()<<"good version push ns="<<doc.ns<<",doc = "<< doc.ownedObj.toString() << ",good="<<good.toString();
         } catch (const DBException& ex) {
             // If the collection turned into a view, we might get an error trying to
             // refetch documents, but these errors should be ignored, as we'll be creating
@@ -546,6 +548,7 @@ void syncFixUp(OperationContext* opCtx,
             BSONObj curObj;
             PlanExecutor::ExecState execState;
             while (PlanExecutor::ADVANCED == (execState = exec->getNext(&curObj, NULL))) {
+                log()<<"line:"<< __LINE__ << ",rb obj=" << curObj.toString();
                 auto status = removeSaver.goingToDelete(curObj);
                 if (!status.isOK()) {
                     severe() << "rolling back createCollection on " << *it
@@ -656,15 +659,69 @@ void syncFixUp(OperationContext* opCtx,
                     BSONObj obj;
                     bool found = Helpers::findOne(opCtx, collection, pattern, obj, false);
                     if (found) {
-                        auto status = removeSaver->goingToDelete(obj);
+                        BSONObjBuilder b;
+                        b.appendElements(obj);
+
+                        if (serverGlobalParams.rollbackWithTs) {
+                            BSONObjBuilder detail;
+                            if (doc.ownedObj.hasField("ts")) {
+                                detail.append(doc.ownedObj.getField("ts"));
+                            }
+
+                            if (doc.ownedObj.hasField("op")) {
+                                detail.append(doc.ownedObj.getField("op"));
+                            }
+
+                            if (doc.ownedObj.hasField("additional")) {
+                                detail.append(doc.ownedObj.getField("additional"));
+                            }
+
+                            auto detail_bson = detail.done();
+                            if (!detail_bson.isEmpty()) {
+                                b.append("basic_information", detail_bson);
+                            }
+                        }
+
+                        auto print_obj = b.done();
+                        auto status = removeSaver->goingToDelete(print_obj);
                         if (!status.isOK()) {
                             severe() << "rollback cannot write document in namespace " << doc.ns
                                      << " to archive file: " << redact(status);
                             throw RSFatalException();
                         }
                     } else {
-                        error() << "rollback cannot find object: " << pattern << " in namespace "
-                                << doc.ns;
+                        if (serverGlobalParams.rollbackWithTs) {
+                            error() << "rollback cannot find object: " << pattern << " in namespace "
+                                << doc.ns <<",ts=" << doc.ownedObj.getField("ts") <<" obj " << doc.ownedObj.toString();
+                            BSONObjBuilder b;
+                            BSONObjBuilder detail;
+                            if (doc.ownedObj.hasField("ts")) {
+                                BSONElement e = doc.ownedObj["ts"];
+                                if (BSONType::bsonTimestamp == e.type()) {
+                                    Timestamp t = e.timestamp();
+                                    detail.append("ts", t);
+                                }
+                            }
+                            if (doc.ownedObj.hasField("op")) {
+                                detail.append(doc.ownedObj.getField("op"));
+                            }
+                            auto detail_bson = detail.done();
+                            if (!detail_bson.isEmpty()) {
+                                b.append("basic_information", detail_bson);
+                            }
+
+                            b.appendElements(pattern);
+                            auto print_obj = b.done();
+                            log() << "delete obj = " << print_obj.toString();
+                            auto status = removeSaver->goingToDelete(print_obj);
+                            if (!status.isOK()) {
+                                severe() << "rollback cannot write document in namespace " << doc.ns
+                                         << " to archive file: " << redact(status);
+                                throw RSFatalException();
+                            }
+                        }else{
+                            error() << "rollback cannot find object: " << pattern << " in namespace " << doc.ns ;
+                        }
                     }
                 }
 

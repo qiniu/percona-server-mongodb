@@ -197,6 +197,8 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
 
     options->addOptionChaining("secondary.route", "secondaryRouteSwitch", moe::Switch, "secondary route switch, default true");
 
+    options->addOptionChaining("rollback.ts", "rollbackWithTs", moe::Bool, "enable rollback bson has ts and delete op, default false");
+   
     options->addOptionChaining(
         "net.ipv6", "ipv6", moe::Switch, "enable IPv6 support (disabled by default)");
 
@@ -847,6 +849,12 @@ Status storeServerOptions(const moe::Environment& params) {
 
     if (params.count("secondary.route")) {
         serverGlobalParams.secondaryRouteSwitch = params["secondary.route"].as<bool>();
+    }
+
+    if(params.count("rollback.ts")){
+        serverGlobalParams.rollbackWithTs = params["rollback.ts"].as<bool>();
+    }else{
+        serverGlobalParams.rollbackWithTs = false;
     }
 
     if (params.count("net.ipv6") && params["net.ipv6"].as<bool>() == true) {

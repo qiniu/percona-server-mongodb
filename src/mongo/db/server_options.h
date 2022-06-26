@@ -94,6 +94,10 @@ struct ServerGlobalParams {
 
     int unixSocketPermissions = DEFAULT_UNIX_PERMS;  // permissions for the UNIX domain socket
 
+    //新增参数设定rollback是否添加额外信息，包括ts，op，以及d操作是否rollback文件中展示
+    bool rollbackWithTs = false;
+
+
     std::string keyFile;  // Path to keyfile, or empty if none.
     std::string pidFile;  // Path to pid file, or empty if none.
 
