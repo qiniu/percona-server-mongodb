@@ -1,3 +1,11 @@
+/*
+ * @Author: lixin lixin@qiniu.com
+ * @Date: 2022-06-26 10:04:04
+ * @LastEditors: lixin lixin@qiniu.com
+ * @LastEditTime: 2022-06-29 15:53:46
+ * @FilePath: /percona-server-mongodb/jstests/sharding/split_large_key.js
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 // Test for splitting a chunk with a very large shard key value should not be allowed
 // and does not corrupt the config.chunks metadata.
 (function() {
@@ -23,10 +31,10 @@
     //  - expectFail: true/false, true if key is too large to pre-split
     var tests = [
         {name: "Key size small", key: {x: 1}, keyFieldSize: 100, expectFail: false},
-        {name: "Key size 512", key: {x: 1}, keyFieldSize: 512, expectFail: true},
+        {name: "Key size 512", key: {x: 1}, keyFieldSize: 512, expectFail: false},
         {name: "Key size 2000", key: {x: 1}, keyFieldSize: 2000, expectFail: true},
         {name: "Compound key size small", key: {x: 1, y: 1}, keyFieldSize: 100, expectFail: false},
-        {name: "Compound key size 512", key: {x: 1, y: 1}, keyFieldSize: 256, expectFail: true},
+        {name: "Compound key size 512", key: {x: 1, y: 1}, keyFieldSize: 256, expectFail: false},
         {name: "Compound key size 10000", key: {x: 1, y: 1}, keyFieldSize: 5000, expectFail: true},
     ];
 
