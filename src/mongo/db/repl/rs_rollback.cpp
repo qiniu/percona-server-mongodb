@@ -695,15 +695,16 @@ void syncFixUp(OperationContext* opCtx,
                                 << doc.ns <<",ts=" << doc.ownedObj.getField("ts") <<" obj " << doc.ownedObj.toString();
                             BSONObjBuilder b;
                             BSONObjBuilder detail;
+
                             if (doc.ownedObj.hasField("ts")) {
-                                BSONElement e = doc.ownedObj["ts"];
-                                if (BSONType::bsonTimestamp == e.type()) {
-                                    Timestamp t = e.timestamp();
-                                    detail.append("ts", t);
-                                }
+                                detail.append(doc.ownedObj.getField("ts"));
                             }
                             if (doc.ownedObj.hasField("op")) {
                                 detail.append(doc.ownedObj.getField("op"));
+                            }
+
+                            if (doc.ownedObj.hasField("additional")) {
+                                detail.append(doc.ownedObj.getField("additional"));
                             }
                             auto detail_bson = detail.done();
                             if (!detail_bson.isEmpty()) {
