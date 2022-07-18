@@ -72,6 +72,9 @@ public:
         // True if the document being deleted belongs to a chunk which is currently being migrated
         // out of this shard.
         bool isMigrating = false;
+        
+        //deleted obj without _id
+        BSONObj objWithoutId;
     };
 
     /**

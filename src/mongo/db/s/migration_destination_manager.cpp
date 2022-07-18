@@ -738,6 +738,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* txn,
 
                 assertNotAborted(opCtx);
 
+                InsertOp insertOp;
                 std::vector<BSONObj> toInsert;
                 while (it != arr.end() &&
                        (batchMaxCloned <= 0 || batchNumCloned < batchMaxCloned)) {
@@ -747,8 +748,9 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* txn,
                     batchNumCloned++;
                     batchClonedBytes += docToClone.objsize();
                     it++;
+                    insertOp.vecAdditional.push_back(BSONObj());
                 }
-                InsertOp insertOp;
+                
                 insertOp.ns = _nss;
                 insertOp.documents = toInsert;
 
@@ -806,7 +808,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* txn,
     repl::OpTime lastOpApplied = repl::ReplClientInfo::forClient(txn->getClient()).getLastOp();
 
     const BSONObj xferModsRequest = createTransferModsRequest(_nss, *_sessionId);
-
+    
     {
         // 4. Do bulk of mods
         setState(CATCHUP);
@@ -893,7 +895,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* txn,
             return;
         }
     }
-
+    
     {
         // 5. Wait for commit
         setState(STEADY);

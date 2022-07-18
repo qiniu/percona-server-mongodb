@@ -57,6 +57,9 @@ struct OplogUpdateEntryArgs {
 
     // True if this update comes from a chunk migration.
     bool fromMigrate;
+
+    //
+    BSONObj additionalInfo;
 };
 
 class OpObserver {
@@ -79,6 +82,7 @@ public:
                            const NamespaceString& ns,
                            std::vector<BSONObj>::const_iterator begin,
                            std::vector<BSONObj>::const_iterator end,
+                           const std::vector<BSONObj>& vecAdditionalInfo,
                            bool fromMigrate) = 0;
     virtual void aboutToUpdate(OperationContext* txn,
                                const NamespaceString& ns,
@@ -101,7 +105,8 @@ public:
     virtual void onDelete(OperationContext* txn,
                           const NamespaceString& ns,
                           CollectionShardingState::DeleteState deleteState,
-                          bool fromMigrate) = 0;
+                          bool fromMigrate,
+                          const BSONObj& additionalInfo) = 0;
     virtual void onOpMessage(OperationContext* txn, const BSONObj& msgObj) = 0;
     virtual void onCreateCollection(OperationContext* txn,
                                     const NamespaceString& collectionName,

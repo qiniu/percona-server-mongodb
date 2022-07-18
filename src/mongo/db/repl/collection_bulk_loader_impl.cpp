@@ -145,7 +145,7 @@ Status CollectionBulkLoaderImpl::insertDocuments(const std::vector<BSONObj>::con
                 } else {
                     // For capped collections, we use regular insertDocument, which will update
                     // pre-existing indexes.
-                    const auto status = _coll->insertDocument(txn, *iter, nullptr, false, false);
+                    const auto status = _coll->insertDocument(txn, *iter, nullptr, BSONObj(), false, false);
                     if (!status.isOK()) {
                         return status;
                     }
@@ -207,6 +207,7 @@ Status CollectionBulkLoaderImpl::commit() {
                         _coll->deleteDocument(_txn,
                                               it,
                                               nullptr /** OpDebug **/,
+                                              BSONObj(),/** additional info**/
                                               false /* fromMigrate */,
                                               true /* noWarn */);
                         wunit.commit();

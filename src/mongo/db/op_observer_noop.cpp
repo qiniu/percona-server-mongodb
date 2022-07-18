@@ -44,6 +44,7 @@ void OpObserverNoop::onInserts(OperationContext*,
                                const NamespaceString&,
                                std::vector<BSONObj>::const_iterator,
                                std::vector<BSONObj>::const_iterator,
+                               const std::vector<BSONObj>& vecAdditionalInfo,
                                bool) {}
 
 void OpObserverNoop::aboutToUpdate(OperationContext* txn,
@@ -63,7 +64,8 @@ CollectionShardingState::DeleteState OpObserverNoop::aboutToDelete(OperationCont
 void OpObserverNoop::onDelete(OperationContext*,
                               const NamespaceString&,
                               CollectionShardingState::DeleteState,
-                              bool) {}
+                              bool,
+                              const BSONObj& additionalInfo) {}
 
 void OpObserverNoop::onOpMessage(OperationContext*, const BSONObj&) {}
 

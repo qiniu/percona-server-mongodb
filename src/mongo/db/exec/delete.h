@@ -70,6 +70,9 @@ struct DeleteStageParams {
 
     // Optional. When not null, delete metrics are recorded here.
     OpDebug* opDebug;
+
+    //additional msgs
+    BSONObj additional;
 };
 
 /**

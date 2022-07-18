@@ -224,7 +224,7 @@ void logStartup(OperationContext* txn) {
     invariant(collection);
 
     OpDebug* const nullOpDebug = nullptr;
-    uassertStatusOK(collection->insertDocument(txn, o, nullOpDebug, false));
+    uassertStatusOK(collection->insertDocument(txn, o, nullOpDebug, BSONObj(), false));
     wunit.commit();
 }
 

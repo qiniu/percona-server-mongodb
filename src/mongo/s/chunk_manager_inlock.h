@@ -62,6 +62,8 @@ using ChunkMapEX = std::map<std::string, std::shared_ptr<Chunk>>;
 // Map from a shard is to the max chunk version on that shard
 using ShardVersionMapEX = std::map<ShardId, ChunkVersion>;
 
+using ShardChunksCountMap = std::map<ShardId, int>;
+
 using TopIndexMap = std::map<std::string, std::shared_ptr<ChunkMapEX>>;
 
 class CanonicalQuery;
@@ -241,6 +243,7 @@ public:
     //print true时，打印整个路由信息到日志
     std::shared_ptr<IteratorChunks> iteratorChunks(int start, int limit, bool print) const;
 
+    ShardChunksCountMap getShardChunksCountMap(){return _shardChunksCount;}
 private:
     friend class CollectionRoutingDataLoader;
 
@@ -305,6 +308,8 @@ private:
     ShardVersionMapEX _shardVersions;
 
     std::atomic<uint64_t> _shardVersionSize;
+
+    ShardChunksCountMap _shardChunksCount;
 
 
     // Max version across all chunks

@@ -1,3 +1,11 @@
+/*
+ * @Author: your name
+ * @Date: 2020-09-10 10:33:38
+ * @LastEditTime: 2022-03-02 19:10:20
+ * @LastEditors: Please set LastEditors
+ * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ * @FilePath: /src/mongo/db/op_observer_noop.h
+ */
 /**
  *    Copyright 2016 MongoDB Inc.
  *
@@ -52,6 +60,7 @@ public:
                    const NamespaceString& ns,
                    std::vector<BSONObj>::const_iterator begin,
                    std::vector<BSONObj>::const_iterator end,
+                   const std::vector<BSONObj>& vecAdditionalInfo,
                    bool fromMigrate) override;
     void aboutToUpdate(OperationContext* txn,
                        const NamespaceString& ns,
@@ -65,7 +74,8 @@ public:
     void onDelete(OperationContext* txn,
                   const NamespaceString& ns,
                   CollectionShardingState::DeleteState deleteState,
-                  bool fromMigrate) override;
+                  bool fromMigrate,
+                  const BSONObj& additionalInfo) override;
     void onOpMessage(OperationContext* txn, const BSONObj& msgObj) override;
     void onCreateCollection(OperationContext* txn,
                             const NamespaceString& collectionName,

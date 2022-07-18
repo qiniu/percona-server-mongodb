@@ -53,6 +53,7 @@ struct ParsedWriteOp {
  */
 struct InsertOp : ParsedWriteOp {
     std::vector<BSONObj> documents;
+    std::vector<BSONObj> vecAdditional;
 };
 
 /**
@@ -65,6 +66,7 @@ struct UpdateOp : ParsedWriteOp {
         BSONObj collation;
         bool multi = false;
         bool upsert = false;
+        BSONObj additionalInfo;
     };
 
     std::vector<SingleUpdate> updates;
@@ -78,6 +80,7 @@ struct DeleteOp : ParsedWriteOp {
         BSONObj query;
         BSONObj collation;
         bool multi = true;
+        BSONObj additionalInfo;
     };
 
     std::vector<SingleDelete> deletes;

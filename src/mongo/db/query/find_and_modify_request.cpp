@@ -34,9 +34,12 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/util/bson_extract.h"
 #include "mongo/db/write_concern.h"
+#include "mongo/db/commands.h"
+#include "mongo/db/bson/trace_additional_from_query.h"
+
 
 namespace mongo {
-
+namespace tq = ::mongo::trace_query;
 namespace {
 const char kCmdName[] = "findAndModify";
 const char kQueryField[] = "query";
@@ -152,12 +155,15 @@ StatusWith<FindAndModifyRequest> FindAndModifyRequest::parseFromBSON(NamespaceSt
                     " 'remove' always returns the deleted document"};
         }
     }
+    BSONObj additionalMsg;
+    tq::traceAdditionalInfoFromQuery(query, additionalMsg);
 
     FindAndModifyRequest request(std::move(fullNs), query, updateObj);
     request._isRemove = isRemove;
     request.setFieldProjection(fields);
     request.setSort(sort);
     request.setCollation(collation);
+    request.setAdditionalInfo(additionalMsg);
 
     if (!isRemove) {
         request.setShouldReturnNew(shouldReturnNew);
@@ -191,6 +197,10 @@ void FindAndModifyRequest::setUpsert(bool upsert) {
 
 void FindAndModifyRequest::setWriteConcern(WriteConcernOptions writeConcern) {
     _writeConcern = std::move(writeConcern);
+}
+
+void FindAndModifyRequest::setAdditionalInfo(BSONObj additionalInfo){
+    _additionalInfo = additionalInfo.getOwned();
 }
 
 const NamespaceString& FindAndModifyRequest::getNamespaceString() const {
@@ -228,4 +238,9 @@ bool FindAndModifyRequest::isUpsert() const {
 bool FindAndModifyRequest::isRemove() const {
     return _isRemove;
 }
+
+BSONObj FindAndModifyRequest::getAdditionalInfo() const {
+    return _additionalInfo.value_or(BSONObj());
+}
+
 }

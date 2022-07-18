@@ -103,7 +103,7 @@ public:
             }
         }
         OpDebug* const nullOpDebug = nullptr;
-        Status status = collection->insertDocument(txn, obj, nullOpDebug, false);
+        Status status = collection->insertDocument(txn, obj, nullOpDebug, BSONObj(), false);
         if (status.isOK()) {
             wunit.commit();
         }

@@ -260,6 +260,7 @@ public:
     void deleteDocument(OperationContext* txn,
                         const RecordId& loc,
                         OpDebug* opDebug,
+                        const BSONObj& additionalInfo,
                         bool fromMigrate = false,
                         bool noWarn = false);
 
@@ -274,6 +275,7 @@ public:
                            std::vector<BSONObj>::const_iterator begin,
                            std::vector<BSONObj>::const_iterator end,
                            OpDebug* opDebug,
+                           const std::vector<BSONObj>& vecAdditionalInfo,
                            bool enforceQuota,
                            bool fromMigrate = false);
 
@@ -287,6 +289,7 @@ public:
     Status insertDocument(OperationContext* txn,
                           const BSONObj& doc,
                           OpDebug* opDebug,
+                          const BSONObj& additionalInfo,
                           bool enforceQuota,
                           bool fromMigrate = false);
 

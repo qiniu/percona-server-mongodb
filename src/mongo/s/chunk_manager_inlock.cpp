@@ -107,6 +107,7 @@ ChunkManagerEX::ChunkManagerEX(std::shared_ptr<ChunkManagerEX> other,
         _topIndexMap = other->getTopIndexMap();
         _shardVersions = other->getShardVersionMap();
         //_shardVersionSize = _shardVersions.size();
+        _shardChunksCount = other->getShardChunksCountMap();
         _collectionVersion = other->getVersion();
     }
 }
@@ -413,7 +414,7 @@ ChunkVersion ChunkManagerEX::getVersion(const ShardId& shardName) const {
     if (it == _shardVersions.end()) {
         // Shards without explicitly tracked shard versions (meaning they have no chunks) always
         // have a version of (0, 0, epoch)
-        log() << "getVersion by shardname = " << shardName << ",not find";
+        log() << "getVersion by shardname = " << shardName << ",not find _collectionVersion.epoch()="<<_collectionVersion.epoch().toString() ;
         
         return ChunkVersion(0, 0, _collectionVersion.epoch());
     }
@@ -624,12 +625,22 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::build(const std::vector<ChunkTyp
 
         // Insert only the chunk itself
         chunkMap.insert(std::make_pair(chunkMaxKeyString, std::make_shared<Chunk>(chunk)));
+
+        //shardChunksCount build
+        auto itrShardChunksCount = _shardChunksCount.find(chunk.getShard());
+        if( itrShardChunksCount != _shardChunksCount.end()){
+            itrShardChunksCount->second ++ ;
+            LOG(5)<<"shardChunksCount build inc shardid="<<chunk.getShard().toString();
+        }else{
+            _shardChunksCount.emplace(chunk.getShard(), 1);
+            LOG(5)<<"shardChunksCount build emplace shardid="<<chunk.getShard().toString();
+        }
     }
 
     //构建_shardVdersionMap
     _shardVersions =
         _constructShardVersionMap(_collectionVersion.epoch(), chunkMap, _shardKeyOrdering);
-    log() << "_shardVersions size = " << _shardVersions.size();
+    log() << "_shardVersions size = " << _shardVersions.size()<<",_shardChunksCount size = " << _shardChunksCount.size();
 
     std::shared_ptr<ChunkMapEX> chunksSecondary = std::make_shared<ChunkMapEX>();
     int si = _maxSizeSingleChunksMap;
@@ -724,21 +735,36 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
         // not overlap max
         const auto high = itUpdate->second->upper_bound(chunkMaxKeyString);
 
+        for(auto it = low; it != high; it++){
+            auto shardChunksCount = _shardChunksCount.find(it->second->getShardId());
+            if(shardChunksCount != _shardChunksCount.end()){
+                shardChunksCount->second -- ;
+            }
+        }
+
         // Erase all chunks from the map, which overlap the chunk we got from the persistent store
         itUpdate->second->erase(low, high);
 
         // Insert only the chunk itself
         itUpdate->second->insert(std::make_pair(chunkMaxKeyString, std::make_shared<Chunk>(chunk)));
 
-
         auto shardVersionIt = _shardVersions.find(chunk.getShard());
         if (shardVersionIt == _shardVersions.end()) {
-            log() << "push shardid=" << chunk.getShard() << " to shardVersions. UpdateChunksMap";
+            LOG(5) << "push shardid=" << chunk.getShard() << " to shardVersions. UpdateChunksMap";
             _shardVersions.emplace(chunk.getShard(), chunk.getVersion());
+            if(_shardChunksCount.find(chunk.getShard()) == _shardChunksCount.end()){
+                _shardChunksCount.emplace(chunk.getShard(),1);//第一次有chunk到这个shard 初始值1
+            }else{//这时候也有可能是0的, 这里可以++ 也可以直接赋值1
+                _shardChunksCount[chunk.getShard()] ++;
+            }
         } else if (chunk.getVersion() > shardVersionIt->second) {
             shardVersionIt->second = chunk.getVersion();
+            _shardChunksCount[chunk.getShard()] ++;
+        }else{
+            _shardChunksCount[chunk.getShard()] ++;
         }
     }
+
     int change = 0;
     for (auto& it : changeChunksMap) {
         auto itIndex = _topIndexMap.find(it.first);
@@ -752,7 +778,20 @@ std::shared_ptr<ChunkManagerEX> ChunkManagerEX::makeUpdated(
         change++;
     }
     log() << "change cnt = " << change;
-    
+
+    //根据shardChunksCount 来判断要不要删除某个shard对shardVersion
+    for(auto itrChunksCount : _shardChunksCount){
+        if(itrChunksCount.second <= 0){
+            auto shardId = itrChunksCount.first;
+            log()<<" erase shard id = "<< shardId.toString();
+            _shardVersions.erase(shardId);
+        }
+    }
+
+    for(auto itrChunksCount : _shardChunksCount){
+        LOG(5)<<"print shardChunksCount shardid = "<<itrChunksCount.first<<", count="<<itrChunksCount.second;
+    }
+
     _collectionVersion = collectionVersion;
     log() << "makeUpdated time=" << timer.millis() << "ms";
     return shared_from_this();

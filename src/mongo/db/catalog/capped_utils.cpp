@@ -215,7 +215,7 @@ Status cloneCollectionAsCapped(OperationContext* txn,
             WriteUnitOfWork wunit(txn);
             OpDebug* const nullOpDebug = nullptr;
             toCollection->insertDocument(
-                txn, objToClone.value(), nullOpDebug, true, txn->writesAreReplicated());
+                txn, objToClone.value(), nullOpDebug, BSONObj(), true, txn->writesAreReplicated());
             wunit.commit();
 
             // Go to the next document

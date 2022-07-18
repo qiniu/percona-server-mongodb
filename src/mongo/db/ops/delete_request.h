@@ -80,6 +80,9 @@ public:
     void setYieldPolicy(PlanExecutor::YieldPolicy yieldPolicy) {
         _yieldPolicy = yieldPolicy;
     }
+    void setAdditionalInfo(const BSONObj& additionalInfo) {
+        _additionalInfo = additionalInfo;
+    }
 
     const NamespaceString& getNamespaceString() const {
         return _nsString;
@@ -114,6 +117,9 @@ public:
     PlanExecutor::YieldPolicy getYieldPolicy() const {
         return _yieldPolicy;
     }
+    const BSONObj& getAdditionalInfo() const {
+        return _additionalInfo;
+    }
 
 private:
     const NamespaceString& _nsString;
@@ -127,6 +133,7 @@ private:
     bool _isExplain;
     bool _returnDeleted;
     PlanExecutor::YieldPolicy _yieldPolicy;
+    BSONObj _additionalInfo;
 };
 
 }  // namespace mongo

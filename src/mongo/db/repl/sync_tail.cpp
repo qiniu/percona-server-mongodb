@@ -1060,7 +1060,7 @@ bool SyncTail::fetchAndInsertMissingDocument(OperationContext* txn, const BSONOb
         invariant(coll);
 
         OpDebug* const nullOpDebug = nullptr;
-        Status status = coll->insertDocument(txn, missingObj, nullOpDebug, true);
+        Status status = coll->insertDocument(txn, missingObj, nullOpDebug, BSONObj(), true);
         uassert(15917,
                 str::stream() << "Failed to insert missing document: " << status.toString(),
                 status.isOK());
@@ -1345,8 +1345,8 @@ StatusWith<OpTime> multiApply(OperationContext* txn,
         storage->setMinValidToAtLeast(txn, ops.back().getOpTime());
 
         applyOps(writerVectors, workerPool, applyOperation, &statusVector);
-    }
 
+    }
     // If any of the statuses is not ok, return error.
     for (auto& status : statusVector) {
         if (!status.isOK()) {

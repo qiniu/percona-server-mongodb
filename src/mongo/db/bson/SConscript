@@ -6,6 +6,7 @@ env.Library(
     target="dotted_path_support",
     source=[
         "dotted_path_support.cpp",
+        "trace_additional_from_query.cpp",
     ],
     LIBDEPS=[
         "$BUILD_DIR/mongo/base",

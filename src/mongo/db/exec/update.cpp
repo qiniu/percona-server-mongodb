@@ -693,6 +693,7 @@ BSONObj UpdateStage::transformAndUpdate(const Snapshotted<BSONObj>& oldObj, Reco
                 args.update = logObj;
                 args.criteria = idQuery;
                 args.fromMigrate = request->isFromMigration();
+                args.additionalInfo = request->getAdditionalInfo();
                 StatusWith<RecordId> res = _collection->updateDocument(getOpCtx(),
                                                                        recordId,
                                                                        oldObj,
@@ -841,7 +842,7 @@ void UpdateStage::doInsert() {
         invariant(_collection);
         const bool enforceQuota = !request->isGod();
         uassertStatusOK(_collection->insertDocument(
-            getOpCtx(), newObj, _params.opDebug, enforceQuota, request->isFromMigration()));
+            getOpCtx(), newObj, _params.opDebug, request->getAdditionalInfo(), enforceQuota, request->isFromMigration()));
 
         // Technically, we should save/restore state here, but since we are going to return
         // immediately after, it would just be wasted work.
