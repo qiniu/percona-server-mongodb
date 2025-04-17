@@ -2,7 +2,7 @@
  * @Author: lixin lixin@qiniu.com
  * @Date: 2025-01-22 13:01:32
  * @LastEditors: lixin lixin@qiniu.com
- * @LastEditTime: 2025-04-17 15:57:03
+ * @LastEditTime: 2025-04-17 16:24:15
  * @FilePath: /percona-server-mongodb/src/mongo/db/failure_detector.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -48,10 +48,9 @@ public:
         : window_duration_(window_duration), threshold_(threshold) {}
 
     /**
-     * 添加一次错误记录，并返回当前是否触发异常处理
-     * @return true 表示需要触发异常处理，false 表示未达到阈值
+     * 添加一次错误记录
      */
-    bool addError() {
+    void addError() {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto now = clock::now();
         
@@ -62,9 +61,6 @@ public:
         
         // 记录当前错误时间
         error_times_.push_back(now);
-        
-        // 检查当前窗口内错误次数
-       
     }
 
     bool isErrorFull(){
