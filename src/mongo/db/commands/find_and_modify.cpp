@@ -34,6 +34,12 @@
 
 #include <boost/optional.hpp>
 #include <memory>
+#include <iostream>
+#include <random>
+#include <chrono>
+#include <thread>
+
+
 
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobj.h"
@@ -67,7 +73,8 @@
 #include "mongo/db/write_concern.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
-
+using namespace std;
+using namespace std::chrono_literals;  // 启用时间字面量语法
 namespace mongo {
 
 namespace {
@@ -361,6 +368,24 @@ public:
 
         const FindAndModifyRequest& args = parseStatus.getValue();
         const NamespaceString& nsString = args.getNamespaceString();
+        if(nsString.toString() == "health.health_check"){
+
+            if(serverGlobalParams.slowMS >300){
+                static mt19937 gen(random_device{}());  // 使用硬件熵初始化
+                uniform_real_distribution<double> dis(0.0, 1.0);
+
+                // 2. 生成0.0~1.0之间的随机数
+                const double rand_val = dis(gen);
+                constexpr double probability_threshold = 0.3;
+
+                // 3. 判断30%概率条件
+                if(rand_val <= probability_threshold) {
+                    log()<<"lixin health check need sleep 2s";
+                    sleepFor(Seconds{2});
+                }
+            }
+            
+        }
 
         boost::optional<DisableDocumentValidation> maybeDisableValidation;
         if (shouldBypassDocumentValidationForCommand(cmdObj))

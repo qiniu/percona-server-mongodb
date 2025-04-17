@@ -1,3 +1,11 @@
+/*
+ * @Author: lixin lixin@qiniu.com
+ * @Date: 2025-01-22 13:01:32
+ * @LastEditors: lixin lixin@qiniu.com
+ * @LastEditTime: 2025-04-17 15:57:03
+ * @FilePath: /percona-server-mongodb/src/mongo/db/failure_detector.h
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 /**
  * failure detector 
  *
@@ -18,12 +26,59 @@
 #include "mongo/base/string_data.h"
 #include <string>
 #include <tuple>
+#include <deque>
+#include <chrono>
+#include <mutex>
 
 namespace mongo {
 
 enum class WatchdogReason { 
     HealthCheckError = 1, 
 };
+
+
+
+class SlidingWindow {
+public:
+    using clock = std::chrono::steady_clock;
+    using time_point = clock::time_point;
+    using duration = clock::duration;
+
+    SlidingWindow(duration window_duration, int threshold)
+        : window_duration_(window_duration), threshold_(threshold) {}
+
+    /**
+     * 添加一次错误记录，并返回当前是否触发异常处理
+     * @return true 表示需要触发异常处理，false 表示未达到阈值
+     */
+    bool addError() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto now = clock::now();
+        
+        // 清理窗口外的过期错误
+        while (!error_times_.empty() && (now - error_times_.front() > window_duration_)) {
+            error_times_.pop_front();
+        }
+        
+        // 记录当前错误时间
+        error_times_.push_back(now);
+        
+        // 检查当前窗口内错误次数
+       
+    }
+
+    bool isErrorFull(){
+        std::lock_guard<std::mutex> lock(mutex_);
+        return error_times_.size() >= static_cast<size_t>(threshold_);
+    }
+
+private:
+    const duration window_duration_;  // 时间窗口长度
+    const int threshold_;             // 触发阈值
+    std::deque<time_point> error_times_; // 错误时间队列
+    std::mutex mutex_;                // 保证线程安全
+};
+
 
 class FailureDetectorCheck {
 public:
@@ -79,5 +134,6 @@ private:
     std::string _currentPrimary;
     AtomicInt64 _prevElectionTime{0};
     mutable std::unordered_map<std::string, std::unique_ptr<AtomicInt32> > _monitor;
+    std::shared_ptr<SlidingWindow> _error_window;
 };
 }  // namespace mongo
