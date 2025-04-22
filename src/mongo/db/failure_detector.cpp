@@ -409,25 +409,6 @@ bool FailureDetectorHealthCheck::isHealth(long time) {
     }
     return true;
 }
-//bool FailureDetectorHealthCheck::isHealth(long nowTime){
-//
-//}
-//    //判断当前时刻，这个任务是否正常
-//    virtual bool isHealth(long nowTime) {
-//        if (this->_timePreRun.load() == 0) {
-//            // 第一次运行先过滤掉检查
-//            long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-//                             std::chrono::steady_clock::now().time_since_epoch())
-//                             .count();
-//            this->setRunSuccessTime(nowMs);
-//            return true;
-//        }
-//
-//        if ((nowTime - this->_timePreRun.load()) >= _allowDelayTime.count()) {
-//            return false;
-//        } 
-//        return true;
-//    }
 
 std::tuple<bool, bool> FailureDetectorHealthCheck::_listCollectionsCheck(const HostAndPort& primary,
                                                                          int timeoutSecs) {
