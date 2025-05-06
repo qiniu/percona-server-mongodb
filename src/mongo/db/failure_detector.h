@@ -2,7 +2,7 @@
  * @Author: lixin lixin@qiniu.com
  * @Date: 2025-01-22 13:01:32
  * @LastEditors: lixin lixin@qiniu.com
- * @LastEditTime: 2025-04-17 16:24:15
+ * @LastEditTime: 2025-05-06 11:05:33
  * @FilePath: /percona-server-mongodb/src/mongo/db/failure_detector.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -48,9 +48,10 @@ public:
         : window_duration_(window_duration), threshold_(threshold) {}
 
     /**
-     * 添加一次错误记录
+     * 添加一次错误记录并判断窗口错误数是否满了
      */
-    void addError() {
+    bool addErrorAndIsFull() {
+        //当前旁路检测使用姿势可以不加lock，为了避免后续其他地方有使用该方法踩坑，保守lock，低频
         std::lock_guard<std::mutex> lock(mutex_);
         const auto now = clock::now();
         
@@ -61,12 +62,10 @@ public:
         
         // 记录当前错误时间
         error_times_.push_back(now);
-    }
 
-    bool isErrorFull(){
-        std::lock_guard<std::mutex> lock(mutex_);
         return error_times_.size() >= static_cast<size_t>(threshold_);
     }
+
 
 private:
     const duration window_duration_;  // 时间窗口长度

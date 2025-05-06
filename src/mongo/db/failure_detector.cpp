@@ -255,8 +255,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
                   << this->getTimePreRun()
                   << ", delay time:" << FailureDetectorCheck::getSteadyMs() - this->getTimePreRun()
                   << "ms, allowDelayTime:" << this->getAllowDelayTime();
-            _error_window->addError();
-            if(_error_window->isErrorFull()){
+            if(_error_window->addErrorAndIsFull()){
                 //选举
                 log() << "error window is full";
                 getCallback()();
