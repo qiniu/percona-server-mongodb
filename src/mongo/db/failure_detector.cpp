@@ -180,6 +180,9 @@ FailureDetectorHealthCheck::FailureDetectorHealthCheck(Milliseconds frequency,
     _monitor["getConnectErr"] = std::make_unique<AtomicInt32>(0);
 
     globalWatchdogCounter.registerElement(this->getName(), this);
+
+
+    _error_window = std::make_shared<SlidingWindow>(std::chrono::milliseconds(allowDelayTime.count()),3);
 }
 
 std::string FailureDetectorHealthCheck::getDescriptionForLogging() {
@@ -252,6 +255,12 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
                   << this->getTimePreRun()
                   << ", delay time:" << FailureDetectorCheck::getSteadyMs() - this->getTimePreRun()
                   << "ms, allowDelayTime:" << this->getAllowDelayTime();
+            if(_error_window->addErrorAndIsFull()){
+                //选举
+                log() << "error window is full";
+                getCallback()();
+            }
+            
         }
         this->_check_count++;
     });
@@ -290,6 +299,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
     do {
         auto collResult = _listCollectionsCheck(primary);
         if (!std::get<0>(collResult)) {
+            //添加错误
             break;
         }
 
@@ -297,6 +307,7 @@ void FailureDetectorHealthCheck::run(OperationContext* opCtx) {
             _monitor["skipHealthCheck"]->fetchAndAdd(1);
         } else {
             if (!_writeHealthCheck(primary)) {
+                //添加错误
                 break;
             }
         }

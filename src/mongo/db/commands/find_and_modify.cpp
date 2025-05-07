@@ -67,7 +67,6 @@
 #include "mongo/db/write_concern.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
-
 namespace mongo {
 
 namespace {

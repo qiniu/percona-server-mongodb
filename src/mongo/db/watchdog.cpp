@@ -142,63 +142,55 @@ void WatchdogPeriodicThread::doLoop() {
     auto preciseClockSource = client->getServiceContext()->getPreciseClockSource();
 
     {
-        //stdx::lock_guard<Latch> lock(_mutex);
         stdx::lock_guard<stdx::mutex> lock(_mutex);
-
-        // Ensure state is starting from a clean slate.
         resetState();
     }
 
+    Date_t nextRunTime = preciseClockSource->now();
+
     while (true) {
-        // Wait for the next run or signal to shutdown.
-
         auto opCtx = client->makeOperationContext();
-
         Date_t startTime = preciseClockSource->now();
 
+        // 执行run函数
+        run(opCtx.get());
+
+        // 计算下一次运行时间
+        nextRunTime = startTime + _period;
+
+        // 如果当前时间已经超过了下一次计划运行时间，立即开始下一次循环
+        if (preciseClockSource->now() >= nextRunTime) {
+            continue;
+        }
+
         {
-            //stdx::unique_lock<Latch> lock(_mutex);
-             stdx::unique_lock<stdx::mutex> lock(_mutex);
+            stdx::unique_lock<stdx::mutex> lock(_mutex);
             MONGO_IDLE_THREAD_BLOCK;
-
-
-            // Check if the period is different?
-            // We are signalled on period changes at which point we may be done waiting or need to
-            // wait longer.
+            //直到下一次执行时间或者shut down
             try {
-                opCtx->waitForConditionOrInterruptUntil(_condvar, lock, startTime + _period, [&] {
-                    return (startTime + _period) <= preciseClockSource->now() ||
-                        _state == State::kShutdownRequested;
+                opCtx->waitForConditionOrInterruptUntil(_condvar, lock, nextRunTime, [&] {
+                    return preciseClockSource->now() >= nextRunTime || _state == State::kShutdownRequested;
                 });
             } catch (const DBException& e) {
                 // The only bad status is when we are in shutdown
                 if (!opCtx->getServiceContext()->getKillAllOperations()) {
-                    log()<<"Watchdog was interrupted, shutting down, reason:"<<e.toStatus();
-                    // LOGV2_FATAL_CONTINUE(
-                    //     23415,
-                    //     "Watchdog was interrupted, shutting down, reason: {e_toStatus}",
-                    //     "e_toStatus"_attr = e.toStatus());
+                    log() << "Watchdog was interrupted, shutting down, reason:" << e.toStatus();
                     exitCleanly(ExitCode::EXIT_ABRUPT);
                 }
-
                 // This interruption ends the WatchdogPeriodicThread. This means it is possible to
                 // killOp this operation and stop it for the lifetime of the process.
                 //LOGV2_DEBUG(23406, 1, "WatchdogPeriodicThread interrupted by: {e}", "e"_attr = e);
                 return;
             }
-
             // Are we done running?
             if (_state == State::kShutdownRequested) {
                 return;
             }
-
             // Check if the watchdog checks have been disabled
             if (!_enabled) {
                 continue;
             }
         }
-
-        run(opCtx.get());
     }
 }
 
