@@ -11,8 +11,8 @@
 
     // check number of counters and presence of legacy counter names
     var counters = status.rocksdb.counters;
-    // number of tickers in rocksdb 5.7.3 is 93
-    assert.eq(93, Object.keys(counters).length);
+    // RocksDB adds counters in newer releases; the legacy names below stay available.
+    assert.gte(Object.keys(counters).length, 93);
     // legacy names
     assert(counters.hasOwnProperty('num-keys-written'));
     assert(counters.hasOwnProperty('num-keys-read'));

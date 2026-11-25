@@ -645,23 +645,25 @@ build_tarball(){
     export INSTALLDIR=${WORKDIR}/install
     export PORTABLE=1
     export USE_SSE=1
+    export USE_RTTI=1
+    export ROCKSDB_DISABLE_ZSTD=1
     #
     # RocksDB
     pushd ${PSMDIR}/src/third_party/rocksdb
+    ROCKSDB_EXTRA_FLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42'
     if [ ${DEBUG} = 0 ]; then
-        make -j4 EXTRA_CFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' EXTRA_CXXFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' DISABLE_JEMALLOC=1 static_lib
+        make -j4 EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 static_lib
     else
-        make -j4 'EXTRA_CFLAGS=-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' 'EXTRA_CXXFLAGS=-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' DISABLE_JEMALLOC=1 DEBUG_LEVEL=2 static_lib
+        make -j4 EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 DEBUG_LEVEL=2 static_lib
     fi
     rm -rf ${INSTALLDIR}
     mkdir -p ${INSTALLDIR}/include
     mkdir -p ${INSTALLDIR}/bin
     mkdir -p ${INSTALLDIR}/lib
     if [ ${DEBUG} = 0 ]; then
-        make install-static INSTALL_PATH=${INSTALLDIR}
+        make EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 install-static PREFIX="${INSTALLDIR}"
     else
-        make -j$NJOBS DEBUG_LEVEL=2 static_lib
-        make install-static INSTALL_PATH=${INSTALLDIR}
+        make EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 DEBUG_LEVEL=2 install-static PREFIX="${INSTALLDIR}"
     fi
     popd
     #

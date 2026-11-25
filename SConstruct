@@ -1372,6 +1372,10 @@ if not env.TargetOSIs('windows'):
     env["CXXCOM"] = env["CXXCOM"].replace("$CCFLAGS", "$CCFLAGS $PROGCCFLAGS")
     env["LINKCOM"] = env["LINKCOM"].replace("$LINKFLAGS", "$LINKFLAGS $PROGLINKFLAGS")
 
+if env.TargetOSIs('linux'):
+    # Object paths can exceed Linux's per-argument limit when passed through a shell.
+    env["LINKCOM"] = "${TEMPFILE(%r)}" % env["LINKCOM"]
+
 if not env.Verbose():
     env.Append( CCCOMSTR = "Compiling $TARGET" )
     env.Append( CXXCOMSTR = env["CCCOMSTR"] )

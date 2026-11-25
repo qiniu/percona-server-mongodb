@@ -9,6 +9,18 @@
     var status = db.serverStatus();
     assert(status.storageEngine.name == 'rocksdb');
 
+    // Flush real data so the parser covers populated level rows as well as Sum/Int.
+    var documents = [];
+    for (var i = 0; i < 1000; ++i) {
+        documents.push({_id: i, value: 'rocksdb-stats-' + i});
+    }
+    assert.writeOK(db.parsed_stats.insert(documents));
+    assert.commandWorked(db.adminCommand({fsync: 1}));
+    // Compaction after deletes can report negative Wnew, including -0.0.
+    assert.writeOK(db.parsed_stats.remove({_id: {$lt: 500}}));
+    assert.commandWorked(db.runCommand({compact: 'parsed_stats'}));
+    assert.eq(500, db.parsed_stats.find().itcount());
+
     var rocksdb = db.serverStatus().rocksdb;
 
     assert(rocksdb.hasOwnProperty('compaction-stats'));
@@ -17,6 +29,8 @@
 
     var cstats = rocksdb['compaction-stats'];
     assert(cstats.hasOwnProperty('level-stats'));
+    assert.gt(cstats['level-stats'].Sum['num-files'], 0);
+    assert.gt(cstats['level-stats'].Sum['total-file-size-MB'], 0);
     assert(cstats.hasOwnProperty('uptime-total-sec'));
     assert(cstats.hasOwnProperty('uptime-interval-sec'));
     assert(cstats.hasOwnProperty('flush-cumulative-GB'));
