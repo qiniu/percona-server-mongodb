@@ -8,6 +8,21 @@ ROCKSDB_TARGET="static_lib"
 CWD=$(pwd)
 TARBALL_SUFFIX=""
 
+# Jenkins may override the RocksDB submodule with 5.18.fb.
+# Fail before building if that override selects a different version.
+EXPECTED_ROCKSDB_VERSION="6.28.2"
+ROCKSDB_VERSION=$(awk '
+  $1 == "#define" && $2 == "ROCKSDB_MAJOR" { major = $3 }
+  $1 == "#define" && $2 == "ROCKSDB_MINOR" { minor = $3 }
+  $1 == "#define" && $2 == "ROCKSDB_PATCH" { patch = $3 }
+  END { printf "%s.%s.%s", major, minor, patch }
+' src/third_party/rocksdb/include/rocksdb/version.h)
+if [ "$ROCKSDB_VERSION" != "$EXPECTED_ROCKSDB_VERSION" ]; then
+  printf 'Expected RocksDB %s, got %s. Check the submodule and Jenkins checkout overrides.\n' \
+    "$EXPECTED_ROCKSDB_VERSION" "$ROCKSDB_VERSION" >&2
+  exit 1
+fi
+
 # Check if we have a functional getopt(1)
 if ! getopt --test
 then
@@ -112,15 +127,21 @@ export INSTALLDIR=${PSMDIR_ABS}/install
 export PORTABLE=1
 export USE_SSE=1
 export USE_RTTI=1
+# MongoRocks links Snappy, LZ4, zlib and bzip2, without a ZSTD dependency.
+export ROCKSDB_DISABLE_ZSTD=1
 #
 # static librocksdb.a
 pushd ${PSMDIR}/src/third_party/rocksdb
-make -j${NJOBS} EXTRA_CFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' EXTRA_CXXFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' DISABLE_JEMALLOC=1 ${ROCKSDB_TARGET}
+ROCKSDB_EXTRA_FLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42'
+make -j${NJOBS} EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" \
+  EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 ${ROCKSDB_TARGET}
 rm -rf ${INSTALLDIR}
 mkdir -p ${INSTALLDIR}/include
 mkdir -p ${INSTALLDIR}/bin
 mkdir -p ${INSTALLDIR}/lib
-make install-static INSTALL_PATH=${INSTALLDIR}
+# RocksDB 6.x uses PREFIX for both headers and the static library.
+make EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" \
+  DISABLE_JEMALLOC=1 install-static PREFIX="${INSTALLDIR}"
 popd
 #
 # Finally build Percona Server for MongoDB with SCons

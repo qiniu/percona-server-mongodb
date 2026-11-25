@@ -101,16 +101,19 @@ export INSTALLDIR=$RPM_BUILD_DIR/install
 export TOOLS_TAGS="ssl sasl"
 export PORTABLE=1
 export USE_SSE=1
+export USE_RTTI=1
+export ROCKSDB_DISABLE_ZSTD=1
 export PATH=/usr/local/go/bin:$PATH
 
 # RocksDB
+ROCKSDB_EXTRA_FLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42'
 pushd $RPM_BUILD_DIR/%{src_dir}/src/third_party/rocksdb
-make -j4 EXTRA_CFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' EXTRA_CXXFLAGS='-fPIC -DLZ4 -I../lz4-r131 -DSNAPPY -I../snappy-1.1.3 -DHAVE_SSE42' DISABLE_JEMALLOC=1 static_lib
+make -j4 EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 static_lib
 rm -rf ${INSTALLDIR}
 mkdir -p ${INSTALLDIR}/include
 mkdir -p ${INSTALLDIR}/bin
 mkdir -p ${INSTALLDIR}/lib
-make install-static INSTALL_PATH=${INSTALLDIR}
+make EXTRA_CFLAGS="${ROCKSDB_EXTRA_FLAGS}" EXTRA_CXXFLAGS="${ROCKSDB_EXTRA_FLAGS}" DISABLE_JEMALLOC=1 install-static PREFIX="${INSTALLDIR}"
 popd
 
 # Build PSfMDB with SCons
